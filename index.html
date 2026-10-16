@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1b2b33">
+  <title>Тихая поляна</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body data-state="menu">
+  <canvas id="c" tabindex="0"></canvas>
+
+  <!-- Главное меню -->
+  <div id="menu">
+    <div class="menu-col">
+      <div class="eyebrow">Демо на Babylon.js</div>
+      <h2 class="menu-title">Тихая<br><em>поляна</em></h2>
+      <p class="menu-sub">Прогулка по лесной поляне от третьего лица. Найди все шестнадцать кристаллов, один из них спрятан на вершине каменной лестницы.</p>
+      <div class="menu-progress" id="menu-progress" hidden></div>
+      <nav class="menu-list" aria-label="Главное меню">
+        <button type="button" id="m-continue" class="primary" hidden>Продолжить <span>Esc</span></button>
+        <button type="button" id="m-new">Играть</button>
+        <button type="button" id="m-hero" hidden>Сменить героя</button>
+        <button type="button" id="m-settings">Настройки</button>
+        <button type="button" id="m-help">Управление</button>
+        <button type="button" id="m-about">Авторы</button>
+      </nav>
+    </div>
+    <div class="menu-info" id="menu-info" hidden></div>
+  </div>
+
+  <!-- Экран выбора героя -->
+  <div id="select">
+    <header class="sel-head"><div class="eyebrow">Тихая поляна</div><h2>Выбери героя</h2></header>
+    <div class="sel-bottom">
+      <div class="cards" id="cards" role="group" aria-label="Герои"></div>
+      <div class="sel-foot">
+        <button id="play" type="button" disabled>Загрузка…</button>
+        <button class="ghost" id="sel-back" type="button">В меню</button>
+        <button class="ghost" id="sel-settings" type="button">Настройки</button>
+        <span class="sel-hint">← → или 1–3 · Enter — играть · Esc — меню</span>
+      </div>
+      <div class="credits">Волк и олень — Quaternius, Ultimate Animated Animals (CC0) · Лиса — PixelMannen (CC0), риг и анимация @tomkranis (CC BY 4.0), Khronos glTF Sample Assets</div>
+    </div>
+  </div>
+
+  <!-- HUD игры -->
+  <div class="hud play-ui">
+    <div class="card">
+      <h1>Тихая поляна</h1>
+      <div class="score">Кристаллы: <b id="got">0</b> / <span id="total">0</span></div>
+      <div class="btn-row">
+        <button class="small-btn" id="to-menu" type="button">Меню (Esc)</button>
+        <button class="small-btn" id="back" type="button">Герой (H)</button>
+        <button class="small-btn" id="hud-settings" type="button">Настройки (O)</button>
+      </div>
+    </div>
+    <div class="card keys"><kbd>WASD</kbd>ходьба · <kbd>Shift</kbd>бег<br><kbd>Space</kbd>прыжок · <kbd>мышь</kbd>камера · <kbd>колесо</kbd>зум<br><kbd>C</kbd>режим камеры · <kbd>Esc</kbd>пауза и меню</div>
+  </div>
+  <div id="fps" hidden>— FPS</div>
+  <div id="toast" aria-live="polite"></div>
+  <div id="cross" class="play-ui"></div>
+  <button id="mode" class="play-ui" type="button">Камера: Из-за плеча (C)</button>
+  <div id="stick" class="play-ui"><div id="knob"></div></div>
+  <button id="jump" class="play-ui" type="button">Прыжок</button>
+
+  <!-- Панель настроек (строки генерирует src/ui/settings-panel.ts) -->
+  <div id="settings" hidden role="dialog" aria-modal="true" aria-labelledby="set-title">
+    <div class="sheet">
+      <div class="sheet-head"><h3 id="set-title">Настройки</h3><button class="small-btn" id="set-close" type="button">Готово (Esc)</button></div>
+      <div class="sheet-body" id="set-body"></div>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>
