@@ -18,7 +18,7 @@ import { slopeAt } from './levels/terrain';
 import { createLightingContext, refreshLighting, type LightingContext } from './settings';
 
 export type { Obstacle, Platform };
-export type Surface = 'grass' | 'path' | 'stone' | 'snow';
+export type Surface = 'grass' | 'path' | 'stone' | 'snow' | 'water';
 
 /** Сетка для быстрого поиска препятствий рядом с точкой. */
 class ObstacleGrid {
@@ -149,6 +149,19 @@ export class World {
     return this.level ? this.level.layout.terrain.heightAt(x, z) : 0;
   }
 
+  /** Глубина воды над землёй в точке (0 — суша или биом без воды). */
+  waterDepth(x: number, z: number): number {
+    const w = this.level?.layout.waterLevel ?? null;
+    return w !== null ? Math.max(0, w - this.terrainAt(x, z)) : 0;
+  }
+
+  /** Ниже чего камере нельзя опускаться: земля или поверхность воды. */
+  floorAt(x: number, z: number): number {
+    const w = this.level?.layout.waterLevel ?? null;
+    const g = this.terrainAt(x, z);
+    return w !== null ? Math.max(g, w) : g;
+  }
+
   /** Уклон земли в точке (тангенс) и направление вниз по склону. */
   slopeAt(x: number, z: number): { slope: number; dx: number; dz: number } {
     return this.level ? slopeAt(this.level.layout.terrain, x, z) : { slope: 0, dx: 0, dz: 0 };
@@ -180,6 +193,7 @@ export class World {
   surfaceAt(x: number, z: number, y: number): Surface {
     const top = this.platformTopAt(x, z, y);
     if (top !== null && top > this.terrainAt(x, z) + 0.05) return 'stone';
+    if (this.waterDepth(x, z) > 0.05) return 'water';
     if (this.level?.layout.biome.surface === 'snow') return 'snow';
     return Math.hypot(x, z) < PATH_R ? 'path' : 'grass';
   }

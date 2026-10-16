@@ -46,6 +46,8 @@ export interface LevelLayout {
   biome: Biome;
   half: number;
   terrain: Terrain;
+  /** Уровень воды (null — биом без воды). */
+  waterLevel: number | null;
   spawn: { x: number; z: number };
   portal: { x: number; z: number };
   clearings: Clearing[];
@@ -75,6 +77,8 @@ export const CENTER_R = 9;
 /** Утоптанная площадка в центре. */
 export const PATH_R = 7;
 const PILLAR_RING = 5.5;
+/** Глубина, в которую уже не зайти. */
+export const MAX_WADE_DEPTH = 0.9;
 /** Ширина сплошной стены леса за границей уровня. */
 const BORDER = 9;
 
@@ -191,10 +195,33 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
   const r0 = biome.relief;
   const raw = rawRelief(seed, half, { ...r0, amp: r0.amp * recipe.relief, border: r0.border * Math.min(1, recipe.relief + 0.4) });
   const flats: Flat[] = [];
-  for (const c of clearings.slice(1)) flats.push({ x: c.x, z: c.z, r: c.r * 0.6, fade: c.r, strength: 0.65, target: raw(c.x, c.z) });
+  const water = biome.water;
+  // Уровень воды не выше того, что затопляет 6% естественных низин, — иначе озёра сольются в море
+  let waterLevel: number | null = null;
+  if (water) {
+    const hs: number[] = [];
+    for (let x = -half + 3; x < half - 3; x += 3) for (let z = -half + 3; z < half - 3; z += 3) hs.push(raw(x, z));
+    hs.sort((a, b) => a - b);
+    waterLevel = Math.min(water.level, hs[Math.floor(hs.length * 0.06)]);
+  }
+  // Поляны и площадки платформ держим над водой
+  const dry = (h: number) => (waterLevel !== null ? Math.max(h, waterLevel + 0.4) : h);
+  if (water) {
+    // Озёра — котловины вдали от полян, платформ и центра
+    const rl = Rng.stream(seed, 'lakes');
+    for (let t = 0, made = 0; t < 200 && made < water.lakes; t++) {
+      const r = rl.range(6, 12);
+      const x = rl.range(-half + r + 6, half - r - 6), z = rl.range(-half + r + 6, half - r - 6);
+      if (clearings.some((c) => Math.hypot(c.x - x, c.z - z) < c.r + r + 6)) continue;
+      if (platforms.some((p) => Math.hypot(p.x - x, p.z - z) < r + 10)) continue;
+      flats.push({ x, z, r, fade: 7, strength: 1, target: waterLevel! - 1.3 });
+      made++;
+    }
+  }
+  for (const c of clearings.slice(1)) flats.push({ x: c.x, z: c.z, r: c.r * 0.6, fade: c.r, strength: 0.65, target: dry(raw(c.x, c.z)) });
   for (let c = 0; c < chainStarts.length; c++) {
     // Вся цепочка стоит на одной высоте — на уровне первой ступени
-    const target = raw(chainStarts[c].x, chainStarts[c].z);
+    const target = dry(raw(chainStarts[c].x, chainStarts[c].z));
     const first = platforms.indexOf(chainStarts[c]);
     const last = platforms.indexOf(chainTops[c]);
     for (const p of platforms.slice(first, last + 1)) flats.push({ x: p.x, z: p.z, r: Math.hypot(p.w, p.d) / 2 + 1.5, fade: 6, strength: 1, target });
@@ -204,6 +231,8 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
   for (const p of platforms) p.y0 = terrain.heightAt(p.x, p.z);
   const tops: CrystalSpot[] = chainTops.map((p) => ({ x: p.x, z: p.z, y: p.y0 + p.h }));
   const at = (x: number, z: number) => terrain.heightAt(x, z);
+  /** Глубина воды в точке (0 — суша). */
+  const depth = (x: number, z: number) => (waterLevel !== null ? Math.max(0, waterLevel - at(x, z)) : 0);
 
   const obstacles: Obstacle[] = [];
 
@@ -237,10 +266,13 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
       else if (d < 3) keep *= d / 3;
     }
     if (platforms.some((pl) => inRect(p.x, p.z, pl, 2.5))) keep = 0;
+    // Деревья не растут в воде и у самой кромки
+    if (waterLevel !== null && at(p.x, p.z) < waterLevel + 0.3) keep = 0;
     if (rt.next() < keep) addTree(p.x, p.z, rt.range(0.8, 1.5));
   }
   for (const p of poisson(rt, -half - BORDER, -half - BORDER, half + BORDER, half + BORDER, 2.6)) {
     if (Math.max(Math.abs(p.x), Math.abs(p.z)) < half - 1) continue;
+    if (waterLevel !== null && at(p.x, p.z) < waterLevel + 0.3) continue;
     addTree(p.x, p.z, rt.range(1.1, 1.8));
   }
 
@@ -254,12 +286,13 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
     if (platforms.some((pl) => inRect(p.x, p.z, pl, 2 + s))) continue;
     if (obstacles.some((o) => Math.hypot(o.x - p.x, o.z - p.z) < o.r + s * 0.65 + 0.8)) continue;
     if (!rr.chance(0.6)) continue;
+    if (depth(p.x, p.z) > 0.5) continue;
     rocks.push({ x: p.x, z: p.z, s, rx: rr.range(0, 3), ry: rr.range(0, 3), rz: rr.range(0, 3) });
     obstacles.push({ x: p.x, z: p.z, r: s * 0.65, y0: at(p.x, p.z), top: s * 0.6, view: s * 0.55 });
   }
 
   // Карта проходимости и проверка платформ
-  const nav = new NavGrid(half, obstacles, platforms, spawn, terrain);
+  const nav = new NavGrid(half, obstacles, platforms, spawn, terrain, depth);
   if (!chainStarts.every((p) => nav.reachableNearRect(p, 1.2))) return null;
 
   // Кристаллы
@@ -271,6 +304,7 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
     !platforms.some((pl) => inRect(x, z, pl, 1)) &&
     obstacles.every((o) => Math.hypot(o.x - x, o.z - z) > o.r + 0.9) &&
     crystals.every((c) => Math.hypot(c.x - x, c.z - z) > 7) &&
+    depth(x, z) === 0 &&
     nav.reachableNear(x, z, 0.8);
   const ground = recipe.crystals - tops.length;
   const hiddenCount = Math.round(ground * recipe.hidden);
@@ -306,6 +340,7 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
     biome,
     half,
     terrain,
+    waterLevel,
     spawn,
     portal,
     clearings,
@@ -371,7 +406,14 @@ class NavGrid {
   private readonly n: number;
   private readonly reach: Uint8Array;
 
-  constructor(private readonly half: number, obstacles: Obstacle[], platforms: Platform[], spawn: { x: number; z: number }, terrain: Terrain) {
+  constructor(
+    private readonly half: number,
+    obstacles: Obstacle[],
+    platforms: Platform[],
+    spawn: { x: number; z: number },
+    terrain: Terrain,
+    depth: (x: number, z: number) => number,
+  ) {
     const C = NavGrid.CELL;
     const n = (this.n = Math.ceil((half * 2) / C));
     const blocked = new Uint8Array(n * n);
@@ -382,6 +424,7 @@ class NavGrid {
         if (Math.abs(x) > lim || Math.abs(z) > lim) blocked[j * n + i] = 1;
         // С запасом: склон на грани допустимого в игре пешком не всегда берётся
         else if (slopeAt(terrain, x, z).slope > MAX_WALK_SLOPE * 0.9) blocked[j * n + i] = 1;
+        else if (depth(x, z) > MAX_WADE_DEPTH * 0.85) blocked[j * n + i] = 1;
       }
     }
     const stamp = (x0: number, z0: number, x1: number, z1: number, test: (x: number, z: number) => boolean) => {

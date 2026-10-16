@@ -185,7 +185,7 @@ export class CameraRig {
 
     const cam = this.world.camera;
     const cp = this.smoothTarget.subtract(lookDir.scale(this.curDist));
-    cp.y = Math.max(cp.y, this.world.terrainAt(cp.x, cp.z) + 0.35);
+    cp.y = Math.max(cp.y, this.world.floorAt(cp.x, cp.z) + 0.35);
     cam.position.copyFrom(cp);
     cam.setTarget(cp.add(lookDir));
   }

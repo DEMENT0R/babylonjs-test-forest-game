@@ -3,7 +3,7 @@
 import { Color3 } from '@babylonjs/core';
 import type { Relief } from './terrain';
 
-export type BiomeId = 'meadow' | 'autumn' | 'rocky' | 'winter' | 'night';
+export type BiomeId = 'meadow' | 'autumn' | 'rocky' | 'winter' | 'night' | 'lakes';
 export type TreeKind = 'pine' | 'birch';
 
 export interface Biome {
@@ -36,6 +36,8 @@ export interface Biome {
   particles?: 'snow' | 'fireflies';
   /** Ночь: ближайшие к герою кристаллы светят на округу. */
   crystalLights?: boolean;
+  /** Вода в низинах: наибольший уровень относительно центра, цвет и сколько озёр прокопать. */
+  water?: { level: number; color: Color3; lakes: number };
 }
 
 const QUIET: Ambience = { birds: 0, cuckoo: false, crickets: 0, frogs: 0, owls: 0, wind: 1 };
@@ -171,5 +173,29 @@ export const BIOMES: Record<BiomeId, Biome> = {
     surface: 'grass',
     particles: 'fireflies',
     crystalLights: true,
+  },
+  lakes: {
+    id: 'lakes',
+    name: 'Озёрный край',
+    sky: rgb(0.62, 0.74, 0.76),
+    fogBase: 2.3,
+    sun: { dir: [-0.4, -0.9, -0.5], color: rgb(1, 0.96, 0.86), intensity: 1.05 },
+    hemi: { intensity: 0.75, ground: rgb(0.24, 0.32, 0.28) },
+    ground: rgb(0.38, 0.56, 0.36),
+    path: rgb(0.62, 0.57, 0.46),
+    stone: rgb(0.58, 0.6, 0.58),
+    grass: { root: rgb(0.2, 0.34, 0.2), tip: rgb(0.55, 0.78, 0.36), density: 1.1 },
+    // Летние берёзы с зелёными кронами
+    trees: {
+      kind: 'birch',
+      density: 0.7,
+      trunk: rgb(0.86, 0.85, 0.8),
+      leaves: [rgb(0.36, 0.6, 0.26), rgb(0.44, 0.66, 0.3), rgb(0.3, 0.52, 0.28)],
+    },
+    rocks: { density: 0.3, color: rgb(0.52, 0.55, 0.55) },
+    relief: { amp: 2.6, scale: 30, border: 6 },
+    ambience: { ...QUIET, birds: 0.6, frogs: 1, wind: 0.9 },
+    surface: 'grass',
+    water: { level: -0.6, color: rgb(0.24, 0.42, 0.46), lakes: 4 },
   },
 };

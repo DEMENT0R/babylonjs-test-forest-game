@@ -4,6 +4,7 @@ import { Color3, MeshBuilder, StandardMaterial, TransformNode, Vector3, type Mes
 import { blendAnims, type Hero } from './heroes';
 import { onSettingsApplied } from './settings';
 import { byId, clamp, damp, wrapAngle } from './utils';
+import { MAX_WADE_DEPTH } from './levels/generator';
 import { MAX_WALK_SLOPE } from './levels/terrain';
 import type { World } from './world';
 import type { CameraModeId } from './camera';
@@ -157,6 +158,10 @@ export class Player {
     this.inputZ = input.z;
     const shoulder = view.modeId === 'shoulder';
     let speed = input.run ? D.run : D.walk;
+    // В воде идти тяжелее: чем глубже, тем медленнее
+    const depth = this.world.waterDepth(this.pos.x, this.pos.z);
+    const wading = this.pos.y < this.world.terrainAt(this.pos.x, this.pos.z) + 0.05 ? depth : 0;
+    speed *= clamp(1 - wading * 0.7, 0.4, 1);
     if (shoulder && input.z < 0) speed *= 0.6; // пятиться медленнее
     const acc = this.onGround ? 14 : 5;
     this.vel.x += (dir.x * speed - this.vel.x) * damp(acc, dt);
@@ -168,7 +173,7 @@ export class Player {
     else if (this.moving) turnTo(Math.atan2(dir.x, dir.z));
 
     if (input.jump && this.onGround) {
-      this.vel.y = D.jump;
+      this.vel.y = D.jump * (wading > 0.3 ? 0.65 : 1);
       this.onGround = false;
       const j = hero.anim('jump');
       if (j) {
@@ -205,18 +210,28 @@ export class Player {
     const lim = world.half - 1.5;
     nx = clamp(nx, -lim, lim);
     nz = clamp(nz, -lim, lim);
-    // Слишком крутой подъём не пускает; по каждой оси отдельно — герой скользит вдоль склона
+    // Слишком крутой подъём и глубокая вода не пускают; по каждой оси отдельно — герой скользит вдоль
     if (this.onGround) {
+      const here = world.waterDepth(pos.x, pos.z);
       const tooSteep = (x: number, z: number) => {
         const d = Math.hypot(x - pos.x, z - pos.z);
-        return d > 1e-4 && world.terrainAt(x, z) - world.terrainAt(pos.x, pos.z) > MAX_WALK_SLOPE * d + 0.0005 && world.groundAt(x, z, pos.y) <= world.terrainAt(x, z) + 0.01;
+        if (d <= 1e-4 || world.groundAt(x, z, pos.y) > world.terrainAt(x, z) + 0.01) return false;
+        const deep = world.waterDepth(x, z);
+        if (deep > MAX_WADE_DEPTH && deep > here) return true;
+        return world.terrainAt(x, z) - world.terrainAt(pos.x, pos.z) > MAX_WALK_SLOPE * d + 0.0005;
       };
+      // Заблокированная ось теряет скорость — иначе герой «бежит на месте» и звучат шаги
       if (tooSteep(nx, nz)) {
-        if (!tooSteep(nx, pos.z)) nz = pos.z;
-        else if (!tooSteep(pos.x, nz)) nx = pos.x;
-        else {
+        if (!tooSteep(nx, pos.z)) {
+          nz = pos.z;
+          vel.z = 0;
+        } else if (!tooSteep(pos.x, nz)) {
+          nx = pos.x;
+          vel.x = 0;
+        } else {
           nx = pos.x;
           nz = pos.z;
+          vel.x = vel.z = 0;
         }
       }
     }

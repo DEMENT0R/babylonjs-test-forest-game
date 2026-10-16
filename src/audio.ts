@@ -84,6 +84,8 @@ const SURFACES: Record<Surface, SurfaceSound> = {
   path: { freq: 3200, q: 1.1, dur: 0.08, noise: 0.6, thump: 0.25, thumpFreq: 110 },
   stone: { freq: 950, q: 2.2, dur: 0.05, noise: 0.5, thump: 0.55, thumpFreq: 150 },
   snow: { freq: 2300, q: 0.9, dur: 0.05, noise: 0.55, thump: 0.12, thumpFreq: 80, grains: 5 },
+  // Плеск: низкий широкий шум с «хвостом» капель
+  water: { freq: 850, q: 0.5, dur: 0.22, noise: 0.75, thump: 0.08, thumpFreq: 70, grains: 3 },
 };
 
 // ---------- Движок звука ----------
@@ -153,6 +155,7 @@ export class GameAudio {
     this.scheduleBird(rand(1, 3));
     this.scheduleVoice('crickets', 0.6, 2.2, () => this.cricket());
     this.scheduleVoice('owls', 9, 22, () => this.owl());
+    this.scheduleVoice('frogs', 1.5, 5, () => this.frog());
   }
 
   /** Звуковая атмосфера уровня: какие голоса и как часто звучат. */
@@ -230,7 +233,7 @@ export class GameAudio {
    * Голос биома (сверчки, совы…): звучит со случайной паузой от min до max секунд,
    * делённой на частоту голоса в текущем биоме; при частоте 0 молчит.
    */
-  private scheduleVoice(key: 'crickets' | 'owls', min: number, max: number, play: () => void): void {
+  private scheduleVoice(key: 'crickets' | 'owls' | 'frogs', min: number, max: number, play: () => void): void {
     const tick = () => {
       const rate = this.ambience[key];
       if (rate > 0 && this.running && settings.natureVolume > 0) play();
@@ -254,6 +257,23 @@ export class GameAudio {
         t += 0.034;
       }
       t += rand(0.12, 0.3);
+    }
+    ch.done(t);
+  }
+
+  /** Лягушка: короткое гортанное «ква», иногда два-три подряд. */
+  private frog(): void {
+    const ac = this.ac!;
+    const ch = this.birdChannel(rand(0.3, 1));
+    ch.input.gain.value *= 0.5;
+    const f = rand(120, 190);
+    let t = ac.currentTime + 0.03;
+    const n = (rand(1, 3.5) | 0);
+    for (let i = 0; i < n; i++) {
+      // Прямоугольная волна даёт «квакающий» тембр, глиссандо вниз — «а» в конце
+      this.note(ch.input, t, f * 1.25, f, 0.13, 0.7, 'square');
+      this.note(ch.input, t, f * 2.5, f * 2, 0.1, 0.25, 'sine');
+      t += rand(0.18, 0.3);
     }
     ch.done(t);
   }

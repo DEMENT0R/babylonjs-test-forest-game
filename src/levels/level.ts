@@ -114,7 +114,9 @@ export class Level {
         maxZ: half - 0.5,
         circles: layout.obstacles,
         rects: layout.platforms,
-        coverage: (x, z) => clamp((Math.hypot(x, z) - (PATH_R - 0.6)) / 1.4, 0, 1),
+        // Без травы: утоптанная площадка в центре (к краю густеет) и вода
+        coverage: (x, z) =>
+          layout.waterLevel !== null && ground(x, z) < layout.waterLevel + 0.08 ? 0 : clamp((Math.hypot(x, z) - (PATH_R - 0.6)) / 1.4, 0, 1),
       },
       heightAt: ground,
       baseColor: b.grass.root,
@@ -125,6 +127,19 @@ export class Level {
     });
 
     this.particles = b.particles ? new AirParticles(scene, b.particles) : null;
+
+    // Вода — одна полупрозрачная плоскость на уровне озёр; видна там, где земля ниже
+    if (b.water && layout.waterLevel !== null) {
+      const size = (layout.half + 60) * 2;
+      const water = this.track(MeshBuilder.CreateGround('water', { width: size, height: size, subdivisions: 1 }, scene));
+      water.position.y = layout.waterLevel;
+      const wm = this.mat('water', b.water.color, 0.6);
+      wm.specularPower = 96;
+      wm.alpha = 0.72;
+      water.material = wm;
+      water.receiveShadows = true;
+      water.isPickable = false;
+    }
 
     // Два источника: вместе с небом и луной это предел StandardMaterial по умолчанию (4)
     if (b.crystalLights) {
