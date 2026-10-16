@@ -1,0 +1,38 @@
+// Ветер — общий для звука и травы: порывы происходят в одно время,
+// поэтому трава гнётся ровно тогда, когда ветер слышно.
+
+const rand = (a: number, b: number) => a + Math.random() * (b - a);
+
+/** Направление ветра в плоскости XZ (нормализовано). */
+export const WIND_DIR = { x: 0.8, z: 0.6 };
+
+type GustListener = (strength: number, tau: number) => void;
+
+class Wind {
+  /** Текущая сила ветра 0…1, плавно догоняет цель порыва. */
+  strength = 0.4;
+  /** Сила, к которой идёт текущий порыв. */
+  target = 0.4;
+  private tau = 2;
+  private nextGust = 0;
+  private readonly listeners: GustListener[] = [];
+
+  /** Подписка на начало порыва: сила и постоянная времени нарастания, с. */
+  onGust(fn: GustListener): void {
+    this.listeners.push(fn);
+  }
+
+  update(dt: number): void {
+    this.nextGust -= dt;
+    if (this.nextGust <= 0) {
+      // Изредка — сильный порыв, обычно — лёгкий ветерок
+      this.target = Math.random() < 0.25 ? rand(0.8, 1) : rand(0.25, 0.6);
+      this.tau = rand(1, 2.5);
+      this.nextGust = rand(3, 9);
+      for (const fn of this.listeners) fn(this.target, this.tau);
+    }
+    this.strength += (this.target - this.strength) * (1 - Math.exp(-dt / this.tau));
+  }
+}
+
+export const wind = new Wind();

@@ -1,10 +1,11 @@
 // Звук: всё синтезируется на лету через Web Audio API — без звуковых файлов.
-// Ветер — розовый шум с порывами, птицы — свисты и трели нескольких «видов»
+// Ветер — розовый шум с порывами из общей модели (wind.ts), птицы — свисты и трели нескольких «видов»
 // (и изредка кукушка), шаги — короткие шумовые щелчки, зависящие от поверхности и веса героя.
 
 import type { Player } from './player';
 import { onSettingsApplied, settings, type Settings } from './settings';
 import { clamp } from './utils';
+import { wind } from './wind';
 import type { Surface, World } from './world';
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
@@ -181,19 +182,18 @@ export class GameAudio {
     src.connect(leaves).connect(this.leavesGain).connect(this.natureBus);
 
     src.start();
-    this.gust();
+    // Порывы задаёт общая модель ветра — та же, что качает траву
+    this.gust(wind.target, 0.5);
+    wind.onGust((strength, tau) => this.gust(strength, tau));
   }
 
   /** Новый порыв: плавно меняем силу и «тембр» ветра. */
-  private gust(): void {
+  private gust(strength: number, tau: number): void {
     const ac = this.ac!;
     const t = ac.currentTime;
-    const strength = Math.random() < 0.25 ? rand(0.8, 1) : rand(0.25, 0.6);
-    const tau = rand(1, 2.5);
     this.windGain.gain.setTargetAtTime(0.35 + strength * 0.6, t, tau);
     this.windFilter.frequency.setTargetAtTime(300 + strength * 700, t, tau);
     this.leavesGain.gain.setTargetAtTime(0.02 + strength * strength * 0.16, t, tau);
-    setTimeout(() => this.gust(), rand(3, 9) * 1000);
   }
 
   // ---------- Птицы ----------

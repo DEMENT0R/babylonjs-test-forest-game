@@ -11,6 +11,7 @@ import { MainMenu } from './ui/menu';
 import { SelectScreen } from './ui/select';
 import { SettingsPanel } from './ui/settings-panel';
 import { byId } from './utils';
+import { wind } from './wind';
 import { World } from './world';
 
 type GameState = 'menu' | 'select' | 'play';
@@ -198,6 +199,8 @@ addEventListener('blur', clearInput);
 world.scene.onBeforeRenderObservable.add(() => {
   const dt = Math.min(engine.getDeltaTime() / 1000, 0.05);
   world.spinCrystals(dt);
+  // Траву приминает герой, стоящий на поляне (в меню — тоже, он там просто стоит)
+  world.grass.update(world.camera.position, player.hero ? player.pos : null, 0.3 + 0.35 * (player.hero?.def.height ?? 0));
 
   if (state === 'menu' || !player.hero) {
     const center = gameStarted ? player.pos : Vector3.Zero();
@@ -220,6 +223,7 @@ world.scene.onBeforeRenderObservable.add(() => {
 });
 
 engine.runRenderLoop(() => {
+  wind.update(Math.min(engine.getDeltaTime() / 1000, 0.1));
   (state === 'select' ? select.scene : world.scene).render();
   tickFps(engine);
 });

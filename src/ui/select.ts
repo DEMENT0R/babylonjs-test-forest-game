@@ -16,6 +16,7 @@ import {
   type Mesh,
   type Node,
 } from '@babylonjs/core';
+import { GrassField, MEADOW_GROUND, MEADOW_TIP } from '../grass';
 import { HEROES, loadHero, type Hero, type HeroDef } from '../heroes';
 import { addShadowCaster, createLightingContext, type LightingContext } from '../settings';
 import { byId, damp, now, wrapAngle } from '../utils';
@@ -47,6 +48,7 @@ export class SelectScreen {
   readonly scene: Scene;
   private readonly camera: UniversalCamera;
   private readonly lighting: LightingContext;
+  private readonly grass: GrassField;
   private readonly slots: Slot[];
   private readonly ringOn: StandardMaterial;
   private readonly ringOff: StandardMaterial;
@@ -87,7 +89,7 @@ export class SelectScreen {
     };
     const ground = MeshBuilder.CreateDisc('g', { radius: 60, tessellation: 64 }, scene);
     ground.rotation.x = Math.PI / 2;
-    ground.material = mat('gm', new Color3(0.42, 0.6, 0.36));
+    ground.material = mat('gm', MEADOW_GROUND);
     ground.receiveShadows = true;
     ground.isPickable = false;
 
@@ -108,6 +110,19 @@ export class SelectScreen {
       ring.material = this.ringOff;
       ring.isPickable = false;
       return { pod, ring, hero: null, hello: 0, face: Math.atan2(-SLOT_X[i], CAM_Z) };
+    });
+
+    // Лужайка вокруг подиумов
+    this.grass = new GrassField(scene, {
+      area: {
+        minX: -16, maxX: 16, minZ: -2.5, maxZ: 18,
+        circles: SLOT_X.map((x) => ({ x, z: 0, r: 1.3 })),
+      },
+      baseColor: MEADOW_GROUND.scale(0.55),
+      tipColor: MEADOW_TIP,
+      glow: this.lighting.glow,
+      fixedDistance: 40,
+      seed: 777,
     });
 
     this.buildCards();
@@ -212,6 +227,7 @@ export class SelectScreen {
     this.camX += (SLOT_X[this.index] * 0.35 - this.camX) * damp(4, dt);
     cam.position.set(this.camX + Math.sin(now() * 0.3) * 0.25, 2.4, CAM_Z);
     cam.setTarget(new Vector3(this.camX, 1, 0));
+    this.grass.update(cam.position, null, 0);
 
     this.slots.forEach((s, k) => {
       const hero = s.hero;

@@ -20,6 +20,7 @@ export type AntiAliasing = 'off' | 'fxaa' | 'msaa';
 /** Доля пикселей экрана или 'dpr' — родное разрешение (Retina). */
 export type RenderScale = number | 'dpr';
 export type PresetId = 'low' | 'medium' | 'high' | 'ultra';
+export type GrassDensity = 'off' | 'sparse' | 'normal' | 'dense';
 
 export interface GraphicsSettings {
   scale: RenderScale;
@@ -35,6 +36,11 @@ export interface GraphicsSettings {
   fog: boolean;
   /** Дальность прорисовки в метрах. */
   view: number;
+  grass: GrassDensity;
+  /** Дальность травы, м (не больше дальности прорисовки). */
+  grassDist: number;
+  grassWind: boolean;
+  grassBend: boolean;
 }
 
 export interface Settings extends GraphicsSettings {
@@ -53,10 +59,14 @@ export interface Settings extends GraphicsSettings {
 }
 
 export const PRESETS: Record<PresetId, GraphicsSettings> = {
-  low:    { scale: 0.6,   shadows: 'off',  shadowRes: 512,  shadowDist: 30, aa: 'off',  bloom: false, glow: false, tone: false, vignette: false, ssao: false, fog: true, view: 70 },
-  medium: { scale: 0.8,   shadows: 'hard', shadowRes: 1024, shadowDist: 40, aa: 'fxaa', bloom: false, glow: true,  tone: true,  vignette: false, ssao: false, fog: true, view: 100 },
-  high:   { scale: 1,     shadows: 'soft', shadowRes: 2048, shadowDist: 50, aa: 'fxaa', bloom: true,  glow: true,  tone: true,  vignette: true,  ssao: false, fog: true, view: 140 },
-  ultra:  { scale: 'dpr', shadows: 'pcf',  shadowRes: 4096, shadowDist: 70, aa: 'msaa', bloom: true,  glow: true,  tone: true,  vignette: true,  ssao: true,  fog: true, view: 200 },
+  low:    { scale: 0.6,   shadows: 'off',  shadowRes: 512,  shadowDist: 30, aa: 'off',  bloom: false, glow: false, tone: false, vignette: false, ssao: false, fog: true, view: 70,
+            grass: 'off',    grassDist: 30, grassWind: false, grassBend: false },
+  medium: { scale: 0.8,   shadows: 'hard', shadowRes: 1024, shadowDist: 40, aa: 'fxaa', bloom: false, glow: true,  tone: true,  vignette: false, ssao: false, fog: true, view: 100,
+            grass: 'sparse', grassDist: 35, grassWind: true,  grassBend: true },
+  high:   { scale: 1,     shadows: 'soft', shadowRes: 2048, shadowDist: 50, aa: 'fxaa', bloom: true,  glow: true,  tone: true,  vignette: true,  ssao: false, fog: true, view: 140,
+            grass: 'normal', grassDist: 50, grassWind: true,  grassBend: true },
+  ultra:  { scale: 'dpr', shadows: 'pcf',  shadowRes: 4096, shadowDist: 70, aa: 'msaa', bloom: true,  glow: true,  tone: true,  vignette: true,  ssao: true,  fog: true, view: 200,
+            grass: 'dense',  grassDist: 70, grassWind: true,  grassBend: true },
 };
 
 const DEFAULTS: Settings = {
@@ -240,7 +250,8 @@ export function onSettingsApplied(fn: Listener): void {
   listeners.push(fn);
 }
 
-const GRAPHICS_KEYS = Object.keys(PRESETS.high) as (keyof GraphicsSettings)[];
+// Трава пересобирается сама (grass.ts) — её настройки не трогают тени и пост-обработку
+const GRAPHICS_KEYS = (Object.keys(PRESETS.high) as (keyof GraphicsSettings)[]).filter((k) => !k.startsWith('grass'));
 
 /**
  * Применяет текущие настройки ко всем сценам и сохраняет их.

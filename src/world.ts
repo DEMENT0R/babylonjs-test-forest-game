@@ -14,7 +14,9 @@ import {
   type Engine,
   type Mesh,
 } from '@babylonjs/core';
+import { GrassField, MEADOW_GROUND, MEADOW_TIP } from './grass';
 import { addShadowCaster, createLightingContext, type LightingContext } from './settings';
+import { clamp } from './utils';
 
 /** Половина стороны квадратного мира, м. */
 export const WORLD_HALF = 60;
@@ -43,6 +45,7 @@ export class World {
   readonly obstacles: Obstacle[] = [];
   readonly platforms: Platform[] = [];
   readonly crystals: Crystal[] = [];
+  readonly grass: GrassField;
   collected = 0;
 
   private seed = 7;
@@ -75,6 +78,22 @@ export class World {
     this.buildStoneCircle(stone);
     this.buildStairs(stone);
     this.buildCrystals();
+
+    this.grass = new GrassField(scene, {
+      area: {
+        minX: -WORLD_HALF + 0.5,
+        maxX: WORLD_HALF - 0.5,
+        minZ: -WORLD_HALF + 0.5,
+        maxZ: WORLD_HALF - 0.5,
+        circles: this.obstacles,
+        rects: this.platforms,
+        // Утоптанная площадка в центре: травы нет, к краю она постепенно густеет
+        coverage: (x, z) => clamp((Math.hypot(x, z) - (PATH_RADIUS - 0.6)) / 1.4, 0, 1),
+      },
+      baseColor: MEADOW_GROUND.scale(0.55),
+      tipColor: MEADOW_TIP,
+      glow: this.lighting.glow,
+    });
   }
 
   /** Детерминированный ГПСЧ — у всех одинаковая поляна. */
@@ -106,7 +125,7 @@ export class World {
 
   private buildGround(): void {
     const ground = MeshBuilder.CreateGround('g', { width: WORLD_HALF * 2, height: WORLD_HALF * 2, subdivisions: 2 }, this.scene);
-    ground.material = this.mat('gm', new Color3(0.42, 0.6, 0.36));
+    ground.material = this.mat('gm', MEADOW_GROUND);
     ground.receiveShadows = true;
     const path = MeshBuilder.CreateDisc('p', { radius: PATH_RADIUS, tessellation: 48 }, this.scene);
     path.rotation.x = Math.PI / 2;
