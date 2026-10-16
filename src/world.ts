@@ -256,6 +256,7 @@ export class World {
     const rel = bendAt ? new Vector3(bendAt.x, bendAt.y - this.terrainAt(bendAt.x, bendAt.z), bendAt.z) : null;
     lvl.grass.update(this.camera.position, rel, bendRadius);
     lvl.particles?.follow(this.camera.position);
+    lvl.updateCrystalLights(bendAt ?? this.camera.position, dt);
   }
 
   /** Сдвигает солнце вслед за точкой — область теней остаётся возле камеры. */

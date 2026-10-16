@@ -6,6 +6,7 @@ import {
   Color3,
   Matrix,
   MeshBuilder,
+  PointLight,
   Quaternion,
   StandardMaterial,
   Vector3,
@@ -29,6 +30,8 @@ export class Level {
   readonly grass: GrassField;
   /** Снег или светлячки, если они есть в биоме. */
   readonly particles: AirParticles | null;
+  /** Ночью — свет от ближайших кристаллов. */
+  private readonly crystalLights: PointLight[] = [];
   portalOpen = false;
 
   private readonly meshes: Mesh[] = [];
@@ -122,6 +125,39 @@ export class Level {
     });
 
     this.particles = b.particles ? new AirParticles(scene, b.particles) : null;
+
+    // Два источника: вместе с небом и луной это предел StandardMaterial по умолчанию (4)
+    if (b.crystalLights) {
+      for (let i = 0; i < 2; i++) {
+        const l = new PointLight(`crystal-light-${i}`, Vector3.Zero(), scene);
+        l.diffuse = new Color3(1, 0.78, 0.4);
+        l.specular = new Color3(0, 0, 0);
+        l.intensity = 0;
+        l.range = 9;
+        this.crystalLights.push(l);
+      }
+    }
+  }
+
+  /** Перенести свет на кристаллы, ближайшие к точке; свет мягко разгорается и гаснет. */
+  updateCrystalLights(at: Vector3, dt: number): void {
+    if (this.crystalLights.length === 0) return;
+    const near = this.crystals
+      .filter((c) => c.mesh.isEnabled())
+      .map((c) => ({ c, d: Vector3.DistanceSquared(c.mesh.position, at) }))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, this.crystalLights.length);
+    this.crystalLights.forEach((l, i) => {
+      const n = near[i];
+      if (!n) {
+        l.intensity = Math.max(0, l.intensity - dt * 3);
+        return;
+      }
+      // Переехавший свет вспыхивает заново, чтобы не прыгать между кристаллами
+      if (Vector3.DistanceSquared(l.position, n.c.mesh.position) > 1) l.intensity = 0;
+      l.position.copyFrom(n.c.mesh.position);
+      l.intensity = Math.min(1.6, l.intensity + dt * 2);
+    });
   }
 
   // ---------- Построение ----------
@@ -288,6 +324,7 @@ export class Level {
     this.lighting.glow?.removeExcludedMesh(this.portalCore);
     this.grass.dispose();
     this.particles?.dispose();
+    for (const l of this.crystalLights) l.dispose();
     for (const m of this.meshes) m.dispose();
     for (const m of this.materials) m.dispose();
   }

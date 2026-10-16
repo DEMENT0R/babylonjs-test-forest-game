@@ -3,7 +3,7 @@
 import { Color3 } from '@babylonjs/core';
 import type { Relief } from './terrain';
 
-export type BiomeId = 'meadow' | 'autumn' | 'rocky' | 'winter';
+export type BiomeId = 'meadow' | 'autumn' | 'rocky' | 'winter' | 'night';
 export type TreeKind = 'pine' | 'birch';
 
 export interface Biome {
@@ -33,7 +33,9 @@ export interface Biome {
   /** Земля под ногами вне камня и площадки — для звука шагов. */
   surface: 'grass' | 'snow';
   /** Частицы в воздухе. */
-  particles?: 'snow';
+  particles?: 'snow' | 'fireflies';
+  /** Ночь: ближайшие к герою кристаллы светят на округу. */
+  crystalLights?: boolean;
 }
 
 const QUIET: Ambience = { birds: 0, cuckoo: false, crickets: 0, frogs: 0, owls: 0, wind: 1 };
@@ -144,5 +146,30 @@ export const BIOMES: Record<BiomeId, Biome> = {
     ambience: { ...QUIET, birds: 0.2, wind: 1.4 },
     surface: 'snow',
     particles: 'snow',
+  },
+  night: {
+    id: 'night',
+    name: 'Ночной лес',
+    sky: rgb(0.05, 0.07, 0.13),
+    fogBase: 2.2,
+    // «Солнце» — луна: холодный слабый свет
+    sun: { dir: [-0.3, -1, 0.45], color: rgb(0.55, 0.66, 1), intensity: 0.4 },
+    hemi: { intensity: 0.28, ground: rgb(0.04, 0.05, 0.09) },
+    ground: rgb(0.24, 0.34, 0.28),
+    path: rgb(0.36, 0.34, 0.31),
+    stone: rgb(0.46, 0.48, 0.54),
+    grass: { root: rgb(0.1, 0.17, 0.12), tip: rgb(0.32, 0.48, 0.32), density: 0.9 },
+    trees: {
+      kind: 'pine',
+      density: 0.85,
+      trunk: rgb(0.3, 0.22, 0.17),
+      leaves: [rgb(0.14, 0.3, 0.24), rgb(0.18, 0.36, 0.22), rgb(0.12, 0.26, 0.26)],
+    },
+    rocks: { density: 0.3, color: rgb(0.5, 0.52, 0.58) },
+    relief: { amp: 2.6, scale: 36, border: 6 },
+    ambience: { ...QUIET, crickets: 1, owls: 1, wind: 0.7 },
+    surface: 'grass',
+    particles: 'fireflies',
+    crystalLights: true,
   },
 };

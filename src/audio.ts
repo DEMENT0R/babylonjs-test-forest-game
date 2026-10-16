@@ -151,6 +151,8 @@ export class GameAudio {
     this.applyVolumes(settings);
     this.startWind();
     this.scheduleBird(rand(1, 3));
+    this.scheduleVoice('crickets', 0.6, 2.2, () => this.cricket());
+    this.scheduleVoice('owls', 9, 22, () => this.owl());
   }
 
   /** Звуковая атмосфера уровня: какие голоса и как часто звучат. */
@@ -222,6 +224,50 @@ export class GameAudio {
       // Где птиц меньше, паузы между ними длиннее; где их нет — просто проверяем позже
       this.scheduleBird(rate > 0 ? rand(1.2, 5.5) / rate : 3);
     }, delaySec * 1000);
+  }
+
+  /**
+   * Голос биома (сверчки, совы…): звучит со случайной паузой от min до max секунд,
+   * делённой на частоту голоса в текущем биоме; при частоте 0 молчит.
+   */
+  private scheduleVoice(key: 'crickets' | 'owls', min: number, max: number, play: () => void): void {
+    const tick = () => {
+      const rate = this.ambience[key];
+      if (rate > 0 && this.running && settings.natureVolume > 0) play();
+      setTimeout(tick, (rate > 0 ? rand(min, max) / rate : 3) * 1000);
+    };
+    setTimeout(tick, rand(min, max) * 1000);
+  }
+
+  /** Сверчок: несколько коротких пульсаций высокого тона. */
+  private cricket(): void {
+    const ac = this.ac!;
+    const ch = this.birdChannel(rand(0.2, 1));
+    ch.input.gain.value *= 0.45;
+    const f = rand(4200, 5200);
+    let t = ac.currentTime + 0.02;
+    const bursts = rand(1, 3) | 0;
+    for (let b = 0; b <= bursts; b++) {
+      const pulses = (rand(3, 6) | 0) + 1;
+      for (let i = 0; i < pulses; i++) {
+        this.note(ch.input, t, f, f * 0.99, 0.018, 0.9);
+        t += 0.034;
+      }
+      t += rand(0.12, 0.3);
+    }
+    ch.done(t);
+  }
+
+  /** Сова: глухое «у-ху… хуу» вдалеке. */
+  private owl(): void {
+    const ac = this.ac!;
+    const ch = this.birdChannel(rand(0.5, 0.95));
+    const f = rand(360, 420);
+    const t = ac.currentTime + 0.05;
+    this.note(ch.input, t, f * 1.02, f, 0.22, 1.3, 'sine');
+    this.note(ch.input, t + 0.5, f * 1.05, f * 0.97, 0.18, 1.1, 'sine');
+    this.note(ch.input, t + 0.78, f, f * 0.94, 0.55, 1.4, 'sine', 3);
+    ch.done(t + 1.4);
   }
 
   /** Канал одной птицы: панорама, «даль» через фильтр, отправка в ревербератор. */

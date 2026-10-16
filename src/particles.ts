@@ -1,11 +1,11 @@
-// Частицы в воздухе вокруг камеры: снегопад. Частицы живут в мировых координатах,
+// Частицы в воздухе вокруг камеры: снегопад и светлячки. Частицы живут в мировых координатах,
 // а источник ездит за камерой — снег не «прилипает» к экрану при повороте.
 
 import { Color4, DynamicTexture, ParticleSystem, Vector3, type Scene } from '@babylonjs/core';
 import { onSettingsApplied, settings } from './settings';
 import { wind, WIND_DIR } from './wind';
 
-export type ParticleKind = 'snow';
+export type ParticleKind = 'snow' | 'fireflies';
 
 /** Мягкая круглая точка — текстура для всех частиц. */
 function dotTexture(scene: Scene): DynamicTexture {
@@ -46,6 +46,9 @@ export class AirParticles {
       case 'snow':
         this.system = this.createSnow();
         break;
+      case 'fireflies':
+        this.system = this.createFireflies();
+        break;
     }
     this.system.start();
   }
@@ -76,10 +79,41 @@ export class AirParticles {
     return ps;
   }
 
+  /** Светлячки: редкие тёплые огоньки над травой, мигают и медленно плывут. */
+  private createFireflies(): ParticleSystem {
+    const ps = new ParticleSystem('fireflies', 400, this.scene);
+    ps.particleTexture = this.texture;
+    ps.emitter = this.origin;
+    // Камера выше героя на 2–3 м — светлячки в слое у земли
+    ps.minEmitBox = new Vector3(-18, -2.6, -18);
+    ps.maxEmitBox = new Vector3(18, 0.2, 18);
+    ps.direction1 = new Vector3(-1, -0.3, -1);
+    ps.direction2 = new Vector3(1, 0.3, 1);
+    ps.minEmitPower = 0.1;
+    ps.maxEmitPower = 0.35;
+    ps.gravity = new Vector3(0, 0, 0);
+    ps.minLifeTime = 4;
+    ps.maxLifeTime = 8;
+    ps.emitRate = 40;
+    ps.minSize = 0.06;
+    ps.maxSize = 0.12;
+    ps.blendMode = ParticleSystem.BLENDMODE_ADD;
+    // Мигание: несколько вспышек за жизнь
+    const on = new Color4(0.85, 1, 0.45, 1), dim = new Color4(0.5, 0.7, 0.2, 0.15), off = new Color4(0, 0, 0, 0);
+    ps.addColorGradient(0, off);
+    ps.addColorGradient(0.15, on);
+    ps.addColorGradient(0.3, dim);
+    ps.addColorGradient(0.5, on);
+    ps.addColorGradient(0.65, dim);
+    ps.addColorGradient(0.82, on);
+    ps.addColorGradient(1, off);
+    return ps;
+  }
+
   /** Источник частиц едет за камерой; снег сносит по ветру. */
   follow(camera: Vector3): void {
     this.origin.copyFrom(camera);
-    if (this.system) {
+    if (this.system && this.kind === 'snow') {
       const drift = wind.strength * 0.25;
       this.system.gravity.set(WIND_DIR.x * drift, -0.4, WIND_DIR.z * drift);
     }
