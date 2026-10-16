@@ -10,7 +10,7 @@ import { completeLevel, formatTime, progress, setCurrentLevel } from './levels/p
 import { recipeFor } from './levels/recipes';
 import { clearInput, keys, Player, setupTouchControls } from './player';
 import { applySettings, settings } from './settings';
-import { say, setCrystals, setLevelTitle, setupHud, showCameraMode, tickFps } from './ui/hud';
+import { say, setCrystals, setHintLevel, setLevelTitle, setupHud, showCameraMode, tickFps } from './ui/hud';
 import { MainMenu } from './ui/menu';
 import { SelectScreen } from './ui/select';
 import { SettingsPanel } from './ui/settings-panel';
@@ -119,6 +119,7 @@ function beginLevel(index: number): void {
   footsteps.reset();
   levelTime = 0;
   setLevelTitle(levelLabel(index, layout));
+  setHintLevel(index);
   updateCrystalsHud();
 }
 

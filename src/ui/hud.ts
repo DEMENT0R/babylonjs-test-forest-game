@@ -13,6 +13,7 @@ const levelTitle = byId('level-title');
 const fpsEl = byId('fps');
 const modeBtn = byId<HTMLButtonElement>('mode');
 const crossEl = byId('cross');
+const keysEl = byId<HTMLDetailsElement>('keys');
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -36,6 +37,21 @@ export function setLevelTitle(text: string): void {
   levelTitle.textContent = text;
 }
 
+let hintLevel = 1;
+let hintMode: string | null = null;
+
+/** Памятка по кнопкам раскрывается сама только по настройке; дальше её открывает игрок. */
+function syncKeyHint(): void {
+  hintMode = settings.keyHint;
+  keysEl.open = hintMode === 'open' || (hintMode === 'first' && hintLevel === 1);
+}
+
+/** Новый уровень: памятка снова принимает положение из настроек. */
+export function setHintLevel(level: number): void {
+  hintLevel = level;
+  syncKeyHint();
+}
+
 export function showCameraMode(mode: CameraMode, announce = true): void {
   modeBtn.textContent = `Камера: ${mode.name} (C)`;
   crossEl.hidden = mode.id !== 'shoulder';
@@ -54,7 +70,11 @@ export function setupHud(actions: HudActions): void {
   byId('back').addEventListener('click', actions.onHeroSelect);
   byId('hud-settings').addEventListener('click', actions.onSettings);
   modeBtn.addEventListener('click', actions.onCycleCamera);
-  onSettingsApplied((s) => (fpsEl.hidden = !s.fps));
+  onSettingsApplied((s) => {
+    fpsEl.hidden = !s.fps;
+    // Другие настройки не должны сворачивать памятку, которую игрок раскрыл сам
+    if (s.keyHint !== hintMode) syncKeyHint();
+  });
 }
 
 let fpsTimer = 0;

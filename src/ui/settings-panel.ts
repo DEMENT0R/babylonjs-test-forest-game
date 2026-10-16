@@ -81,6 +81,7 @@ const TABS: readonly Tab[] = [
     id: 'interface',
     name: 'Интерфейс',
     rows: [
+      { key: 'keyHint', label: 'Памятка по кнопкам', hint: 'Подсказка в углу экрана, раскрывается кликом', seg: [['first', 'На 1-м уровне'], ['open', 'Всегда'], ['closed', 'Свёрнута']] },
       { key: 'fps', label: 'Показывать FPS', toggle: true },
     ],
   },

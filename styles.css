@@ -26,6 +26,11 @@ h1{margin:0;font:700 15px/1.2 var(--f-display);letter-spacing:.02em}
 .score{font:600 13px/1.4 var(--f-mono);color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums}
 .score b{color:var(--accent);font-weight:600}
 .keys{font:400 12px/1.7 var(--f-mono);color:var(--muted)}
+.keys summary{pointer-events:auto;cursor:pointer;list-style:none;font-weight:600;color:var(--ink);user-select:none}
+.keys summary::-webkit-details-marker{display:none}
+.keys summary::before{content:"▸";display:inline-block;margin-right:6px;color:var(--muted);transition:transform .15s}
+.keys[open] summary::before{transform:rotate(90deg)}
+.keys[open] summary{margin-bottom:4px}
 .keys kbd{font:600 11px var(--f-mono);color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:0 5px;margin-right:4px}
 .btn-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .small-btn{pointer-events:auto;background:transparent;border:1px solid var(--line);border-radius:6px;padding:3px 8px;font:600 11px var(--f-mono);color:var(--muted);cursor:pointer}
