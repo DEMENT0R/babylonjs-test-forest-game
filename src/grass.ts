@@ -50,6 +50,8 @@ export interface GrassOptions {
   glow?: GlowLayer | null;
   /** Фиксированная дальность травы (экран выбора); иначе — из настроек. */
   fixedDistance?: number;
+  /** Высота земли; без неё трава растёт на нулевой высоте. */
+  heightAt?: (x: number, z: number) => number;
   /** Множитель плотности (биом с редкой травой). */
   densityScale?: number;
   seed?: number;
@@ -76,7 +78,8 @@ const SWAY_GLSL = /* glsl */ `
   float flutter = sin(gt * 5.3 + gp.x * 2.1 + gp.y * 1.7) * 0.6 + sin(gt * 3.1 + gp.y * 2.9) * 0.4;
   vec2 off = gdir * (gs * (0.15 + 0.85 * wave) * 0.32 + flutter * (0.02 + 0.05 * gs)) * gk;
   off += vec2(-gdir.y, gdir.x) * flutter * 0.03 * gs * gk;
-  // Герой приминает траву вокруг себя (если стоит на земле, а не летит в прыжке)
+  // Герой приминает траву вокруг себя (если стоит на земле, а не летит в прыжке):
+  // grassBend.y — высота героя над землёй
   vec2 gd = gp - grassBend.xz;
   float gdist = length(gd);
   float press = (1.0 - smoothstep(grassBend.w * 0.3, grassBend.w, gdist))
@@ -85,7 +88,7 @@ const SWAY_GLSL = /* glsl */ `
   off += gd / max(gdist, 0.001) * press * 0.42 * gh;
   worldPos.xz += off;
   // Наклонённая травинка становится ниже — длина примерно сохраняется
-  worldPos.y = max(worldPos.y - length(off) * 0.55 * gh, 0.01);
+  worldPos.y -= length(off) * 0.55 * gh;
 }
 #endif
 `;
@@ -236,6 +239,7 @@ export class GrassField {
     let seed = this.opts.seed ?? 12345;
     const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
 
+    const heightAt = this.opts.heightAt ?? (() => 0);
     const mat = new Matrix();
     const q = new Quaternion();
     const scale = new Vector3();
@@ -256,6 +260,7 @@ export class GrassField {
         const matrices = new Float32Array(tries * 16);
         const colors = new Float32Array(tries * 4);
         let n = 0;
+        let yMin = Infinity, yMax = -Infinity;
         for (let i = 0; i < tries; i++) {
           const x = cx + rnd() * (x1 - cx);
           const z = cz + rnd() * (z1 - cz);
@@ -268,7 +273,10 @@ export class GrassField {
           const w = 0.05 + rnd() * 0.04;
           scale.set(w, h, h);
           Quaternion.RotationYawPitchRollToRef(rnd() * Math.PI * 2, (rnd() - 0.5) * 0.35, (rnd() - 0.5) * 0.35, q);
-          pos.set(x, 0, z);
+          const y = heightAt(x, z);
+          yMin = Math.min(yMin, y);
+          yMax = Math.max(yMax, y);
+          pos.set(x, y, z);
           Matrix.ComposeToRef(scale, q, pos, mat);
           mat.copyToArray(matrices, n * 16);
 
@@ -291,7 +299,7 @@ export class GrassField {
         mesh.thinInstanceSetBuffer('color', colors.subarray(0, n * 4), 4, true);
         // Границы куска с запасом на наклон и ветер — для отсечения по камере
         mesh.doNotSyncBoundingInfo = true;
-        mesh.setBoundingInfo(new BoundingInfo(new Vector3(cx - 0.6, 0, cz - 0.6), new Vector3(x1 + 0.6, 1, z1 + 0.6)));
+        mesh.setBoundingInfo(new BoundingInfo(new Vector3(cx - 0.6, yMin - 0.2, cz - 0.6), new Vector3(x1 + 0.6, yMax + 1, z1 + 0.6)));
         this.opts.glow?.addExcludedMesh(mesh);
         this.chunks.push({ mesh, x0: cx, z0: cz, x1, z1, full: n });
       }
@@ -300,7 +308,7 @@ export class GrassField {
 
   /**
    * Каждый кадр: прореживание по расстоянию от камеры, ветер, примятие.
-   * @param bendAt позиция ног героя или null
+   * @param bendAt позиция ног героя (y — высота над землёй) или null
    * @param bendRadius радиус примятия, м
    */
   update(cameraPos: Vector3, bendAt: Vector3 | null, bendRadius: number): void {

@@ -143,23 +143,37 @@ export class World {
     return this.level?.layout.platforms ?? [];
   }
 
+  /** Высота земли (без платформ). */
+  terrainAt(x: number, z: number): number {
+    return this.level ? this.level.layout.terrain.heightAt(x, z) : 0;
+  }
+
+  /** Верх платформы под точкой, на который можно встать с высоты y; иначе null. */
+  private platformTopAt(x: number, z: number, y: number): number | null {
+    let top: number | null = null;
+    for (const p of this.platforms) {
+      const t = p.y0 + p.h;
+      if (Math.abs(x - p.x) < p.w / 2 + 0.25 && Math.abs(z - p.z) < p.d / 2 + 0.25 && y >= t - 0.35) top = Math.max(top ?? -Infinity, t);
+    }
+    return top;
+  }
+
   /** Высота опоры под точкой: земля или верх платформы, на которую можно встать с высоты y. */
   groundAt(x: number, z: number, y: number): number {
-    let g = 0;
-    for (const p of this.platforms) {
-      if (Math.abs(x - p.x) < p.w / 2 + 0.25 && Math.abs(z - p.z) < p.d / 2 + 0.25 && y >= p.h - 0.35) g = Math.max(g, p.h);
-    }
-    return g;
+    const g = this.terrainAt(x, z);
+    const top = this.platformTopAt(x, z, y);
+    return top === null ? g : Math.max(g, top);
   }
 
   /** Упирается ли игрок на высоте y в боковую стенку платформы. */
   blockedByPlatform(x: number, z: number, y: number): boolean {
-    return this.platforms.some((p) => Math.abs(x - p.x) < p.w / 2 + 0.3 && Math.abs(z - p.z) < p.d / 2 + 0.3 && y < p.h - 0.35);
+    return this.platforms.some((p) => Math.abs(x - p.x) < p.w / 2 + 0.3 && Math.abs(z - p.z) < p.d / 2 + 0.3 && y < p.y0 + p.h - 0.35);
   }
 
-  /** Из чего поверхность под ногами — для звука шагов. */
-  surfaceAt(x: number, z: number, groundY: number): Surface {
-    if (groundY > 0) return 'stone';
+  /** Из чего поверхность под ногами (y — высота ног) — для звука шагов. */
+  surfaceAt(x: number, z: number, y: number): Surface {
+    const top = this.platformTopAt(x, z, y);
+    if (top !== null && top > this.terrainAt(x, z) + 0.05) return 'stone';
     return Math.hypot(x, z) < PATH_R ? 'path' : 'grass';
   }
 
@@ -183,12 +197,19 @@ export class World {
         const t = (-b - Math.sqrt(disc)) / (2 * a);
         if (t < 0 || t >= best) continue;
         const y = o.y + d.y * t;
-        if (y >= 0 && y <= ob.top) best = t;
+        if (y >= ob.y0 - 0.5 && y <= ob.y0 + ob.top) best = t;
       }
     }
     for (const p of this.platforms) {
-      const t = rayBox(o, d, p.x - p.w / 2, 0, p.z - p.d / 2, p.x + p.w / 2, p.h, p.z + p.d / 2);
+      const t = rayBox(o, d, p.x - p.w / 2, p.y0 - 1, p.z - p.d / 2, p.x + p.w / 2, p.y0 + p.h, p.z + p.d / 2);
       if (t !== null && t < best) best = t;
+    }
+    // Холм между героем и камерой: шагаем по лучу и сравниваем с высотой земли
+    for (let t = 0.6; t < best; t += 0.6) {
+      if (o.y + d.y * t < this.terrainAt(o.x + d.x * t, o.z + d.z * t) + 0.25) {
+        best = Math.max(0, t - 0.6);
+        break;
+      }
     }
     return best < len ? best : null;
   }
@@ -215,7 +236,7 @@ export class World {
   /** Стоит ли герой в открытом портале. */
   inPortal(pos: Vector3): boolean {
     const p = this.layout.portal;
-    return this.portalOpen && Math.hypot(pos.x - p.x, pos.z - p.z) < 0.9;
+    return this.portalOpen && Math.hypot(pos.x - p.x, pos.z - p.z) < 0.9 && pos.y < this.terrainAt(p.x, p.z) + 1.5;
   }
 
   /** Анимации уровня и трава. */
@@ -224,7 +245,9 @@ export class World {
     if (!lvl) return;
     lvl.spinCrystals(dt);
     lvl.animatePortal(dt);
-    lvl.grass.update(this.camera.position, bendAt, bendRadius);
+    // Траве нужна высота героя над землёй, а не абсолютная
+    const rel = bendAt ? new Vector3(bendAt.x, bendAt.y - this.terrainAt(bendAt.x, bendAt.z), bendAt.z) : null;
+    lvl.grass.update(this.camera.position, rel, bendRadius);
   }
 
   /** Сдвигает солнце вслед за точкой — область теней остаётся возле камеры. */

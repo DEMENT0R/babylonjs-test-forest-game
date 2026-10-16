@@ -185,7 +185,7 @@ export class CameraRig {
 
     const cam = this.world.camera;
     const cp = this.smoothTarget.subtract(lookDir.scale(this.curDist));
-    cp.y = Math.max(cp.y, 0.35);
+    cp.y = Math.max(cp.y, this.world.terrainAt(cp.x, cp.z) + 0.35);
     cam.position.copyFrom(cp);
     cam.setTarget(cp.add(lookDir));
   }
@@ -199,9 +199,10 @@ export class CameraRig {
   /** Медленный кинематографичный облёт поляны за главным меню. */
   updateMenuOrbit(dt: number, center: Vector3): void {
     this.menuAngle += dt * 0.05;
-    const c = new Vector3(center.x, 1.2, center.z);
+    const c = new Vector3(center.x, center.y + 1.2, center.z);
     const cam = this.world.camera;
-    cam.position.set(c.x + Math.cos(this.menuAngle) * 15, c.y + 6.5, c.z + Math.sin(this.menuAngle) * 15);
+    const x = c.x + Math.cos(this.menuAngle) * 15, z = c.z + Math.sin(this.menuAngle) * 15;
+    cam.position.set(x, Math.max(c.y + 6.5, this.world.terrainAt(x, z) + 3), z);
     cam.setTarget(c.add(new Vector3(0, 0.8, 0)));
   }
 }

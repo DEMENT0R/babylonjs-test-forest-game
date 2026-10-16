@@ -199,7 +199,7 @@ function openMenu(): void {
   rig.releaseLock();
   rig.cancelDrag();
   clearInput();
-  rig.beginMenuOrbit(gameStarted ? player.pos : new Vector3(layout.spawn.x, 0, layout.spawn.z));
+  rig.beginMenuOrbit(gameStarted ? player.pos : new Vector3(layout.spawn.x, world.terrainAt(layout.spawn.x, layout.spawn.z), layout.spawn.z));
   setState('menu');
   menu.update(
     gameStarted && player.hero
@@ -268,7 +268,7 @@ world.scene.onBeforeRenderObservable.add(() => {
   world.update(dt, player.hero ? player.pos : null, 0.3 + 0.35 * (player.hero?.def.height ?? 0));
 
   if (state === 'menu' || !player.hero) {
-    const center = gameStarted ? player.pos : new Vector3(layout.spawn.x, 0, layout.spawn.z);
+    const center = gameStarted ? player.pos : new Vector3(layout.spawn.x, world.terrainAt(layout.spawn.x, layout.spawn.z), layout.spawn.z);
     rig.updateMenuOrbit(dt, center);
     world.followSun(center);
     player.idle(dt);

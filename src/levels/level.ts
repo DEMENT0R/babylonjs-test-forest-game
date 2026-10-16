@@ -9,6 +9,7 @@ import {
   Quaternion,
   StandardMaterial,
   Vector3,
+  VertexData,
   type Material,
   type Mesh,
   type Scene,
@@ -43,9 +44,12 @@ export class Level {
     this.buildTrees();
     this.buildRocks();
 
+    const ground = (x: number, z: number) => layout.terrain.heightAt(x, z);
+    // Опоры уходят в землю на SINK, чтобы на склоне не висеть в воздухе одним краем
+    const SINK = 1;
     for (const p of layout.pillars) {
-      const m = this.track(MeshBuilder.CreateBox('pillar', { width: 0.9, height: p.h, depth: 0.6 }, scene));
-      m.position.set(p.x, p.h / 2, p.z);
+      const m = this.track(MeshBuilder.CreateBox('pillar', { width: 0.9, height: p.h + SINK, depth: 0.6 }, scene));
+      m.position.set(p.x, ground(p.x, p.z) + (p.h - SINK) / 2, p.z);
       m.rotation.y = p.yaw;
       m.material = stone;
       this.solid(m);
@@ -53,10 +57,10 @@ export class Level {
     for (const p of layout.platforms) {
       const m = this.track(
         p.round
-          ? MeshBuilder.CreateCylinder('portal-base', { height: p.h, diameter: p.w * 1.2, tessellation: 24 }, scene)
-          : MeshBuilder.CreateBox('platform', { width: p.w, height: p.h, depth: p.d }, scene),
+          ? MeshBuilder.CreateCylinder('portal-base', { height: p.h + SINK, diameter: p.w * 1.2, tessellation: 24 }, scene)
+          : MeshBuilder.CreateBox('platform', { width: p.w, height: p.h + SINK, depth: p.d }, scene),
       );
-      m.position.set(p.x, p.h / 2, p.z);
+      m.position.set(p.x, p.y0 + (p.h - SINK) / 2, p.z);
       m.material = stone;
       this.solid(m);
     }
@@ -79,7 +83,8 @@ export class Level {
     this.ringLit.emissiveColor = new Color3(0.35, 0.6, 1);
     this.portalRing = this.track(MeshBuilder.CreateTorus('portal-ring', { diameter: 2.6, thickness: 0.2, tessellation: 40 }, scene));
     this.portalRing.rotation.x = Math.PI / 2;
-    this.portalRing.position.set(layout.portal.x, PORTAL_Y, layout.portal.z);
+    const portalY = ground(layout.portal.x, layout.portal.z) + PORTAL_Y;
+    this.portalRing.position.set(layout.portal.x, portalY, layout.portal.z);
     this.portalRing.material = this.ringIdle;
     addShadowCaster(lighting, this.portalRing);
     const coreM = this.mat('portal-core', new Color3(0.6, 0.8, 1));
@@ -87,7 +92,7 @@ export class Level {
     coreM.alpha = 0.45;
     coreM.backFaceCulling = false;
     this.portalCore = this.track(MeshBuilder.CreateDisc('portal-core', { radius: 1.15, tessellation: 40 }, scene));
-    this.portalCore.position.set(layout.portal.x, PORTAL_Y, layout.portal.z);
+    this.portalCore.position.set(layout.portal.x, portalY, layout.portal.z);
     this.portalCore.material = coreM;
     this.portalCore.setEnabled(false);
     // Светится кольцо; полупрозрачная сердцевина в слое свечения превращалась в белое пятно
@@ -105,6 +110,7 @@ export class Level {
         rects: layout.platforms,
         coverage: (x, z) => clamp((Math.hypot(x, z) - (PATH_R - 0.6)) / 1.4, 0, 1),
       },
+      heightAt: ground,
       baseColor: b.grass.root,
       tipColor: b.grass.tip,
       densityScale: b.grass.density,
@@ -137,12 +143,21 @@ export class Level {
     const { half, biome } = this.layout;
     // Земля шире уровня: за стеной леса не должно быть видно края мира
     const size = (half + 60) * 2;
-    const ground = this.track(MeshBuilder.CreateGround('ground', { width: size, height: size, subdivisions: 2 }, this.scene));
+    // Шаг сетки ~2.5 м — рельеф плавный, мелкие детали не нужны
+    const subdivisions = Math.ceil(size / 2.5);
+    const ground = this.track(MeshBuilder.CreateGround('ground', { width: size, height: size, subdivisions, updatable: true }, this.scene));
+    const pos = ground.getVerticesData('position')!;
+    for (let i = 0; i < pos.length; i += 3) pos[i + 1] = this.layout.terrain.heightAt(pos[i], pos[i + 2]);
+    const normals: number[] = [];
+    VertexData.ComputeNormals(pos, ground.getIndices()!, normals);
+    ground.updateVerticesData('position', pos);
+    ground.updateVerticesData('normal', normals);
+    ground.refreshBoundingInfo();
     ground.material = this.mat('ground', biome.ground);
     ground.receiveShadows = true;
     const path = this.track(MeshBuilder.CreateDisc('path', { radius: PATH_R, tessellation: 48 }, this.scene));
     path.rotation.x = Math.PI / 2;
-    path.position.y = 0.02;
+    path.position.y = this.layout.terrain.heightAt(0, 0) + 0.02;
     path.material = this.mat('path', biome.path);
     path.receiveShadows = true;
   }
@@ -163,7 +178,7 @@ export class Level {
   }
 
   private buildTrees(): void {
-    const { trees, biome } = this.layout;
+    const { trees, biome, terrain } = this.layout;
     const scene = this.scene;
     const pine = biome.trees.kind === 'pine';
     const trunkM = this.mat('trunk', biome.trees.trunk);
@@ -185,18 +200,20 @@ export class Level {
     const crowns = new Float32Array(trees.length * crownsPerTree * 16);
     const crownColors = new Float32Array(trees.length * crownsPerTree * 4);
     trees.forEach((t, i) => {
+      // Ствол чуть утоплен в землю — на склоне не видно зазора под ним
+      const g = terrain.heightAt(t.x, t.z) - 0.25;
       if (pine) {
-        put(trunks, i, t.s, t.s, t.s, t.yaw, t.x, t.s, t.z);
+        put(trunks, i, t.s, t.s, t.s, t.yaw, t.x, g + t.s, t.z);
         for (let k = 0; k < 3; k++) {
           const d = (3 - k * 0.7) * t.s;
-          put(crowns, i * 3 + k, d, t.s, d, t.yaw + k * 1.3, t.x, (2 + k * 1.1) * t.s, t.z);
+          put(crowns, i * 3 + k, d, t.s, d, t.yaw + k * 1.3, t.x, g + (2 + k * 1.1) * t.s, t.z);
         }
       } else {
         // Берёза: тонкий высокий ствол и две круглые кроны
-        put(trunks, i, 0.6 * t.s, 1.7 * t.s, 0.6 * t.s, t.yaw, t.x, 1.7 * t.s, t.z);
-        put(crowns, i * 2, 1.5 * t.s, 1.3 * t.s, 1.5 * t.s, t.yaw, t.x, 3.9 * t.s, t.z);
+        put(trunks, i, 0.6 * t.s, 1.7 * t.s, 0.6 * t.s, t.yaw, t.x, g + 1.7 * t.s, t.z);
+        put(crowns, i * 2, 1.5 * t.s, 1.3 * t.s, 1.5 * t.s, t.yaw, t.x, g + 3.9 * t.s, t.z);
         const ox = Math.cos(t.yaw) * 0.6 * t.s, oz = Math.sin(t.yaw) * 0.6 * t.s;
-        put(crowns, i * 2 + 1, 1.1 * t.s, 1 * t.s, 1.1 * t.s, t.yaw + 1, t.x + ox, 5 * t.s, t.z + oz);
+        put(crowns, i * 2 + 1, 1.1 * t.s, 1 * t.s, 1.1 * t.s, t.yaw + 1, t.x + ox, g + 5 * t.s, t.z + oz);
       }
       const c = biome.trees.leaves[t.tint];
       for (let k = 0; k < crownsPerTree; k++) {
@@ -214,7 +231,7 @@ export class Level {
   }
 
   private buildRocks(): void {
-    const { rocks, biome } = this.layout;
+    const { rocks, biome, terrain } = this.layout;
     if (rocks.length === 0) return;
     const matrices = new Float32Array(rocks.length * 16);
     const colors = new Float32Array(rocks.length * 4);
@@ -222,7 +239,7 @@ export class Level {
     const q = new Quaternion();
     rocks.forEach((r, i) => {
       Quaternion.RotationYawPitchRollToRef(r.ry, r.rx, r.rz, q);
-      Matrix.ComposeToRef(new Vector3(r.s, r.s * 0.6, r.s), q, new Vector3(r.x, r.s * 0.3, r.z), m);
+      Matrix.ComposeToRef(new Vector3(r.s, r.s * 0.6, r.s), q, new Vector3(r.x, terrain.heightAt(r.x, r.z) + r.s * 0.2, r.z), m);
       m.copyToArray(matrices, i * 16);
       const v = 0.85 + (i % 7) / 25;
       colors.set([v, v, v, 1], i * 4);

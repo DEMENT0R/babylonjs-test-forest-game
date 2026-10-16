@@ -134,7 +134,7 @@ export class Player {
 
   /** Поставить героя в точку старта уровня. */
   reset(spawn: { x: number; z: number }): void {
-    this.pos.set(spawn.x, 0, spawn.z);
+    this.pos.set(spawn.x, this.world.groundAt(spawn.x, spawn.z, 100), spawn.z);
     this.vel.setAll(0);
     this.facing = 0;
     this.onGround = true;

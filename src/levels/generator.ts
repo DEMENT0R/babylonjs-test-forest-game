@@ -8,13 +8,16 @@
 import { Rng } from '../rng';
 import { BIOMES, type Biome } from './biomes';
 import { requiredCrystals, type LevelRecipe } from './recipes';
+import { FLAT_TERRAIN, type Terrain } from './terrain';
 
 export interface Obstacle {
   x: number;
   z: number;
   /** Радиус столкновения. */
   r: number;
-  /** Высота верха — для камеры. */
+  /** Высота земли у основания. */
+  y0: number;
+  /** Высота над основанием — для камеры. */
   top: number;
   /** Радиус, в котором препятствие закрывает обзор камере (крона шире ствола). */
   view: number;
@@ -24,7 +27,10 @@ export interface Platform {
   z: number;
   w: number;
   d: number;
+  /** Высота над основанием. */
   h: number;
+  /** Высота земли под платформой; верх — y0 + h. */
+  y0: number;
   /** Круглая плита (под порталом) — рисуется цилиндром. */
   round?: boolean;
 }
@@ -32,12 +38,14 @@ export interface Clearing { x: number; z: number; r: number }
 export interface TreeSpot { x: number; z: number; s: number; yaw: number; tint: number }
 export interface RockSpot { x: number; z: number; s: number; rx: number; ry: number; rz: number }
 export interface PillarSpot { x: number; z: number; h: number; yaw: number }
+/** y — высота опоры (земли или верха платформы); кристалл висит на метр выше. */
 export interface CrystalSpot { x: number; z: number; y: number }
 
 export interface LevelLayout {
   recipe: LevelRecipe;
   biome: Biome;
   half: number;
+  terrain: Terrain;
   spawn: { x: number; z: number };
   portal: { x: number; z: number };
   clearings: Clearing[];
@@ -164,21 +172,26 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
   }
 
   // Плита портала — низкая, на неё просто заходят
-  const platforms: Platform[] = [{ x: portal.x, z: portal.z, w: 2.6, d: 2.6, h: 0.25, round: true }];
+  const platforms: Platform[] = [{ x: portal.x, z: portal.z, w: 2.6, d: 2.6, h: 0.25, y0: 0, round: true }];
 
   // Цепочки платформ — в боковых полянах
   const rp = Rng.stream(seed, 'platforms');
-  const tops: CrystalSpot[] = [];
   const chainStarts: Platform[] = [];
+  const chainTops: Platform[] = [];
   for (let c = 0; c < recipe.chains; c++) {
     const host = clearings[1 + (c % Math.max(1, clearings.length - 1))] ?? { x: rp.range(-half / 2, half / 2), z: rp.range(-half / 2, half / 2), r: 6 };
     const chain = buildChain(rp, host, recipe.steps, half, platforms);
     if (!chain) return null;
     platforms.push(...chain);
     chainStarts.push(chain[0]);
-    const top = chain[chain.length - 1];
-    tops.push({ x: top.x, z: top.z, y: top.h });
+    chainTops.push(chain[chain.length - 1]);
   }
+
+  // Рельеф; платформы встают на землю
+  const terrain = FLAT_TERRAIN;
+  for (const p of platforms) p.y0 = terrain.heightAt(p.x, p.z);
+  const tops: CrystalSpot[] = chainTops.map((p) => ({ x: p.x, z: p.z, y: p.y0 + p.h }));
+  const at = (x: number, z: number) => terrain.heightAt(x, z);
 
   const obstacles: Obstacle[] = [];
 
@@ -188,7 +201,7 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
     const a = (i / 8) * Math.PI * 2;
     const p = { x: Math.cos(a) * PILLAR_RING, z: Math.sin(a) * PILLAR_RING, h: 2.4 + (i % 2) * 0.8, yaw: -a };
     pillars.push(p);
-    obstacles.push({ x: p.x, z: p.z, r: 0.6, top: p.h, view: 0.5 });
+    obstacles.push({ x: p.x, z: p.z, r: 0.6, y0: at(p.x, p.z), top: p.h, view: 0.5 });
   }
 
   // Лес: внутри — рощи с проплешинами, по краю — сплошная стена
@@ -198,7 +211,7 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
   const pine = biome.trees.kind === 'pine';
   const addTree = (x: number, z: number, s: number) => {
     trees.push({ x, z, s, yaw: rt.range(0, Math.PI * 2), tint: rt.int(0, biome.trees.leaves.length - 1) });
-    obstacles.push({ x, z, r: (pine ? 0.45 : 0.35) * s, top: (pine ? 5.4 : 5.6) * s, view: (pine ? 1.1 : 1.3) * s });
+    obstacles.push({ x, z, r: (pine ? 0.45 : 0.35) * s, y0: at(x, z), top: (pine ? 5.4 : 5.6) * s, view: (pine ? 1.1 : 1.3) * s });
   };
   // Плотность Poisson-диска примерно 1/(1.6 r²); с учётом отбраковки берём с запасом
   const want = biome.trees.density / 100 / 0.55;
@@ -230,7 +243,7 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
     if (obstacles.some((o) => Math.hypot(o.x - p.x, o.z - p.z) < o.r + s * 0.65 + 0.8)) continue;
     if (!rr.chance(0.6)) continue;
     rocks.push({ x: p.x, z: p.z, s, rx: rr.range(0, 3), ry: rr.range(0, 3), rz: rr.range(0, 3) });
-    obstacles.push({ x: p.x, z: p.z, r: s * 0.65, top: s * 0.6, view: s * 0.55 });
+    obstacles.push({ x: p.x, z: p.z, r: s * 0.65, y0: at(p.x, p.z), top: s * 0.6, view: s * 0.55 });
   }
 
   // Карта проходимости и проверка платформ
@@ -256,7 +269,7 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
     const a = rk.range(0, Math.PI * 2);
     const x = o.x + Math.cos(a) * (o.r + HERO_R + 0.3), z = o.z + Math.sin(a) * (o.r + HERO_R + 0.3);
     if (free(x, z)) {
-      crystals.push({ x, z, y: 0 });
+      crystals.push({ x, z, y: at(x, z) });
       i++;
     }
   }
@@ -266,20 +279,21 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
     for (let t = 0; t < 30; t++) {
       const x = c.x + rk.range(-c.r, c.r) * 0.5, z = c.z + rk.range(-c.r, c.r) * 0.5;
       if (free(x, z)) {
-        crystals.push({ x, z, y: 0 });
+        crystals.push({ x, z, y: at(x, z) });
         break;
       }
     }
   }
   for (let t = 0; crystals.length < recipe.crystals && t < 3000; t++) {
     const x = rk.range(-half + 4, half - 4), z = rk.range(-half + 4, half - 4);
-    if (Math.hypot(x - spawn.x, z - spawn.z) > 12 && free(x, z)) crystals.push({ x, z, y: 0 });
+    if (Math.hypot(x - spawn.x, z - spawn.z) > 12 && free(x, z)) crystals.push({ x, z, y: at(x, z) });
   }
 
   return {
     recipe,
     biome,
     half,
+    terrain,
     spawn,
     portal,
     clearings,
@@ -324,7 +338,7 @@ function buildChain(rng: Rng, host: Clearing, steps: readonly [number, number], 
         const gap = Math.hypot(Math.max(gx, 0), Math.max(gz, 0));
         if (Math.max(gx, gz) < 0.3 || gap > MAX_GAP) ok = false;
       }
-      const p = { x, z, w, d, h };
+      const p = { x, z, w, d, h, y0: 0 };
       if (Math.abs(x) + w / 2 > half - 5 || Math.abs(z) + d / 2 > half - 5) ok = false;
       if (Math.hypot(x, z) < CENTER_R + 4) ok = false;
       // С чужими цепочками — с большим отступом, со своими ступенями (кроме соседней) — без наложения
