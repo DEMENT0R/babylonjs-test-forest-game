@@ -41,6 +41,7 @@ const UI_ROWS: readonly (Section | Row)[] = [
   { key: 'grassBend', label: 'Герой приминает траву', toggle: true },
   { sec: 'Эффекты' },
   { key: 'glow', label: 'Свечение кристаллов', toggle: true },
+  { key: 'particles', label: 'Снег и светлячки', toggle: true },
   { key: 'bloom', label: 'Bloom', toggle: true },
   { key: 'tone', label: 'Тонмаппинг ACES', toggle: true },
   { key: 'vignette', label: 'Виньетка', toggle: true },

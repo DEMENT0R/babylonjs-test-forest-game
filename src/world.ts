@@ -18,7 +18,7 @@ import { slopeAt } from './levels/terrain';
 import { createLightingContext, refreshLighting, type LightingContext } from './settings';
 
 export type { Obstacle, Platform };
-export type Surface = 'grass' | 'path' | 'stone';
+export type Surface = 'grass' | 'path' | 'stone' | 'snow';
 
 /** Сетка для быстрого поиска препятствий рядом с точкой. */
 class ObstacleGrid {
@@ -180,6 +180,7 @@ export class World {
   surfaceAt(x: number, z: number, y: number): Surface {
     const top = this.platformTopAt(x, z, y);
     if (top !== null && top > this.terrainAt(x, z) + 0.05) return 'stone';
+    if (this.level?.layout.biome.surface === 'snow') return 'snow';
     return Math.hypot(x, z) < PATH_R ? 'path' : 'grass';
   }
 
@@ -254,6 +255,7 @@ export class World {
     // Траве нужна высота героя над землёй, а не абсолютная
     const rel = bendAt ? new Vector3(bendAt.x, bendAt.y - this.terrainAt(bendAt.x, bendAt.z), bendAt.z) : null;
     lvl.grass.update(this.camera.position, rel, bendRadius);
+    lvl.particles?.follow(this.camera.position);
   }
 
   /** Сдвигает солнце вслед за точкой — область теней остаётся возле камеры. */

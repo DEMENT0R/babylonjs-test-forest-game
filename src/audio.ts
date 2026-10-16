@@ -2,6 +2,7 @@
 // Ветер — розовый шум с порывами из общей модели (wind.ts), птицы — свисты и трели нескольких «видов»
 // (и изредка кукушка), шаги — короткие шумовые щелчки, зависящие от поверхности и веса героя.
 
+import type { Ambience } from './levels/biomes';
 import type { Player } from './player';
 import { onSettingsApplied, settings, type Settings } from './settings';
 import { clamp } from './utils';
@@ -74,12 +75,15 @@ interface SurfaceSound {
   /** Глухой удар (низ), доля. */
   thump: number;
   thumpFreq: number;
+  /** Хрустящих «зёрен» в одном шаге (снег). */
+  grains?: number;
 }
 
 const SURFACES: Record<Surface, SurfaceSound> = {
   grass: { freq: 1700, q: 0.7, dur: 0.11, noise: 0.45, thump: 0.25, thumpFreq: 95 },
   path: { freq: 3200, q: 1.1, dur: 0.08, noise: 0.6, thump: 0.25, thumpFreq: 110 },
   stone: { freq: 950, q: 2.2, dur: 0.05, noise: 0.5, thump: 0.55, thumpFreq: 150 },
+  snow: { freq: 2300, q: 0.9, dur: 0.05, noise: 0.55, thump: 0.12, thumpFreq: 80, grains: 5 },
 };
 
 // ---------- Движок звука ----------
@@ -97,6 +101,8 @@ export class GameAudio {
   private windFilter!: BiquadFilterNode;
   private leavesGain!: GainNode;
   private birdTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Голоса текущего биома. */
+  private ambience: Ambience = { birds: 1, cuckoo: true, crickets: 0, frogs: 0, owls: 0, wind: 1 };
 
   constructor() {
     onSettingsApplied((s) => this.applyVolumes(s));
@@ -145,6 +151,11 @@ export class GameAudio {
     this.applyVolumes(settings);
     this.startWind();
     this.scheduleBird(rand(1, 3));
+  }
+
+  /** Звуковая атмосфера уровня: какие голоса и как часто звучат. */
+  setAmbience(a: Ambience): void {
+    this.ambience = a;
   }
 
   private applyVolumes(s: Readonly<Settings>): void {
@@ -206,8 +217,10 @@ export class GameAudio {
   private scheduleBird(delaySec: number): void {
     clearTimeout(this.birdTimer);
     this.birdTimer = setTimeout(() => {
-      if (this.running && settings.natureVolume > 0) this.bird();
-      this.scheduleBird(rand(1.2, 5.5));
+      const rate = this.ambience.birds;
+      if (rate > 0 && this.running && settings.natureVolume > 0) this.bird();
+      // Где птиц меньше, паузы между ними длиннее; где их нет — просто проверяем позже
+      this.scheduleBird(rate > 0 ? rand(1.2, 5.5) / rate : 3);
     }, delaySec * 1000);
   }
 
@@ -259,7 +272,8 @@ export class GameAudio {
 
   private bird(): void {
     const ac = this.ac!;
-    const kind = pick(['chirp', 'chirp', 'trill', 'whistle', 'whistle', 'cuckoo'] as const);
+    const kinds = ['chirp', 'chirp', 'trill', 'whistle', 'whistle', 'cuckoo'] as const;
+    const kind = pick(this.ambience.cuckoo ? kinds : kinds.slice(0, -1));
     const ch = this.birdChannel(kind === 'cuckoo' ? rand(0.6, 1) : rand(0, 0.9));
     let t = ac.currentTime + 0.05;
 
@@ -380,22 +394,27 @@ export class GameAudio {
     out.pan.value = pan;
     out.connect(this.stepsBus);
 
-    // Шорох/хруст — полоса шума
-    const src = ac.createBufferSource();
-    src.buffer = this.stepNoise;
-    src.playbackRate.value = rand(0.85, 1.15);
-    const bp = ac.createBiquadFilter();
-    bp.type = 'bandpass';
-    bp.frequency.value = sp.freq * rand(0.85, 1.15) * (1.15 - weight * 0.3);
-    bp.Q.value = sp.q;
-    const g = ac.createGain();
-    const dur = sp.dur * (0.8 + weight * 0.5);
-    const peak = sp.noise * force * (0.5 + weight * 0.6);
-    g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(peak, t + 0.006);
-    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    src.connect(bp).connect(g).connect(out);
-    src.start(t, rand(0, 0.8), dur + 0.05);
+    // Шорох/хруст — полоса шума; снег хрустит серией коротких «зёрен»
+    const grains = sp.grains ?? 1;
+    let gt = t;
+    for (let i = 0; i < grains; i++) {
+      const src = ac.createBufferSource();
+      src.buffer = this.stepNoise;
+      src.playbackRate.value = rand(0.85, 1.15);
+      const bp = ac.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = sp.freq * rand(0.8, 1.2) * (1.15 - weight * 0.3);
+      bp.Q.value = sp.q;
+      const g = ac.createGain();
+      const dur = sp.dur * (0.8 + weight * 0.5);
+      const peak = sp.noise * force * (0.5 + weight * 0.6) * (grains > 1 ? rand(0.5, 1) * (1 - i / (grains + 1)) : 1);
+      g.gain.setValueAtTime(0, gt);
+      g.gain.linearRampToValueAtTime(peak, gt + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.001, gt + dur);
+      src.connect(bp).connect(g).connect(out);
+      src.start(gt, rand(0, 0.8), dur + 0.05);
+      gt += rand(0.014, 0.028);
+    }
 
     // Глухой удар — короткий низкий тон с падающей частотой
     const osc = ac.createOscillator();

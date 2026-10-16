@@ -112,6 +112,8 @@ function beginLevel(index: number): void {
   level = index;
   setCurrentLevel(index);
   layout = world.loadLevel(recipeFor(index));
+  audio.setAmbience(layout.biome.ambience);
+  wind.setScale(layout.biome.ambience.wind);
   player.reset(layout.spawn);
   rig.reset();
   footsteps.reset();

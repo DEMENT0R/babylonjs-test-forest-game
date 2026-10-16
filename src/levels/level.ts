@@ -15,6 +15,7 @@ import {
   type Scene,
 } from '@babylonjs/core';
 import { GrassField } from '../grass';
+import { AirParticles } from '../particles';
 import { addShadowCaster, type LightingContext } from '../settings';
 import { clamp } from '../utils';
 import { PATH_R, type LevelLayout } from './generator';
@@ -26,6 +27,8 @@ const PORTAL_Y = 1.6;
 export class Level {
   readonly crystals: Crystal[] = [];
   readonly grass: GrassField;
+  /** Снег или светлячки, если они есть в биоме. */
+  readonly particles: AirParticles | null;
   portalOpen = false;
 
   private readonly meshes: Mesh[] = [];
@@ -117,6 +120,8 @@ export class Level {
       glow: lighting.glow,
       seed: layout.recipe.seed,
     });
+
+    this.particles = b.particles ? new AirParticles(scene, b.particles) : null;
   }
 
   // ---------- Построение ----------
@@ -282,6 +287,7 @@ export class Level {
   dispose(): void {
     this.lighting.glow?.removeExcludedMesh(this.portalCore);
     this.grass.dispose();
+    this.particles?.dispose();
     for (const m of this.meshes) m.dispose();
     for (const m of this.materials) m.dispose();
   }

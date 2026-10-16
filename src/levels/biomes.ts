@@ -3,7 +3,7 @@
 import { Color3 } from '@babylonjs/core';
 import type { Relief } from './terrain';
 
-export type BiomeId = 'meadow' | 'autumn' | 'rocky';
+export type BiomeId = 'meadow' | 'autumn' | 'rocky' | 'winter';
 export type TreeKind = 'pine' | 'birch';
 
 export interface Biome {
@@ -29,9 +29,27 @@ export interface Biome {
   rocks: { density: number; color: Color3 };
   /** Рельеф при множителе уровня 1. */
   relief: Relief;
+  ambience: Ambience;
+  /** Земля под ногами вне камня и площадки — для звука шагов. */
+  surface: 'grass' | 'snow';
+  /** Частицы в воздухе. */
+  particles?: 'snow';
 }
 
+const QUIET: Ambience = { birds: 0, cuckoo: false, crickets: 0, frogs: 0, owls: 0, wind: 1 };
+
 type Vector = readonly [x: number, y: number, z: number];
+
+/** Звуковая атмосфера биома: частоты голосов (0 — нет, 1 — как в летнем лесу). */
+export interface Ambience {
+  birds: number;
+  cuckoo: boolean;
+  crickets: number;
+  frogs: number;
+  owls: number;
+  /** Множитель силы ветра (звук и колыхание травы). */
+  wind: number;
+}
 
 const rgb = (r: number, g: number, b: number) => new Color3(r, g, b);
 
@@ -55,6 +73,8 @@ export const BIOMES: Record<BiomeId, Biome> = {
     },
     rocks: { density: 0.25, color: rgb(0.55, 0.55, 0.58) },
     relief: { amp: 2.4, scale: 38, border: 5 },
+    ambience: { ...QUIET, birds: 1, cuckoo: true },
+    surface: 'grass',
   },
   autumn: {
     id: 'autumn',
@@ -75,6 +95,8 @@ export const BIOMES: Record<BiomeId, Biome> = {
     },
     rocks: { density: 0.2, color: rgb(0.58, 0.54, 0.5) },
     relief: { amp: 3.4, scale: 32, border: 6 },
+    ambience: { ...QUIET, birds: 0.7, wind: 1.15 },
+    surface: 'grass',
   },
   rocky: {
     id: 'rocky',
@@ -95,5 +117,32 @@ export const BIOMES: Record<BiomeId, Biome> = {
     },
     rocks: { density: 1.1, color: rgb(0.56, 0.56, 0.6) },
     relief: { amp: 4.6, scale: 30, ridged: true, border: 8 },
+    ambience: { ...QUIET, birds: 0.5, wind: 1.3 },
+    surface: 'grass',
+  },
+  winter: {
+    id: 'winter',
+    name: 'Зимний лес',
+    sky: rgb(0.8, 0.84, 0.9),
+    fogBase: 2.6,
+    sun: { dir: [-0.6, -0.55, -0.4], color: rgb(0.95, 0.96, 1), intensity: 0.75 },
+    hemi: { intensity: 0.7, ground: rgb(0.55, 0.58, 0.64) },
+    ground: rgb(0.8, 0.83, 0.88),
+    path: rgb(0.7, 0.72, 0.77),
+    stone: rgb(0.56, 0.57, 0.62),
+    // Сухая трава торчит из-под снега
+    grass: { root: rgb(0.62, 0.6, 0.52), tip: rgb(0.74, 0.66, 0.44), density: 0.25 },
+    trees: {
+      kind: 'pine',
+      density: 0.8,
+      trunk: rgb(0.3, 0.24, 0.2),
+      // Заснеженные ели
+      leaves: [rgb(0.74, 0.8, 0.82), rgb(0.55, 0.66, 0.64), rgb(0.84, 0.88, 0.9)],
+    },
+    rocks: { density: 0.35, color: rgb(0.66, 0.68, 0.73) },
+    relief: { amp: 3, scale: 34, border: 7 },
+    ambience: { ...QUIET, birds: 0.2, wind: 1.4 },
+    surface: 'snow',
+    particles: 'snow',
   },
 };

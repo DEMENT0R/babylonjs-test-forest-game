@@ -41,6 +41,8 @@ export interface GraphicsSettings {
   grassDist: number;
   grassWind: boolean;
   grassBend: boolean;
+  /** Снегопад и светлячки. */
+  particles: boolean;
 }
 
 export interface Settings extends GraphicsSettings {
@@ -60,13 +62,13 @@ export interface Settings extends GraphicsSettings {
 
 export const PRESETS: Record<PresetId, GraphicsSettings> = {
   low:    { scale: 0.6,   shadows: 'off',  shadowRes: 512,  shadowDist: 30, aa: 'off',  bloom: false, glow: false, tone: false, vignette: false, ssao: false, fog: true, view: 70,
-            grass: 'off',    grassDist: 30, grassWind: false, grassBend: false },
+            grass: 'off',    grassDist: 30, grassWind: false, grassBend: false, particles: false },
   medium: { scale: 0.8,   shadows: 'hard', shadowRes: 1024, shadowDist: 40, aa: 'fxaa', bloom: false, glow: true,  tone: true,  vignette: false, ssao: false, fog: true, view: 100,
-            grass: 'sparse', grassDist: 35, grassWind: true,  grassBend: true },
+            grass: 'sparse', grassDist: 35, grassWind: true,  grassBend: true,  particles: true },
   high:   { scale: 1,     shadows: 'soft', shadowRes: 2048, shadowDist: 50, aa: 'fxaa', bloom: true,  glow: true,  tone: true,  vignette: true,  ssao: false, fog: true, view: 140,
-            grass: 'normal', grassDist: 50, grassWind: true,  grassBend: true },
+            grass: 'normal', grassDist: 50, grassWind: true,  grassBend: true,  particles: true },
   ultra:  { scale: 'dpr', shadows: 'pcf',  shadowRes: 4096, shadowDist: 70, aa: 'msaa', bloom: true,  glow: true,  tone: true,  vignette: true,  ssao: true,  fog: true, view: 200,
-            grass: 'dense',  grassDist: 70, grassWind: true,  grassBend: true },
+            grass: 'dense',  grassDist: 70, grassWind: true,  grassBend: true,  particles: true },
 };
 
 const DEFAULTS: Settings = {
@@ -260,8 +262,8 @@ export function refreshLighting(ctx: LightingContext, engine: Engine): void {
   buildPipeline(ctx, engine);
 }
 
-// Трава пересобирается сама (grass.ts) — её настройки не трогают тени и пост-обработку
-const GRAPHICS_KEYS = (Object.keys(PRESETS.high) as (keyof GraphicsSettings)[]).filter((k) => !k.startsWith('grass'));
+// Трава и частицы пересобираются сами — их настройки не трогают тени и пост-обработку
+const GRAPHICS_KEYS = (Object.keys(PRESETS.high) as (keyof GraphicsSettings)[]).filter((k) => !k.startsWith('grass') && k !== 'particles');
 
 /**
  * Применяет текущие настройки ко всем сценам и сохраняет их.
