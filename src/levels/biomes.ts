@@ -1,6 +1,7 @@
 // Биомы: палитра, небо и солнце, состав леса и травы. Механики у всех пока общие.
 
 import { Color3 } from '@babylonjs/core';
+import type { Relief } from './terrain';
 
 export type BiomeId = 'meadow' | 'autumn' | 'rocky';
 export type TreeKind = 'pine' | 'birch';
@@ -26,6 +27,8 @@ export interface Biome {
     leaves: Color3[];
   };
   rocks: { density: number; color: Color3 };
+  /** Рельеф при множителе уровня 1. */
+  relief: Relief;
 }
 
 type Vector = readonly [x: number, y: number, z: number];
@@ -51,6 +54,7 @@ export const BIOMES: Record<BiomeId, Biome> = {
       leaves: [rgb(0.2, 0.45, 0.25), rgb(0.28, 0.52, 0.22), rgb(0.16, 0.38, 0.3)],
     },
     rocks: { density: 0.25, color: rgb(0.55, 0.55, 0.58) },
+    relief: { amp: 2.4, scale: 38, border: 5 },
   },
   autumn: {
     id: 'autumn',
@@ -70,14 +74,15 @@ export const BIOMES: Record<BiomeId, Biome> = {
       leaves: [rgb(0.95, 0.62, 0.18), rgb(0.88, 0.42, 0.14), rgb(0.95, 0.8, 0.3), rgb(0.62, 0.5, 0.2)],
     },
     rocks: { density: 0.2, color: rgb(0.58, 0.54, 0.5) },
+    relief: { amp: 3.4, scale: 32, border: 6 },
   },
   rocky: {
     id: 'rocky',
     name: 'Каменное плато',
     sky: rgb(0.62, 0.7, 0.8),
     fogBase: 1.4,
-    sun: { dir: [-0.3, -1, 0.5], color: rgb(1, 0.97, 0.92), intensity: 1.2 },
-    hemi: { intensity: 0.8, ground: rgb(0.3, 0.3, 0.3) },
+    sun: { dir: [-0.3, -1, 0.5], color: rgb(1, 0.97, 0.92), intensity: 1.0 },
+    hemi: { intensity: 0.65, ground: rgb(0.3, 0.3, 0.3) },
     ground: rgb(0.46, 0.52, 0.4),
     path: rgb(0.6, 0.58, 0.54),
     stone: rgb(0.58, 0.58, 0.6),
@@ -89,5 +94,6 @@ export const BIOMES: Record<BiomeId, Biome> = {
       leaves: [rgb(0.18, 0.36, 0.28), rgb(0.22, 0.42, 0.26)],
     },
     rocks: { density: 1.1, color: rgb(0.56, 0.56, 0.6) },
+    relief: { amp: 4.6, scale: 30, ridged: true, border: 8 },
   },
 };

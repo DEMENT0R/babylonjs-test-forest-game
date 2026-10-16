@@ -207,10 +207,15 @@ export class Player {
     pos.y += vel.y * dt;
 
     const g = world.groundAt(pos.x, pos.z, pos.y);
+    // Сколько земля может уйти вниз за кадр на спуске, чтобы герой не «подпрыгивал»
+    const stick = 0.12 + Math.hypot(vel.x, vel.z) * dt * 1.2;
     if (pos.y <= g) {
       pos.y = g;
       vel.y = 0;
       this.onGround = true;
+    } else if (this.onGround && vel.y <= 0 && pos.y - g < stick) {
+      pos.y = g;
+      vel.y = 0;
     } else {
       this.onGround = pos.y - g < 0.02 && vel.y <= 0;
     }

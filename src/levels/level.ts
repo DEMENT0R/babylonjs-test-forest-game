@@ -143,8 +143,8 @@ export class Level {
     const { half, biome } = this.layout;
     // Земля шире уровня: за стеной леса не должно быть видно края мира
     const size = (half + 60) * 2;
-    // Шаг сетки ~2.5 м — рельеф плавный, мелкие детали не нужны
-    const subdivisions = Math.ceil(size / 2.5);
+    // Шаг сетки 1.5 м: треугольники почти совпадают с картой высот (1 м), герой не парит над землёй
+    const subdivisions = Math.ceil(size / 1.5);
     const ground = this.track(MeshBuilder.CreateGround('ground', { width: size, height: size, subdivisions, updatable: true }, this.scene));
     const pos = ground.getVerticesData('position')!;
     for (let i = 0; i < pos.length; i += 3) pos[i + 1] = this.layout.terrain.heightAt(pos[i], pos[i + 2]);

@@ -8,7 +8,7 @@
 import { Rng } from '../rng';
 import { BIOMES, type Biome } from './biomes';
 import { requiredCrystals, type LevelRecipe } from './recipes';
-import { FLAT_TERRAIN, type Terrain } from './terrain';
+import { bakeTerrain, rawRelief, type Flat, type Terrain } from './terrain';
 
 export interface Obstacle {
   x: number;
@@ -187,8 +187,20 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
     chainTops.push(chain[chain.length - 1]);
   }
 
-  // Рельеф; платформы встают на землю
-  const terrain = FLAT_TERRAIN;
+  // Рельеф: холмы, а под полянами и цепочками платформ — ровные площадки
+  const r0 = biome.relief;
+  const raw = rawRelief(seed, half, { ...r0, amp: r0.amp * recipe.relief, border: r0.border * Math.min(1, recipe.relief + 0.4) });
+  const flats: Flat[] = [];
+  for (const c of clearings.slice(1)) flats.push({ x: c.x, z: c.z, r: c.r * 0.6, fade: c.r, strength: 0.65, target: raw(c.x, c.z) });
+  for (let c = 0; c < chainStarts.length; c++) {
+    // Вся цепочка стоит на одной высоте — на уровне первой ступени
+    const target = raw(chainStarts[c].x, chainStarts[c].z);
+    const first = platforms.indexOf(chainStarts[c]);
+    const last = platforms.indexOf(chainTops[c]);
+    for (const p of platforms.slice(first, last + 1)) flats.push({ x: p.x, z: p.z, r: Math.hypot(p.w, p.d) / 2 + 1.5, fade: 6, strength: 1, target });
+  }
+  flats.push({ x: 0, z: 0, r: CENTER_R + 1, fade: 10, strength: 1, target: 0 });
+  const terrain = bakeTerrain(raw, flats, half + 60);
   for (const p of platforms) p.y0 = terrain.heightAt(p.x, p.z);
   const tops: CrystalSpot[] = chainTops.map((p) => ({ x: p.x, z: p.z, y: p.y0 + p.h }));
   const at = (x: number, z: number) => terrain.heightAt(x, z);

@@ -20,6 +20,8 @@ export interface LevelRecipe {
   hidden: number;
   /** Дополнительных полян помимо центральной. */
   clearings: number;
+  /** Множитель рельефа биома: первые уровни почти плоские. */
+  relief: number;
 }
 
 /** Доля кристаллов, после которой открывается портал. */
@@ -27,14 +29,14 @@ export const PORTAL_SHARE = 0.8;
 export const CAMPAIGN_LENGTH = 8;
 
 const CAMPAIGN: readonly Omit<LevelRecipe, 'index' | 'seed'>[] = [
-  { biome: 'meadow', half: 42, crystals: 8, chains: 1, steps: [2, 2], hidden: 0, clearings: 2 },
-  { biome: 'meadow', half: 50, crystals: 10, chains: 1, steps: [2, 3], hidden: 0.1, clearings: 3 },
-  { biome: 'autumn', half: 55, crystals: 12, chains: 2, steps: [2, 3], hidden: 0.2, clearings: 3 },
-  { biome: 'autumn', half: 62, crystals: 13, chains: 2, steps: [3, 3], hidden: 0.3, clearings: 4 },
-  { biome: 'rocky', half: 60, crystals: 14, chains: 3, steps: [3, 4], hidden: 0.3, clearings: 4 },
-  { biome: 'meadow', half: 72, crystals: 16, chains: 3, steps: [3, 4], hidden: 0.4, clearings: 5 },
-  { biome: 'autumn', half: 80, crystals: 18, chains: 3, steps: [3, 5], hidden: 0.45, clearings: 5 },
-  { biome: 'rocky', half: 85, crystals: 20, chains: 4, steps: [4, 5], hidden: 0.5, clearings: 6 },
+  { biome: 'meadow', half: 42, crystals: 8, chains: 1, steps: [2, 2], hidden: 0, clearings: 2, relief: 0.35 },
+  { biome: 'meadow', half: 50, crystals: 10, chains: 1, steps: [2, 3], hidden: 0.1, clearings: 3, relief: 0.6 },
+  { biome: 'autumn', half: 55, crystals: 12, chains: 2, steps: [2, 3], hidden: 0.2, clearings: 3, relief: 0.8 },
+  { biome: 'autumn', half: 62, crystals: 13, chains: 2, steps: [3, 3], hidden: 0.3, clearings: 4, relief: 1 },
+  { biome: 'rocky', half: 60, crystals: 14, chains: 3, steps: [3, 4], hidden: 0.3, clearings: 4, relief: 1 },
+  { biome: 'meadow', half: 72, crystals: 16, chains: 3, steps: [3, 4], hidden: 0.4, clearings: 5, relief: 1.1 },
+  { biome: 'autumn', half: 80, crystals: 18, chains: 3, steps: [3, 5], hidden: 0.45, clearings: 5, relief: 1.2 },
+  { biome: 'rocky', half: 85, crystals: 20, chains: 4, steps: [4, 5], hidden: 0.5, clearings: 6, relief: 1.3 },
 ];
 
 const BIOME_IDS = Object.keys(BIOMES) as BiomeId[];
@@ -56,6 +58,7 @@ export function recipeFor(index: number): LevelRecipe {
     steps: [3, Math.min(6, 4 + Math.floor(extra / 3))],
     hidden: Math.min(0.6, 0.4 + extra * 0.02),
     clearings: Math.min(8, 5 + Math.floor(extra / 2)),
+    relief: Math.min(1.5, 1.2 + extra * 0.03),
   };
 }
 
