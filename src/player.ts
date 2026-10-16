@@ -4,6 +4,7 @@ import { Color3, MeshBuilder, StandardMaterial, TransformNode, Vector3, type Mes
 import { blendAnims, type Hero } from './heroes';
 import { onSettingsApplied } from './settings';
 import { byId, clamp, damp, wrapAngle } from './utils';
+import { MAX_WALK_SLOPE } from './levels/terrain';
 import type { World } from './world';
 import type { CameraModeId } from './camera';
 
@@ -202,8 +203,25 @@ export class Player {
       }
     }
     const lim = world.half - 1.5;
-    pos.x = clamp(nx, -lim, lim);
-    pos.z = clamp(nz, -lim, lim);
+    nx = clamp(nx, -lim, lim);
+    nz = clamp(nz, -lim, lim);
+    // Слишком крутой подъём не пускает; по каждой оси отдельно — герой скользит вдоль склона
+    if (this.onGround) {
+      const tooSteep = (x: number, z: number) => {
+        const d = Math.hypot(x - pos.x, z - pos.z);
+        return d > 1e-4 && world.terrainAt(x, z) - world.terrainAt(pos.x, pos.z) > MAX_WALK_SLOPE * d + 0.0005 && world.groundAt(x, z, pos.y) <= world.terrainAt(x, z) + 0.01;
+      };
+      if (tooSteep(nx, nz)) {
+        if (!tooSteep(nx, pos.z)) nz = pos.z;
+        else if (!tooSteep(pos.x, nz)) nx = pos.x;
+        else {
+          nx = pos.x;
+          nz = pos.z;
+        }
+      }
+    }
+    pos.x = nx;
+    pos.z = nz;
     pos.y += vel.y * dt;
 
     const g = world.groundAt(pos.x, pos.z, pos.y);
@@ -218,6 +236,16 @@ export class Player {
       vel.y = 0;
     } else {
       this.onGround = pos.y - g < 0.02 && vel.y <= 0;
+    }
+
+    // На крутом склоне (не на платформе) герой съезжает вниз
+    if (this.onGround && g <= world.terrainAt(pos.x, pos.z) + 0.01) {
+      const s = world.slopeAt(pos.x, pos.z);
+      if (s.slope > MAX_WALK_SLOPE) {
+        const push = (s.slope - MAX_WALK_SLOPE) * 18 * dt;
+        vel.x += s.dx * push;
+        vel.z += s.dz * push;
+      }
     }
 
     const bs = height / 2.1;

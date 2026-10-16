@@ -8,7 +8,7 @@
 import { Rng } from '../rng';
 import { BIOMES, type Biome } from './biomes';
 import { requiredCrystals, type LevelRecipe } from './recipes';
-import { bakeTerrain, rawRelief, type Flat, type Terrain } from './terrain';
+import { bakeTerrain, MAX_WALK_SLOPE, rawRelief, slopeAt, type Flat, type Terrain } from './terrain';
 
 export interface Obstacle {
   x: number;
@@ -259,7 +259,7 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
   }
 
   // Карта проходимости и проверка платформ
-  const nav = new NavGrid(half, obstacles, platforms, spawn);
+  const nav = new NavGrid(half, obstacles, platforms, spawn, terrain);
   if (!chainStarts.every((p) => nav.reachableNearRect(p, 1.2))) return null;
 
   // Кристаллы
@@ -365,13 +365,13 @@ function buildChain(rng: Rng, host: Clearing, steps: readonly [number, number], 
 
 // ---------- Проходимость ----------
 
-/** Сетка 0.5 м: какие клетки достижимы пешком от точки старта. */
+/** Сетка 0.5 м: какие клетки достижимы пешком от точки старта (крутые склоны — стены). */
 class NavGrid {
   private static readonly CELL = 0.5;
   private readonly n: number;
   private readonly reach: Uint8Array;
 
-  constructor(private readonly half: number, obstacles: Obstacle[], platforms: Platform[], spawn: { x: number; z: number }) {
+  constructor(private readonly half: number, obstacles: Obstacle[], platforms: Platform[], spawn: { x: number; z: number }, terrain: Terrain) {
     const C = NavGrid.CELL;
     const n = (this.n = Math.ceil((half * 2) / C));
     const blocked = new Uint8Array(n * n);
@@ -380,6 +380,8 @@ class NavGrid {
       for (let i = 0; i < n; i++) {
         const x = -half + (i + 0.5) * C, z = -half + (j + 0.5) * C;
         if (Math.abs(x) > lim || Math.abs(z) > lim) blocked[j * n + i] = 1;
+        // С запасом: склон на грани допустимого в игре пешком не всегда берётся
+        else if (slopeAt(terrain, x, z).slope > MAX_WALK_SLOPE * 0.9) blocked[j * n + i] = 1;
       }
     }
     const stamp = (x0: number, z0: number, x1: number, z1: number, test: (x: number, z: number) => boolean) => {

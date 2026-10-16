@@ -13,6 +13,18 @@ export interface Terrain {
 /** Плоская земля на нулевой высоте. */
 export const FLAT_TERRAIN: Terrain = { heightAt: () => 0 };
 
+/** Самый крутой склон, на который можно зайти: тангенс 38°. */
+export const MAX_WALK_SLOPE = Math.tan((38 * Math.PI) / 180);
+
+/** Уклон (тангенс) и направление вниз по склону в точке. */
+export function slopeAt(t: Terrain, x: number, z: number): { slope: number; dx: number; dz: number } {
+  const e = 0.5;
+  const gx = (t.heightAt(x + e, z) - t.heightAt(x - e, z)) / (2 * e);
+  const gz = (t.heightAt(x, z + e) - t.heightAt(x, z - e)) / (2 * e);
+  const slope = Math.hypot(gx, gz);
+  return slope > 1e-6 ? { slope, dx: -gx / slope, dz: -gz / slope } : { slope: 0, dx: 0, dz: 0 };
+}
+
 export interface Relief {
   /** Перепад высот холмов, м. */
   amp: number;

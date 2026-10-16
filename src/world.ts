@@ -14,6 +14,7 @@ import {
 import { generateLevel, PATH_R, type LevelLayout, type Obstacle, type Platform } from './levels/generator';
 import { Level, type Crystal } from './levels/level';
 import type { LevelRecipe } from './levels/recipes';
+import { slopeAt } from './levels/terrain';
 import { createLightingContext, refreshLighting, type LightingContext } from './settings';
 
 export type { Obstacle, Platform };
@@ -146,6 +147,11 @@ export class World {
   /** Высота земли (без платформ). */
   terrainAt(x: number, z: number): number {
     return this.level ? this.level.layout.terrain.heightAt(x, z) : 0;
+  }
+
+  /** Уклон земли в точке (тангенс) и направление вниз по склону. */
+  slopeAt(x: number, z: number): { slope: number; dx: number; dz: number } {
+    return this.level ? slopeAt(this.level.layout.terrain, x, z) : { slope: 0, dx: 0, dz: 0 };
   }
 
   /** Верх платформы под точкой, на который можно встать с высоты y; иначе null. */
