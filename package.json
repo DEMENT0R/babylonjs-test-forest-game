@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "description": "Тихая поляна — прогулка по лесной поляне от третьего лица на Babylon.js",
+  "author": "Maxim Bezrukavnikov",
   "type": "module",
   "scripts": {
     "dev": "vite",
