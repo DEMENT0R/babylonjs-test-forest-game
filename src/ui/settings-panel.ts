@@ -20,6 +20,8 @@ interface ToggleRow extends RowBase { toggle: true }
 interface RangeRow extends RowBase { range: readonly [min: number, max: number, step: number]; fmt: (v: number) => string }
 type Row = SegRow | ToggleRow | RangeRow;
 
+const percent = (v: number) => `${Math.round(v * 100)}%`;
+
 const UI_ROWS: readonly (Section | Row)[] = [
   { sec: 'Графика' },
   { key: 'preset', label: 'Пресет', preset: true, seg: [['low', 'Низкое'], ['medium', 'Среднее'], ['high', 'Высокое'], ['ultra', 'Ультра'], ['custom', 'Своё']] },
@@ -42,6 +44,11 @@ const UI_ROWS: readonly (Section | Row)[] = [
   { key: 'sens', label: 'Чувствительность мыши', range: [0.3, 3, 0.1], fmt: (v) => `${v.toFixed(1)}×`, noPreset: true },
   { key: 'invertY', label: 'Инверсия по вертикали', toggle: true, noPreset: true },
   { key: 'fps', label: 'Показывать FPS', toggle: true, noPreset: true },
+  { sec: 'Звук' },
+  { key: 'sound', label: 'Звук', hint: 'Клавиша M', toggle: true, noPreset: true },
+  { key: 'volume', label: 'Общая громкость', range: [0, 1, 0.05], fmt: percent, noPreset: true },
+  { key: 'stepsVolume', label: 'Шаги', range: [0, 1, 0.05], fmt: percent, noPreset: true },
+  { key: 'natureVolume', label: 'Ветер и птицы', range: [0, 1, 0.05], fmt: percent, noPreset: true },
 ];
 
 /** Запись в настройки по ключу строки (типы значений гарантирует описание UI_ROWS). */

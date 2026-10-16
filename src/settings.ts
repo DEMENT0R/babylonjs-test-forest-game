@@ -44,6 +44,12 @@ export interface Settings extends GraphicsSettings {
   sens: number;
   invertY: boolean;
   fps: boolean;
+  /** Звук включён (клавиша M). */
+  sound: boolean;
+  /** Громкость 0…1: общая, шагов и природы (ветер, птицы). */
+  volume: number;
+  stepsVolume: number;
+  natureVolume: number;
 }
 
 export const PRESETS: Record<PresetId, GraphicsSettings> = {
@@ -53,7 +59,10 @@ export const PRESETS: Record<PresetId, GraphicsSettings> = {
   ultra:  { scale: 'dpr', shadows: 'pcf',  shadowRes: 4096, shadowDist: 70, aa: 'msaa', bloom: true,  glow: true,  tone: true,  vignette: true,  ssao: true,  fog: true, view: 200 },
 };
 
-const DEFAULTS: Settings = { preset: 'high', ...PRESETS.high, fov: 60, sens: 1, invertY: false, fps: false };
+const DEFAULTS: Settings = {
+  preset: 'high', ...PRESETS.high, fov: 60, sens: 1, invertY: false, fps: false,
+  sound: true, volume: 0.8, stepsVolume: 0.8, natureVolume: 0.6,
+};
 const STORAGE_KEY = 'tihaya-polyana-settings';
 
 /** Текущие настройки. Объект живёт всё время работы игры, меняется на месте. */
@@ -103,6 +112,8 @@ export interface LightingContext {
   shadowGen: ShadowGenerator | null;
   pipeline: DefaultRenderingPipeline | null;
   ssao: SSAO2RenderingPipeline | null;
+  /** Графические настройки, под которые контекст собран последний раз. */
+  builtFor: string | null;
 }
 
 export interface LightingOptions {
@@ -131,6 +142,7 @@ export function createLightingContext(o: LightingOptions): LightingContext {
     shadowGen: null,
     pipeline: null,
     ssao: null,
+    builtFor: null,
   };
   contexts.push(ctx);
   return ctx;
@@ -228,14 +240,23 @@ export function onSettingsApplied(fn: Listener): void {
   listeners.push(fn);
 }
 
-/** Применяет текущие настройки ко всем сценам и сохраняет их. */
+const GRAPHICS_KEYS = Object.keys(PRESETS.high) as (keyof GraphicsSettings)[];
+
+/**
+ * Применяет текущие настройки ко всем сценам и сохраняет их.
+ * Тени и пост-обработка пересобираются, только если изменилась графика, —
+ * громкость, FOV и прочее применяются мгновенно.
+ */
 export function applySettings(engine: Engine): void {
   const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
   const scale = settings.scale === 'dpr' ? dpr : settings.scale;
   engine.setHardwareScalingLevel(1 / scale);
+  const graphics = JSON.stringify(GRAPHICS_KEYS.map((k) => settings[k]));
   for (const ctx of contexts) {
+    if (ctx.builtFor === graphics) continue;
     buildShadows(ctx);
     buildPipeline(ctx, engine);
+    ctx.builtFor = graphics;
   }
   for (const fn of listeners) fn(settings);
   saveSettings();

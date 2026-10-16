@@ -8,12 +8,13 @@ const INFO = {
     <dt>WASD / стрелки</dt><dd>движение</dd><dt>Shift</dt><dd>бег</dd><dt>Space</dt><dd>прыжок</dd>
     <dt>Мышь</dt><dd>повернуть камеру; в режиме «из-за плеча» клик захватывает курсор</dd>
     <dt>Колесо</dt><dd>приблизить или отдалить камеру</dd><dt>C</dt><dd>режим камеры: из-за плеча, за спиной, свободная</dd>
-    <dt>H</dt><dd>сменить героя</dd><dt>O</dt><dd>настройки</dd><dt>Esc</dt><dd>пауза и главное меню</dd>
+    <dt>H</dt><dd>сменить героя</dd><dt>O</dt><dd>настройки</dd><dt>M</dt><dd>включить или выключить звук</dd><dt>Esc</dt><dd>пауза и главное меню</dd>
     <dt>Телефон</dt><dd>стик слева, кнопка прыжка справа, свайп поворачивает камеру</dd></dl>`,
   about: `<h4>Авторы</h4>
     <p>Движок — Babylon.js ${Engine.Version}.</p>
     <p>Волк и олень — Quaternius, Ultimate Animated Animals (CC0).</p>
     <p>Лиса — PixelMannen (CC0), риг и анимация @tomkranis (CC BY 4.0), из Khronos glTF Sample Assets.</p>
+    <p>Звуки ветра, птиц и шагов синтезируются в браузере (Web Audio API).</p>
     <p>Шрифты — Unbounded и JetBrains Mono.</p>`,
 } as const;
 type InfoKey = keyof typeof INFO;

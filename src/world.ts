@@ -21,6 +21,7 @@ export const WORLD_HALF = 60;
 
 export interface Obstacle { x: number; z: number; r: number }
 export interface Platform { x: number; z: number; w: number; d: number; h: number }
+export type Surface = 'grass' | 'path' | 'stone';
 export interface Crystal { mesh: Mesh; baseY: number; phase: number }
 
 /** Меши с этим флагом перекрывают обзор — камера подъезжает к герою. */
@@ -28,6 +29,8 @@ export function isCameraBlocker(m: { metadata?: unknown }): boolean {
   return (m.metadata as { blocker?: boolean } | null)?.blocker === true;
 }
 
+/** Радиус утоптанной площадки в центре поляны. */
+const PATH_RADIUS = 7;
 const SKY = new Color3(0.55, 0.72, 0.78);
 
 export class World {
@@ -105,7 +108,7 @@ export class World {
     const ground = MeshBuilder.CreateGround('g', { width: WORLD_HALF * 2, height: WORLD_HALF * 2, subdivisions: 2 }, this.scene);
     ground.material = this.mat('gm', new Color3(0.42, 0.6, 0.36));
     ground.receiveShadows = true;
-    const path = MeshBuilder.CreateDisc('p', { radius: 7, tessellation: 48 }, this.scene);
+    const path = MeshBuilder.CreateDisc('p', { radius: PATH_RADIUS, tessellation: 48 }, this.scene);
     path.rotation.x = Math.PI / 2;
     path.position.y = 0.02;
     path.material = this.mat('pm', new Color3(0.66, 0.58, 0.44));
@@ -218,6 +221,12 @@ export class World {
       if (Math.abs(x - p.x) < p.w / 2 + 0.25 && Math.abs(z - p.z) < p.d / 2 + 0.25 && y >= p.h - 0.35) g = Math.max(g, p.h);
     }
     return g;
+  }
+
+  /** Из чего поверхность под ногами — для звука шагов. */
+  surfaceAt(x: number, z: number, groundY: number): Surface {
+    if (groundY > 0) return 'stone';
+    return Math.hypot(x, z) < PATH_RADIUS ? 'path' : 'grass';
   }
 
   /** Упирается ли игрок на высоте y в боковую стенку платформы. */

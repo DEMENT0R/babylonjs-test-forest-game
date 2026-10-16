@@ -1,10 +1,11 @@
 // Точка входа: движок, сцены и переключение состояний меню → выбор героя → игра.
 
 import { Engine, Vector3 } from '@babylonjs/core';
+import { Footsteps, GameAudio } from './audio';
 import { CameraRig } from './camera';
 import { loadHero, type HeroDef } from './heroes';
 import { clearInput, keys, Player, setupTouchControls } from './player';
-import { applySettings } from './settings';
+import { applySettings, settings } from './settings';
 import { say, setCrystals, setupHud, showCameraMode, tickFps } from './ui/hud';
 import { MainMenu } from './ui/menu';
 import { SelectScreen } from './ui/select';
@@ -32,6 +33,17 @@ function setState(s: GameState): void {
 
 const world = new World(engine);
 const player = new Player(world);
+const audio = new GameAudio();
+const footsteps = new Footsteps(audio, world);
+
+// Браузер включает звук только после действия пользователя — первый клик или клавиша
+for (const type of ['pointerdown', 'keydown'] as const) addEventListener(type, () => audio.unlock(), { capture: true });
+
+function toggleSound(): void {
+  settings.sound = !settings.sound;
+  applySettings(engine);
+  say(settings.sound ? 'Звук включён' : 'Звук выключен');
+}
 
 const settingsPanel = new SettingsPanel(
   engine,
@@ -93,6 +105,7 @@ async function startGame(def: HeroDef): Promise<void> {
     select.setBusy(false);
   }
   clearInput();
+  footsteps.reset();
   setState('play');
   gameStarted = true;
   canvas.focus();
@@ -125,6 +138,7 @@ function openMenu(): void {
 function resumeGame(): void {
   if (!gameStarted) return;
   menu.closeInfo();
+  footsteps.reset();
   setState('play');
   canvas.focus();
 }
@@ -146,6 +160,10 @@ addEventListener('keydown', (e) => {
   }
   if (e.code === 'KeyO' && !e.repeat) {
     settingsPanel.open();
+    return;
+  }
+  if (e.code === 'KeyM' && !e.repeat) {
+    toggleSound();
     return;
   }
   switch (state) {
@@ -192,6 +210,7 @@ world.scene.onBeforeRenderObservable.add(() => {
   player.update(dt, { yaw: rig.yaw, modeId: rig.mode.id }, !settingsPanel.isOpen);
   world.followSun(player.pos);
   rig.update(dt, player);
+  footsteps.update(dt, player);
 
   const got = world.collectNear(player.center);
   if (got > 0) {
