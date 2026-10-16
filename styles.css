@@ -124,8 +124,16 @@ h1{margin:0;font:700 15px/1.2 var(--f-display);letter-spacing:.02em}
 /* Settings sheet */
 #settings{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(6,12,10,.45);
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px}
-.sheet{width:100%;max-width:520px;max-height:100%;overflow:auto;background:var(--sheet);border:1px solid var(--line);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.45)}
-.sheet-head{position:sticky;top:0;background:var(--sheet);display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 18px 12px;border-bottom:1px solid var(--line);z-index:1}
+.sheet{width:100%;max-width:520px;height:min(640px,100%);overflow:auto;background:var(--sheet);border:1px solid var(--line);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.45)}
+.sheet-head{position:sticky;top:0;background:var(--sheet);padding:16px 18px 0;border-bottom:1px solid var(--line);z-index:1}
+.sheet-title{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.tabs{display:flex;align-items:center;gap:2px;margin-top:12px;overflow-x:auto;scrollbar-width:none}
+.tabs button{flex:1 0 auto;background:transparent;border:0;border-bottom:2px solid transparent;padding:8px 10px;font:600 12px var(--f-mono);color:var(--muted);cursor:pointer;white-space:nowrap}
+.tabs button:hover{color:var(--ink)}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.tabs kbd{font:600 10px var(--f-mono);color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+.tabs .hint-l{margin-right:6px}.tabs .hint-r{margin-left:6px}
+@media (hover:none){.tabs kbd{display:none}}
 .sheet-head h3{margin:0;font:700 17px var(--f-display)}
 .sheet-body{padding:6px 18px 18px;display:flex;flex-direction:column;gap:4px}
 .sec{font:600 11px var(--f-mono);letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-top:14px;padding-bottom:4px}

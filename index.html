@@ -80,8 +80,11 @@
   <!-- Панель настроек (строки генерирует src/ui/settings-panel.ts) -->
   <div id="settings" hidden role="dialog" aria-modal="true" aria-labelledby="set-title">
     <div class="sheet">
-      <div class="sheet-head"><h3 id="set-title">Настройки</h3><button class="small-btn" id="set-close" type="button">Готово (Esc)</button></div>
-      <div class="sheet-body" id="set-body"></div>
+      <div class="sheet-head">
+        <div class="sheet-title"><h3 id="set-title">Настройки</h3><button class="small-btn" id="set-close" type="button">Готово (Esc)</button></div>
+        <div class="tabs" id="set-tabs" role="tablist" aria-label="Разделы настроек"></div>
+      </div>
+      <div class="sheet-body" id="set-body" role="tabpanel"></div>
     </div>
   </div>
 

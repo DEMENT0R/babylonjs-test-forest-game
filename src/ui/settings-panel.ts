@@ -1,4 +1,4 @@
-// Панель настроек: строки генерируются из описания UI_ROWS.
+// Панель настроек: вкладки и строки генерируются из описания TABS.
 
 import type { Engine } from '@babylonjs/core';
 import { applyPreset, applySettings, settings, type PresetId, type Settings } from '../settings';
@@ -12,8 +12,6 @@ interface RowBase {
   key: Key;
   label: string;
   hint?: string;
-  /** Не сбрасывает пресет графики в «Своё» (управление, а не графика). */
-  noPreset?: boolean;
 }
 interface SegRow extends RowBase { seg: readonly (readonly [SegValue, string])[]; preset?: boolean }
 interface ToggleRow extends RowBase { toggle: true }
@@ -22,50 +20,94 @@ type Row = SegRow | ToggleRow | RangeRow;
 
 const percent = (v: number) => `${Math.round(v * 100)}%`;
 
-const UI_ROWS: readonly (Section | Row)[] = [
-  { sec: 'Графика' },
-  { key: 'preset', label: 'Пресет', preset: true, seg: [['low', 'Низкое'], ['medium', 'Среднее'], ['high', 'Высокое'], ['ultra', 'Ультра'], ['custom', 'Своё']] },
-  { key: 'scale', label: 'Разрешение рендера', hint: 'Доля пикселей экрана', seg: [[0.5, '50%'], [0.75, '75%'], [1, '100%'], ['dpr', 'Retina']] },
-  { key: 'aa', label: 'Сглаживание', seg: [['off', 'Выкл'], ['fxaa', 'FXAA'], ['msaa', 'MSAA 4×']] },
-  { key: 'view', label: 'Дальность прорисовки', range: [50, 250, 10], fmt: (v) => `${v} м` },
-  { key: 'fog', label: 'Туман', toggle: true },
-  { sec: 'Тени' },
-  { key: 'shadows', label: 'Тени', hint: 'Мягкие — размытая карта, PCF — фильтрация', seg: [['off', 'Выкл'], ['hard', 'Жёсткие'], ['soft', 'Мягкие'], ['pcf', 'PCF']] },
-  { key: 'shadowRes', label: 'Карта теней', seg: [[512, '512'], [1024, '1K'], [2048, '2K'], [4096, '4K']] },
-  { key: 'shadowDist', label: 'Область теней', hint: 'Меньше — чётче вблизи', range: [20, 100, 5], fmt: (v) => `${v} м` },
-  { key: 'ssao', label: 'Ambient occlusion (SSAO)', hint: 'Затенение в углах, тяжёлый эффект', toggle: true },
-  { sec: 'Трава' },
-  { key: 'grass', label: 'Трава', hint: 'Самая тяжёлая настройка на слабых видеокартах', seg: [['off', 'Выкл'], ['sparse', 'Редкая'], ['normal', 'Обычная'], ['dense', 'Густая']] },
-  { key: 'grassDist', label: 'Дальность травы', hint: 'Вдали трава плавно редеет', range: [20, 80, 5], fmt: (v) => `${v} м` },
-  { key: 'grassWind', label: 'Колыхание на ветру', toggle: true },
-  { key: 'grassBend', label: 'Герой приминает траву', toggle: true },
-  { sec: 'Эффекты' },
-  { key: 'glow', label: 'Свечение кристаллов', toggle: true },
-  { key: 'particles', label: 'Снег и светлячки', toggle: true },
-  { key: 'bloom', label: 'Bloom', toggle: true },
-  { key: 'tone', label: 'Тонмаппинг ACES', toggle: true },
-  { key: 'vignette', label: 'Виньетка', toggle: true },
-  { sec: 'Камера и управление' },
-  { key: 'fov', label: 'Поле зрения', range: [45, 100, 1], fmt: (v) => `${v}°`, noPreset: true },
-  { key: 'sens', label: 'Чувствительность мыши', range: [0.3, 3, 0.1], fmt: (v) => `${v.toFixed(1)}×`, noPreset: true },
-  { key: 'invertY', label: 'Инверсия по вертикали', toggle: true, noPreset: true },
-  { key: 'fps', label: 'Показывать FPS', toggle: true, noPreset: true },
-  { sec: 'Звук' },
-  { key: 'sound', label: 'Звук', hint: 'Клавиша M', toggle: true, noPreset: true },
-  { key: 'volume', label: 'Общая громкость', range: [0, 1, 0.05], fmt: percent, noPreset: true },
-  { key: 'stepsVolume', label: 'Шаги', range: [0, 1, 0.05], fmt: percent, noPreset: true },
-  { key: 'natureVolume', label: 'Ветер и птицы', range: [0, 1, 0.05], fmt: percent, noPreset: true },
+interface Tab {
+  id: string;
+  name: string;
+  /** Строки вкладки входят в пресет графики: их изменение переводит его в «Своё». */
+  preset?: true;
+  rows: readonly (Section | Row)[];
+}
+
+const TABS: readonly Tab[] = [
+  {
+    id: 'graphics',
+    name: 'Графика',
+    preset: true,
+    rows: [
+      { key: 'preset', label: 'Пресет', preset: true, seg: [['low', 'Низкое'], ['medium', 'Среднее'], ['high', 'Высокое'], ['ultra', 'Ультра'], ['custom', 'Своё']] },
+      { key: 'scale', label: 'Разрешение рендера', hint: 'Доля пикселей экрана', seg: [[0.5, '50%'], [0.75, '75%'], [1, '100%'], ['dpr', 'Retina']] },
+      { key: 'aa', label: 'Сглаживание', seg: [['off', 'Выкл'], ['fxaa', 'FXAA'], ['msaa', 'MSAA 4×']] },
+      { key: 'view', label: 'Дальность прорисовки', range: [50, 250, 10], fmt: (v) => `${v} м` },
+      { key: 'fog', label: 'Туман', toggle: true },
+      { sec: 'Тени' },
+      { key: 'shadows', label: 'Тени', hint: 'Мягкие — размытая карта, PCF — фильтрация', seg: [['off', 'Выкл'], ['hard', 'Жёсткие'], ['soft', 'Мягкие'], ['pcf', 'PCF']] },
+      { key: 'shadowRes', label: 'Карта теней', seg: [[512, '512'], [1024, '1K'], [2048, '2K'], [4096, '4K']] },
+      { key: 'shadowDist', label: 'Область теней', hint: 'Меньше — чётче вблизи', range: [20, 100, 5], fmt: (v) => `${v} м` },
+      { key: 'ssao', label: 'Ambient occlusion (SSAO)', hint: 'Затенение в углах, тяжёлый эффект', toggle: true },
+      { sec: 'Трава' },
+      { key: 'grass', label: 'Трава', hint: 'Самая тяжёлая настройка на слабых видеокартах', seg: [['off', 'Выкл'], ['sparse', 'Редкая'], ['normal', 'Обычная'], ['dense', 'Густая']] },
+      { key: 'grassDist', label: 'Дальность травы', hint: 'Вдали трава плавно редеет', range: [20, 80, 5], fmt: (v) => `${v} м` },
+      { key: 'grassWind', label: 'Колыхание на ветру', toggle: true },
+      { key: 'grassBend', label: 'Герой приминает траву', toggle: true },
+      { sec: 'Эффекты' },
+      { key: 'glow', label: 'Свечение кристаллов', toggle: true },
+      { key: 'particles', label: 'Снег и светлячки', toggle: true },
+      { key: 'bloom', label: 'Bloom', toggle: true },
+      { key: 'tone', label: 'Тонмаппинг ACES', toggle: true },
+      { key: 'vignette', label: 'Виньетка', toggle: true },
+    ],
+  },
+  {
+    id: 'controls',
+    name: 'Управление',
+    rows: [
+      { sec: 'Камера' },
+      { key: 'fov', label: 'Поле зрения', range: [45, 100, 1], fmt: (v) => `${v}°` },
+      { key: 'sens', label: 'Чувствительность мыши', range: [0.3, 3, 0.1], fmt: (v) => `${v.toFixed(1)}×` },
+      { key: 'invertY', label: 'Инверсия по вертикали', toggle: true },
+    ],
+  },
+  {
+    id: 'sound',
+    name: 'Звук',
+    rows: [
+      { key: 'sound', label: 'Звук', hint: 'Клавиша M', toggle: true },
+      { key: 'volume', label: 'Общая громкость', range: [0, 1, 0.05], fmt: percent },
+      { key: 'stepsVolume', label: 'Шаги', range: [0, 1, 0.05], fmt: percent },
+      { key: 'natureVolume', label: 'Ветер и птицы', range: [0, 1, 0.05], fmt: percent },
+    ],
+  },
+  {
+    id: 'interface',
+    name: 'Интерфейс',
+    rows: [
+      { key: 'fps', label: 'Показывать FPS', toggle: true },
+    ],
+  },
 ];
 
-/** Запись в настройки по ключу строки (типы значений гарантирует описание UI_ROWS). */
+const TAB_KEY = 'tihaya-polyana-settings-tab';
+
+function loadTab(): number {
+  try {
+    const i = TABS.findIndex((t) => t.id === localStorage.getItem(TAB_KEY));
+    return i < 0 ? 0 : i;
+  } catch {
+    return 0;
+  }
+}
+
+/** Запись в настройки по ключу строки (типы значений гарантирует описание TABS). */
 function set(key: Key, value: unknown): void {
   (settings as unknown as Record<string, unknown>)[key] = value;
 }
 
 export class SettingsPanel {
   private readonly el = byId('settings');
+  private readonly tabsEl = byId('set-tabs');
   private readonly body = byId('set-body');
   private visible = false;
+  private tab = loadTab();
 
   /**
    * @param beforeOpen освободить курсор и сбросить ввод перед показом
@@ -89,9 +131,10 @@ export class SettingsPanel {
   open(): void {
     this.beforeOpen();
     this.visible = true;
+    this.renderTabs();
     this.render();
     this.el.hidden = false;
-    this.el.querySelector('button')?.focus();
+    this.tabButton(this.tab)?.focus();
   }
 
   close(): void {
@@ -100,9 +143,69 @@ export class SettingsPanel {
     this.afterClose();
   }
 
-  /** Esc и O закрывают панель; пока она открыта, остальные клавиши игре не достаются. */
+  /**
+   * Esc и O закрывают панель, Q/E листают вкладки, стрелки — тоже, если фокус на вкладке.
+   * Пока панель открыта, остальные клавиши игре не достаются.
+   */
   handleKey(e: KeyboardEvent): void {
-    if (e.code === 'Escape' || e.code === 'KeyO') this.close();
+    if (e.code === 'Escape' || e.code === 'KeyO') {
+      this.close();
+      return;
+    }
+    const onTab = e.target instanceof HTMLElement && e.target.getAttribute('role') === 'tab';
+    if (e.code === 'KeyQ' || (onTab && e.code === 'ArrowLeft')) this.switchTab(-1);
+    else if (e.code === 'KeyE' || (onTab && e.code === 'ArrowRight')) this.switchTab(1);
+    else return;
+    e.preventDefault();
+  }
+
+  /** Соседняя вкладка по кругу; фокус переходит на неё. */
+  switchTab(delta: number): void {
+    this.selectTab((this.tab + delta + TABS.length) % TABS.length);
+    this.tabButton(this.tab)?.focus();
+  }
+
+  private selectTab(i: number): void {
+    if (i === this.tab) return;
+    this.tab = i;
+    try {
+      localStorage.setItem(TAB_KEY, TABS[i].id);
+    } catch {
+      // Без хранилища вкладка просто не запомнится
+    }
+    this.renderTabs();
+    this.render();
+    this.body.parentElement!.scrollTop = 0;
+  }
+
+  private tabButton(i: number): HTMLElement | null {
+    return document.getElementById(`set-tab-${TABS[i].id}`);
+  }
+
+  private renderTabs(): void {
+    this.tabsEl.innerHTML = '';
+    const hint = (text: string, cls: string) => {
+      const k = document.createElement('kbd');
+      k.className = cls;
+      k.textContent = text;
+      k.setAttribute('aria-hidden', 'true');
+      return k;
+    };
+    this.tabsEl.appendChild(hint('Q', 'hint-l'));
+    TABS.forEach((t, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.id = `set-tab-${t.id}`;
+      b.setAttribute('role', 'tab');
+      b.setAttribute('aria-selected', String(i === this.tab));
+      b.setAttribute('aria-controls', 'set-body');
+      b.tabIndex = i === this.tab ? 0 : -1;
+      b.textContent = t.name;
+      b.addEventListener('click', () => this.selectTab(i));
+      this.tabsEl.appendChild(b);
+    });
+    this.tabsEl.appendChild(hint('E', 'hint-r'));
+    this.body.setAttribute('aria-labelledby', `set-tab-${TABS[this.tab].id}`);
   }
 
   private apply(): void {
@@ -111,7 +214,7 @@ export class SettingsPanel {
 
   private render(): void {
     this.body.innerHTML = '';
-    for (const it of UI_ROWS) {
+    for (const it of TABS[this.tab].rows) {
       if ('sec' in it) {
         const d = document.createElement('div');
         d.className = 'sec';
@@ -145,8 +248,9 @@ export class SettingsPanel {
     row.appendChild(lbl);
 
     // Изменение графики переводит пресет в «Своё»
+    const inPreset = !!TABS[this.tab].preset;
     const touched = () => {
-      if (!it.noPreset) settings.preset = 'custom';
+      if (inPreset) settings.preset = 'custom';
     };
 
     if ('seg' in it) {
@@ -184,7 +288,7 @@ export class SettingsPanel {
         set(it.key, c.checked);
         touched();
         this.apply();
-        if (!it.noPreset) this.render();
+        if (inPreset) this.render();
       });
       row.appendChild(c);
     } else {
@@ -206,7 +310,7 @@ export class SettingsPanel {
       });
       // Перерисовываем только по отпусканию, чтобы не сбить перетаскивание ползунка
       r.addEventListener('change', () => {
-        if (!it.noPreset) this.render();
+        if (inPreset) this.render();
       });
       w.append(r, o);
       row.appendChild(w);
