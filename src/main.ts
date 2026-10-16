@@ -1,15 +1,20 @@
-// Точка входа: движок, сцены и переключение состояний меню → выбор героя → игра.
+// Точка входа: движок, сцены и переключение состояний меню → выбор героя → игра,
+// а внутри игры — смена уровней через портал.
 
 import { Engine, Vector3 } from '@babylonjs/core';
 import { Footsteps, GameAudio } from './audio';
 import { CameraRig } from './camera';
 import { loadHero, type HeroDef } from './heroes';
+import type { LevelLayout } from './levels/generator';
+import { completeLevel, formatTime, progress, setCurrentLevel } from './levels/progress';
+import { recipeFor } from './levels/recipes';
 import { clearInput, keys, Player, setupTouchControls } from './player';
 import { applySettings, settings } from './settings';
-import { say, setCrystals, setupHud, showCameraMode, tickFps } from './ui/hud';
+import { say, setCrystals, setLevelTitle, setupHud, showCameraMode, tickFps } from './ui/hud';
 import { MainMenu } from './ui/menu';
 import { SelectScreen } from './ui/select';
 import { SettingsPanel } from './ui/settings-panel';
+import { isTransitioning, setTransitionText, transition } from './ui/transition';
 import { byId } from './utils';
 import { wind } from './wind';
 import { World } from './world';
@@ -22,7 +27,6 @@ const engine = new Engine(canvas, true, { stencil: true });
 let state: GameState = 'menu';
 /** Игра уже начиналась — в меню доступно «Продолжить». */
 let gameStarted = false;
-let firstStart = true;
 let loadingHero = false;
 
 function setState(s: GameState): void {
@@ -36,6 +40,11 @@ const world = new World(engine);
 const player = new Player(world);
 const audio = new GameAudio();
 const footsteps = new Footsteps(audio, world);
+
+/** Текущий уровень и время, проведённое в нём (только в игре, без пауз). */
+let level = progress.current;
+let layout: LevelLayout;
+let levelTime = 0;
 
 // Браузер включает звук только после действия пользователя — первый клик или клавиша
 for (const type of ['pointerdown', 'keydown'] as const) addEventListener(type, () => audio.unlock(), { capture: true });
@@ -57,7 +66,7 @@ const settingsPanel = new SettingsPanel(
 );
 
 const rig = new CameraRig(world, canvas, {
-  isActive: () => state === 'play' && !settingsPanel.isOpen,
+  isActive: () => state === 'play' && !settingsPanel.isOpen && !isTransitioning(),
   onPointerLockLost: () => {
     if (state === 'play' && !settingsPanel.isOpen) openMenu();
   },
@@ -73,9 +82,10 @@ const select = new SelectScreen(engine, {
 
 const menu = new MainMenu({
   onContinue: () => resumeGame(),
-  onNewGame: () => newGame(),
+  onNewGame: () => (gameStarted ? restartLevel() : backToSelect()),
   onChangeHero: () => backToSelect(),
   onSettings: () => settingsPanel.open(),
+  onPickLevel: (i) => pickLevel(i),
 });
 
 setupHud({
@@ -88,6 +98,69 @@ setupHud({
   },
 });
 setupTouchControls();
+
+// ---------- Уровни ----------
+
+const levelLabel = (i: number, l: LevelLayout) => `Уровень ${i} · ${l.biome.name}`;
+
+function updateCrystalsHud(): void {
+  setCrystals(world.collected, world.crystals.length, layout.required, world.portalOpen);
+}
+
+/** Построить уровень и поставить героя на старт. */
+function beginLevel(index: number): void {
+  level = index;
+  setCurrentLevel(index);
+  layout = world.loadLevel(recipeFor(index));
+  player.reset(layout.spawn);
+  rig.reset();
+  footsteps.reset();
+  levelTime = 0;
+  setLevelTitle(levelLabel(index, layout));
+  updateCrystalsHud();
+}
+
+function restartLevel(): void {
+  beginLevel(level);
+  resumeGame();
+}
+
+/** Выбор уровня в меню: строим его и сразу играем (или сначала выбираем героя). */
+function pickLevel(index: number): void {
+  beginLevel(index);
+  if (player.hero) {
+    gameStarted = true;
+    resumeGame();
+    say(levelLabel(index, layout));
+  } else {
+    backToSelect();
+  }
+}
+
+/** Герой зашёл в открытый портал: запись результата и переход на следующий уровень. */
+function finishLevel(): void {
+  const star = world.collected === world.crystals.length;
+  const time = levelTime;
+  completeLevel(level, star, time);
+  audio.portalEnter();
+  rig.releaseLock();
+  clearInput();
+  const next = level + 1;
+  void transition(
+    {
+      eyebrow: `Уровень ${level} пройден · ${formatTime(time)}${star ? ' · ★ все кристаллы' : ''}`,
+      title: `Уровень ${next}`,
+      sub: '',
+    },
+    () => {
+      beginLevel(next);
+      setTransitionText({
+        title: levelLabel(next, layout),
+        sub: `Кристаллов: ${layout.crystals.length}, портал откроется после ${layout.required}`,
+      });
+    },
+  ).then(() => canvas.focus());
+}
 
 // ---------- Переходы между состояниями ----------
 
@@ -108,10 +181,9 @@ async function startGame(def: HeroDef): Promise<void> {
   clearInput();
   footsteps.reset();
   setState('play');
-  gameStarted = true;
   canvas.focus();
-  say(firstStart ? `${def.name}: собери кристаллы` : def.name);
-  firstStart = false;
+  say(gameStarted ? def.name : `${levelLabel(level, layout)} — собери кристаллы`);
+  gameStarted = true;
 }
 
 function backToSelect(): void {
@@ -123,14 +195,15 @@ function backToSelect(): void {
 }
 
 function openMenu(): void {
+  if (isTransitioning()) return;
   rig.releaseLock();
   rig.cancelDrag();
   clearInput();
-  rig.beginMenuOrbit(gameStarted ? player.pos : Vector3.Zero());
+  rig.beginMenuOrbit(gameStarted ? player.pos : new Vector3(layout.spawn.x, 0, layout.spawn.z));
   setState('menu');
   menu.update(
     gameStarted && player.hero
-      ? { heroName: player.hero.def.name, got: world.collected, total: world.crystals.length }
+      ? { heroName: player.hero.def.name, level, got: world.collected, total: world.crystals.length }
       : null,
   );
   menu.focusFirst();
@@ -144,14 +217,6 @@ function resumeGame(): void {
   canvas.focus();
 }
 
-function newGame(): void {
-  world.resetCrystals();
-  setCrystals(0, world.crystals.length);
-  player.reset();
-  rig.reset();
-  backToSelect();
-}
-
 // ---------- Клавиатура ----------
 
 addEventListener('keydown', (e) => {
@@ -159,6 +224,7 @@ addEventListener('keydown', (e) => {
     settingsPanel.handleKey(e);
     return;
   }
+  if (isTransitioning()) return;
   if (e.code === 'KeyO' && !e.repeat) {
     settingsPanel.open();
     return;
@@ -198,28 +264,38 @@ addEventListener('blur', clearInput);
 
 world.scene.onBeforeRenderObservable.add(() => {
   const dt = Math.min(engine.getDeltaTime() / 1000, 0.05);
-  world.spinCrystals(dt);
   // Траву приминает герой, стоящий на поляне (в меню — тоже, он там просто стоит)
-  world.grass.update(world.camera.position, player.hero ? player.pos : null, 0.3 + 0.35 * (player.hero?.def.height ?? 0));
+  world.update(dt, player.hero ? player.pos : null, 0.3 + 0.35 * (player.hero?.def.height ?? 0));
 
   if (state === 'menu' || !player.hero) {
-    const center = gameStarted ? player.pos : Vector3.Zero();
+    const center = gameStarted ? player.pos : new Vector3(layout.spawn.x, 0, layout.spawn.z);
     rig.updateMenuOrbit(dt, center);
     world.followSun(center);
     player.idle(dt);
     return;
   }
 
-  player.update(dt, { yaw: rig.yaw, modeId: rig.mode.id }, !settingsPanel.isOpen);
+  const active = !settingsPanel.isOpen && !isTransitioning();
+  if (active) levelTime += dt;
+  player.update(dt, { yaw: rig.yaw, modeId: rig.mode.id }, active);
   world.followSun(player.pos);
   rig.update(dt, player);
   footsteps.update(dt, player);
 
   const got = world.collectNear(player.center);
   if (got > 0) {
-    setCrystals(world.collected, world.crystals.length);
-    say(world.collected === world.crystals.length ? 'Все кристаллы собраны!' : '+1 кристалл');
+    const all = world.collected === world.crystals.length;
+    audio.chime(all);
+    if (!world.portalOpen && world.collected >= layout.required) {
+      world.openPortal();
+      audio.portalOpen();
+      say(all ? 'Все кристаллы! ★ Портал открыт' : 'Портал открыт — он в каменном круге');
+    } else {
+      say(all ? 'Все кристаллы собраны! ★' : '+1 кристалл');
+    }
+    updateCrystalsHud();
   }
+  if (active && world.inPortal(player.pos)) finishLevel();
 });
 
 engine.runRenderLoop(() => {
@@ -232,9 +308,12 @@ addEventListener('resize', () => engine.resize());
 // ---------- Старт ----------
 
 applySettings(engine);
+beginLevel(level);
 setState('menu');
-setCrystals(0, world.crystals.length);
 showCameraMode(rig.mode, false);
 menu.update(null);
 byId('m-new').focus();
 void select.load();
+
+// Для отладки из консоли браузера; в production-сборку не попадает
+if (import.meta.env.DEV) Object.assign(window, { __game: { world, player, rig, beginLevel, get layout() { return layout; } } });

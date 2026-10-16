@@ -89,6 +89,8 @@ export class GameAudio {
   private master!: GainNode;
   private stepsBus!: GainNode;
   private natureBus!: GainNode;
+  /** Игровые сигналы: кристаллы и портал. Громкость — общая. */
+  private sfxBus!: GainNode;
   private reverb!: ConvolverNode;
   private stepNoise!: AudioBuffer;
   private windGain!: GainNode;
@@ -129,6 +131,9 @@ export class GameAudio {
     this.natureBus = ac.createGain();
     this.stepsBus.connect(this.master);
     this.natureBus.connect(this.master);
+    this.sfxBus = ac.createGain();
+    this.sfxBus.gain.value = 0.6;
+    this.sfxBus.connect(this.master);
 
     this.reverb = ac.createConvolver();
     this.reverb.buffer = forestImpulse(ac);
@@ -299,6 +304,64 @@ export class GameAudio {
       }
     }
     ch.done(t);
+  }
+
+  // ---------- Игровые сигналы ----------
+
+  /** Канал сигнала с хвостом реверберации. */
+  private sfxOut(): GainNode {
+    const ac = this.ac!;
+    const out = ac.createGain();
+    const send = ac.createGain();
+    send.gain.value = 0.5;
+    out.connect(this.sfxBus);
+    out.connect(send).connect(this.reverb);
+    setTimeout(() => {
+      out.disconnect();
+      send.disconnect();
+    }, 4000);
+    return out;
+  }
+
+  /** Звон подобранного кристалла; последний — коротким арпеджио. */
+  chime(last = false): void {
+    if (!this.ac || !settings.sound) return;
+    const out = this.sfxOut();
+    const t = this.ac.currentTime + 0.01;
+    const notes = last ? [1047, 1319, 1568, 2093] : [1319, 1976];
+    notes.forEach((f, i) => this.note(out, t + i * 0.07, f, f, 0.35, 0.5, 'sine'));
+  }
+
+  /** Портал открылся: восходящий аккорд. */
+  portalOpen(): void {
+    if (!this.ac || !settings.sound) return;
+    const out = this.sfxOut();
+    const t = this.ac.currentTime + 0.05;
+    [392, 523, 659, 784, 1047].forEach((f, i) => this.note(out, t + i * 0.12, f, f * 1.01, 0.9, 0.45, 'triangle'));
+  }
+
+  /** Вход в портал: шумовой «вжух» с восходящим тоном. */
+  portalEnter(): void {
+    if (!this.ac || !settings.sound) return;
+    const ac = this.ac;
+    const out = this.sfxOut();
+    const t = ac.currentTime + 0.01;
+    const src = ac.createBufferSource();
+    src.buffer = this.stepNoise;
+    src.loop = true;
+    const bp = ac.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.Q.value = 1.5;
+    bp.frequency.setValueAtTime(300, t);
+    bp.frequency.exponentialRampToValueAtTime(4000, t + 1);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.6, t + 0.4);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 1.3);
+    src.connect(bp).connect(g).connect(out);
+    src.start(t);
+    src.stop(t + 1.4);
+    this.note(out, t, 220, 880, 1.1, 0.35, 'sine');
   }
 
   // ---------- Шаги ----------

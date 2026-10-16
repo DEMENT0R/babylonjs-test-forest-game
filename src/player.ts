@@ -4,11 +4,10 @@ import { Color3, MeshBuilder, StandardMaterial, TransformNode, Vector3, type Mes
 import { blendAnims, type Hero } from './heroes';
 import { onSettingsApplied } from './settings';
 import { byId, clamp, damp, wrapAngle } from './utils';
-import { WORLD_HALF, type World } from './world';
+import type { World } from './world';
 import type { CameraModeId } from './camera';
 
 const GRAVITY = -24;
-const START = new Vector3(0, 0, -2);
 
 // ---------- Ввод ----------
 
@@ -93,7 +92,7 @@ export interface CameraView { yaw: number; modeId: CameraModeId }
 
 export class Player {
   readonly root: TransformNode;
-  readonly pos = START.clone();
+  readonly pos = new Vector3(0, 0, -2.5);
   readonly vel = Vector3.Zero();
   facing = 0;
   onGround = true;
@@ -133,8 +132,9 @@ export class Player {
     hero.root.parent = this.root;
   }
 
-  reset(): void {
-    this.pos.copyFrom(START);
+  /** Поставить героя в точку старта уровня. */
+  reset(spawn: { x: number; z: number }): void {
+    this.pos.set(spawn.x, 0, spawn.z);
     this.vel.setAll(0);
     this.facing = 0;
     this.onGround = true;
@@ -193,7 +193,7 @@ export class Player {
     if (world.blockedByPlatform(nx, nz, pos.y)) nz = pos.z;
     // Круглые препятствия выталкивают наружу
     const radius = 0.25 + 0.2 * height;
-    for (const o of world.obstacles) {
+    for (const o of world.obstaclesNear(nx, nz, radius + 3)) {
       const dx = nx - o.x, dz = nz - o.z;
       const d = Math.hypot(dx, dz), m = o.r + radius;
       if (d < m && d > 0) {
@@ -201,7 +201,7 @@ export class Player {
         nz = o.z + (dz / d) * m;
       }
     }
-    const lim = WORLD_HALF - 1.5;
+    const lim = world.half - 1.5;
     pos.x = clamp(nx, -lim, lim);
     pos.z = clamp(nz, -lim, lim);
     pos.y += vel.y * dt;

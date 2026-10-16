@@ -8,6 +8,8 @@ import { byId } from '../utils';
 const toastEl = byId('toast');
 const gotEl = byId('got');
 const totalEl = byId('total');
+const portalHint = byId('portal-hint');
+const levelTitle = byId('level-title');
 const fpsEl = byId('fps');
 const modeBtn = byId<HTMLButtonElement>('mode');
 const crossEl = byId('cross');
@@ -22,9 +24,16 @@ export function say(text: string): void {
   toastTimer = setTimeout(() => (toastEl.style.opacity = '0'), 1600);
 }
 
-export function setCrystals(got: number, total: number): void {
+/** Счёт кристаллов и подсказка, сколько нужно до портала. */
+export function setCrystals(got: number, total: number, required: number, portalOpen: boolean): void {
   gotEl.textContent = String(got);
   totalEl.textContent = String(total);
+  portalHint.textContent = portalOpen ? '· портал открыт' : `· портал после ${required}`;
+  portalHint.classList.toggle('open', portalOpen);
+}
+
+export function setLevelTitle(text: string): void {
+  levelTitle.textContent = text;
 }
 
 export function showCameraMode(mode: CameraMode, announce = true): void {

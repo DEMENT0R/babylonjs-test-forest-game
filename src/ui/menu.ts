@@ -1,6 +1,9 @@
 // Главное меню: пункты, прогресс текущей игры, справка по управлению и авторы.
 
 import { Engine } from '@babylonjs/core';
+import { BIOMES } from '../levels/biomes';
+import { formatTime, progress as saved } from '../levels/progress';
+import { recipeFor } from '../levels/recipes';
 import { byId } from '../utils';
 
 const INFO = {
@@ -17,17 +20,20 @@ const INFO = {
     <p>Звуки ветра, птиц и шагов синтезируются в браузере (Web Audio API).</p>
     <p>Шрифты — Unbounded и JetBrains Mono.</p>`,
 } as const;
-type InfoKey = keyof typeof INFO;
+type InfoKey = keyof typeof INFO | 'levels';
 
 export interface MenuActions {
   onContinue: () => void;
   onNewGame: () => void;
   onChangeHero: () => void;
   onSettings: () => void;
+  onPickLevel: (index: number) => void;
 }
 
 /** Прогресс текущей игры; null — игра ещё не начата. */
-export interface MenuProgress { heroName: string; got: number; total: number }
+export interface MenuProgress { heroName: string; level: number; got: number; total: number }
+
+const levelName = (i: number) => BIOMES[recipeFor(i).biome].name;
 
 export class MainMenu {
   private readonly info = byId('menu-info');
@@ -46,6 +52,13 @@ export class MainMenu {
       actions.onChangeHero();
     });
     this.btnSettings.addEventListener('click', actions.onSettings);
+    byId('m-levels').addEventListener('click', () => this.toggleInfo('levels'));
+    this.info.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-level]');
+      if (!b) return;
+      this.closeInfo();
+      actions.onPickLevel(Number(b.dataset.level));
+    });
     byId('m-help').addEventListener('click', () => this.toggleInfo('help'));
     byId('m-about').addEventListener('click', () => this.toggleInfo('about'));
   }
@@ -54,9 +67,12 @@ export class MainMenu {
     const started = progress !== null;
     this.btnContinue.hidden = !started;
     this.btnHero.hidden = !started;
-    this.btnNew.textContent = started ? 'Новая игра' : 'Играть';
+    this.btnNew.textContent = started ? 'Начать уровень заново' : `Играть · уровень ${saved.current}`;
     this.progressEl.hidden = !started;
-    if (progress) this.progressEl.innerHTML = `${progress.heroName} · кристаллы <b>${progress.got}</b> / ${progress.total}`;
+    if (progress) {
+      this.progressEl.innerHTML = `Уровень ${progress.level} · ${progress.heroName} · кристаллы <b>${progress.got}</b> / ${progress.total}`;
+    }
+    if (this.infoOpen === 'levels') this.info.innerHTML = this.levelsHtml();
   }
 
   focusFirst(): void {
@@ -75,7 +91,21 @@ export class MainMenu {
   private toggleInfo(key: InfoKey): void {
     this.infoOpen = this.infoOpen === key ? null : key;
     this.info.hidden = !this.infoOpen;
-    if (this.infoOpen) this.info.innerHTML = INFO[this.infoOpen];
+    if (this.infoOpen) this.info.innerHTML = this.infoOpen === 'levels' ? this.levelsHtml() : INFO[this.infoOpen];
+    if (this.infoOpen === 'levels') this.info.querySelector<HTMLElement>('[aria-current="true"]')?.focus();
+  }
+
+  /** Открытые уровни: биом, звезда за все кристаллы и лучшее время. */
+  private levelsHtml(): string {
+    const rows: string[] = [];
+    for (let i = 1; i <= saved.unlocked; i++) {
+      const r = saved.records[i];
+      const meta = r ? `${r.star ? '<span class="star">★</span> ' : ''}${formatTime(r.time)}` : 'не пройден';
+      rows.push(
+        `<button type="button" data-level="${i}" aria-current="${i === saved.current}"><b>${i}</b>${levelName(i)}<span>${meta}</span></button>`,
+      );
+    }
+    return `<h4>Уровни</h4><p>Звезда — собраны все кристаллы уровня.</p><div class="level-list">${rows.join('')}</div>`;
   }
 
   /** Стрелки вверх/вниз ходят по пунктам меню. Возвращает true, если клавиша обработана. */

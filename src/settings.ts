@@ -113,8 +113,8 @@ export interface LightingContext {
   /** Фиксированный размер области теней; без него берётся settings.shadowDist. */
   readonly shadowFrustum?: number;
   readonly allowSsao: boolean;
-  /** Базовая плотность тумана (делится на дальность прорисовки). */
-  readonly fogBase: number;
+  /** Базовая плотность тумана (делится на дальность прорисовки); меняется вместе с биомом. */
+  fogBase: number;
   /** Фиксированная дальняя плоскость камеры; без неё — дальность прорисовки + 20 м. */
   readonly fixedMaxZ?: number;
   glow: GlowLayer | null;
@@ -246,8 +246,18 @@ type Listener = (s: Readonly<Settings>) => void;
 const listeners: Listener[] = [];
 
 /** Подписка на применение настроек (FOV камеры, FPS-счётчик, «пятно» тени и т. п.). */
-export function onSettingsApplied(fn: Listener): void {
+export function onSettingsApplied(fn: Listener): () => void {
   listeners.push(fn);
+  return () => {
+    const i = listeners.indexOf(fn);
+    if (i >= 0) listeners.splice(i, 1);
+  };
+}
+
+/** Пересобрать тени и туман одной сцены — после смены уровня или биома. */
+export function refreshLighting(ctx: LightingContext, engine: Engine): void {
+  buildShadows(ctx);
+  buildPipeline(ctx, engine);
 }
 
 // Трава пересобирается сама (grass.ts) — её настройки не трогают тени и пост-обработку

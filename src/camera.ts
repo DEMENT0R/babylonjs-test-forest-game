@@ -1,11 +1,11 @@
 // Камера от третьего лица: три режима, мышь/свайп, захват курсора, колесо,
 // отъезд от препятствий и медленный облёт поляны за главным меню.
 
-import { Ray, Vector3 } from '@babylonjs/core';
+import { Vector3 } from '@babylonjs/core';
 import type { Player } from './player';
 import { onSettingsApplied, settings } from './settings';
 import { clamp, damp, now, wrapAngle } from './utils';
-import { isCameraBlocker, type World } from './world';
+import type { World } from './world';
 
 export type CameraModeId = 'shoulder' | 'chase' | 'orbit';
 
@@ -178,8 +178,8 @@ export class CameraRig {
     );
     let want = this.dist * (0.6 + 0.4 * bs);
     // Деревья и камни между камерой и героем — подъезжаем ближе
-    const hit = this.world.scene.pickWithRay(new Ray(this.smoothTarget, lookDir.scale(-1), want), isCameraBlocker);
-    if (hit?.hit) want = Math.max(0.9, hit.distance - 0.3);
+    const hit = this.world.cameraHit(this.smoothTarget, lookDir.scale(-1), want);
+    if (hit !== null) want = Math.max(0.9, hit - 0.3);
     // Приближаемся мгновенно, отъезжаем плавно
     this.curDist = want < this.curDist ? want : this.curDist + (want - this.curDist) * damp(3, dt);
 

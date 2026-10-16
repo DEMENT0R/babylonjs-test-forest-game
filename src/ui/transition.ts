@@ -1,0 +1,53 @@
+// Переход между уровнями: экран затемняется, показывает итог и название
+// следующего уровня, пока под ним строится новый уровень.
+
+import { byId } from '../utils';
+
+const fade = byId('fade');
+const eyebrow = byId('fade-eyebrow');
+const title = byId('fade-title');
+const sub = byId('fade-sub');
+
+const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+/** Дать браузеру отрисовать кадр — иначе тяжёлая сборка уровня «съест» анимацию. */
+const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+
+export interface TransitionText {
+  eyebrow: string;
+  title: string;
+  sub: string;
+}
+
+let busy = false;
+
+/** Обновить надпись на уже показанном экране перехода (например, когда стал известен уровень). */
+export function setTransitionText(text: Partial<TransitionText>): void {
+  if (text.eyebrow !== undefined) eyebrow.textContent = text.eyebrow;
+  if (text.title !== undefined) title.textContent = text.title;
+  if (text.sub !== undefined) sub.textContent = text.sub;
+}
+
+export function isTransitioning(): boolean {
+  return busy;
+}
+
+/**
+ * Затемнить экран, выполнить work (сборку уровня) и проявить сцену обратно.
+ * Надпись держится не меньше holdMs, даже если уровень собрался мгновенно.
+ */
+export async function transition(text: TransitionText, work: () => void, holdMs = 1600): Promise<void> {
+  if (busy) return;
+  busy = true;
+  setTransitionText(text);
+  fade.classList.add('show');
+  await wait(650);
+  await nextFrame();
+  const t0 = performance.now();
+  try {
+    work();
+  } finally {
+    await wait(Math.max(0, holdMs - (performance.now() - t0)));
+    fade.classList.remove('show');
+    busy = false;
+  }
+}

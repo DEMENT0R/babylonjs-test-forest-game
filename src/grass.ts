@@ -50,6 +50,8 @@ export interface GrassOptions {
   glow?: GlowLayer | null;
   /** Фиксированная дальность травы (экран выбора); иначе — из настроек. */
   fixedDistance?: number;
+  /** Множитель плотности (биом с редкой травой). */
+  densityScale?: number;
   seed?: number;
 }
 
@@ -193,6 +195,7 @@ export class GrassField {
   private readonly bladeData: VertexData;
   private chunks: Chunk[] = [];
   private builtDensity: GrassDensity | null = null;
+  private readonly unsubscribe: () => void;
 
   constructor(private readonly scene: Scene, private readonly opts: GrassOptions) {
     const m = (this.material = new StandardMaterial('grass', scene));
@@ -203,19 +206,33 @@ export class GrassField {
 
     this.bladeData = bladeGeometry(opts.baseColor, opts.tipColor);
 
-    onSettingsApplied((s) => this.build(s.grass));
+    this.unsubscribe = onSettingsApplied((s) => this.build(s.grass));
+    this.build(settings.grass);
+  }
+
+  dispose(): void {
+    this.unsubscribe();
+    this.clear();
+    this.material.dispose(true);
+  }
+
+  private clear(): void {
+    for (const c of this.chunks) {
+      this.opts.glow?.removeExcludedMesh(c.mesh);
+      c.mesh.dispose();
+    }
+    this.chunks = [];
   }
 
   /** Пересоздаёт траву, если изменилась плотность. */
   private build(density: GrassDensity): void {
     if (density === this.builtDensity) return;
     this.builtDensity = density;
-    for (const c of this.chunks) c.mesh.dispose();
-    this.chunks = [];
+    this.clear();
     if (density === 'off') return;
 
     const { area } = this.opts;
-    const perM2 = BLADES_PER_M2[density];
+    const perM2 = BLADES_PER_M2[density] * (this.opts.densityScale ?? 1);
     let seed = this.opts.seed ?? 12345;
     const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
 

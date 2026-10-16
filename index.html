@@ -18,11 +18,12 @@
     <div class="menu-col">
       <div class="eyebrow">Демо на Babylon.js</div>
       <h2 class="menu-title">Тихая<br><em>поляна</em></h2>
-      <p class="menu-sub">Прогулка по лесной поляне от третьего лица. Найди все шестнадцать кристаллов, один из них спрятан на вершине каменной лестницы.</p>
+      <p class="menu-sub">Прогулка по лесным полянам от третьего лица. Собирай кристаллы — портал в каменном круге откроется, когда найдёшь большую их часть. Каждый уровень новый.</p>
       <div class="menu-progress" id="menu-progress" hidden></div>
       <nav class="menu-list" aria-label="Главное меню">
         <button type="button" id="m-continue" class="primary" hidden>Продолжить <span>Esc</span></button>
         <button type="button" id="m-new">Играть</button>
+        <button type="button" id="m-levels">Уровни</button>
         <button type="button" id="m-hero" hidden>Сменить героя</button>
         <button type="button" id="m-settings">Настройки</button>
         <button type="button" id="m-help">Управление</button>
@@ -50,8 +51,8 @@
   <!-- HUD игры -->
   <div class="hud play-ui">
     <div class="card">
-      <h1>Тихая поляна</h1>
-      <div class="score">Кристаллы: <b id="got">0</b> / <span id="total">0</span></div>
+      <h1 id="level-title">Тихая поляна</h1>
+      <div class="score">Кристаллы: <b id="got">0</b> / <span id="total">0</span> <span id="portal-hint"></span></div>
       <div class="btn-row">
         <button class="small-btn" id="to-menu" type="button">Меню (Esc)</button>
         <button class="small-btn" id="back" type="button">Герой (H)</button>
@@ -66,6 +67,15 @@
   <button id="mode" class="play-ui" type="button">Камера: Из-за плеча (C)</button>
   <div id="stick" class="play-ui"><div id="knob"></div></div>
   <button id="jump" class="play-ui" type="button">Прыжок</button>
+
+  <!-- Переход между уровнями -->
+  <div id="fade" aria-live="polite">
+    <div class="fade-card">
+      <div class="eyebrow" id="fade-eyebrow"></div>
+      <h2 id="fade-title"></h2>
+      <p id="fade-sub"></p>
+    </div>
+  </div>
 
   <!-- Панель настроек (строки генерирует src/ui/settings-panel.ts) -->
   <div id="settings" hidden role="dialog" aria-modal="true" aria-labelledby="set-title">

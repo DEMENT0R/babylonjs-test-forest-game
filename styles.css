@@ -42,6 +42,17 @@ h1{margin:0;font:700 15px/1.2 var(--f-display);letter-spacing:.02em}
 @media (hover:none),(pointer:coarse){#mode{bottom:auto;top:calc(110px + env(safe-area-inset-top,0px))}}
 @media (max-width:520px){.keys{display:none}}
 
+#portal-hint{color:var(--muted)}
+#portal-hint.open{color:var(--accent)}
+
+/* Level transition */
+#fade{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#0b1412;opacity:0;pointer-events:none;transition:opacity .6s ease;padding:0 16px;text-align:center}
+#fade.show{opacity:1;pointer-events:auto}
+.fade-card{display:flex;flex-direction:column;gap:10px;align-items:center}
+.fade-card h2{margin:0;font:700 clamp(26px,5vw,46px)/1.1 var(--f-display);text-wrap:balance}
+.fade-card p{margin:0;font:400 13px/1.6 var(--f-mono);color:var(--muted);max-width:46ch}
+@media (prefers-reduced-motion:reduce){#fade{transition:none}}
+
 /* Hero select */
 #select{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:space-between;pointer-events:none;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
@@ -100,6 +111,13 @@ h1{margin:0;font:700 15px/1.2 var(--f-display);letter-spacing:.02em}
 .menu-info dt{color:var(--ink);font-weight:600;white-space:nowrap}
 .menu-info dd{margin:0;color:var(--muted)}
 .menu-info p{margin:0 0 8px;font:400 12px/1.6 var(--f-mono);color:var(--muted)}
+.level-list{display:flex;flex-direction:column;gap:4px;max-height:50vh;overflow:auto}
+.level-list button{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:baseline;text-align:left;background:transparent;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:400 12px var(--f-mono);color:var(--ink);cursor:pointer}
+.level-list button:hover,.level-list button:focus-visible{border-color:var(--accent)}
+.level-list button[aria-current="true"]{border-color:var(--accent);background:rgba(255,207,90,.08)}
+.level-list b{font:700 13px var(--f-display)}
+.level-list span{color:var(--muted);font-variant-numeric:tabular-nums}
+.level-list .star{color:var(--accent)}
 @media (max-width:640px){#menu{background:rgba(9,16,14,.7)}}
 @media (prefers-reduced-motion:reduce){.menu-list button{transition:none}.menu-list button:hover,.menu-list button:focus-visible{transform:none}}
 
