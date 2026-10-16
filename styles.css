@@ -18,6 +18,8 @@ body:not([data-state="play"]) .play-ui{display:none!important}
 body:not([data-state="select"]) #select{display:none}
 body:not([data-state="menu"]) #menu{display:none}
 [hidden]{display:none!important}
+/* Подсказки под последнее устройство ввода: клавиатура и мышь или геймпад */
+body[data-input="pad"] .key-only,body:not([data-input="pad"]) .pad-only{display:none!important}
 
 /* Play HUD */
 .hud{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));display:flex;justify-content:space-between;align-items:flex-start;gap:12px;pointer-events:none;flex-wrap:wrap}

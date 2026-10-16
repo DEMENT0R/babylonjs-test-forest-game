@@ -1,6 +1,7 @@
-// Игрок: ввод (клавиатура и сенсорный стик), движение, прыжок, коллизии с миром.
+// Игрок: ввод (клавиатура, сенсорный стик, геймпад), движение, прыжок, коллизии с миром.
 
 import { Color3, MeshBuilder, StandardMaterial, TransformNode, Vector3, type Mesh } from '@babylonjs/core';
+import { BTN, gamepad } from './gamepad';
 import { blendAnims, type Hero } from './heroes';
 import { onSettingsApplied } from './settings';
 import { byId, clamp, damp, wrapAngle } from './utils';
@@ -72,8 +73,9 @@ interface MoveInput { x: number; z: number; run: boolean; jump: boolean }
 
 function readInput(active: boolean): MoveInput {
   if (!active) return { x: 0, z: 0, run: false, jump: false };
-  let x = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0) + touch.x;
-  let z = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0) + touch.y;
+  const pad = gamepad.move;
+  let x = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0) + touch.x + pad.x;
+  let z = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0) + touch.y - pad.y;
   const m = Math.hypot(x, z);
   if (m > 1) {
     x /= m;
@@ -82,8 +84,14 @@ function readInput(active: boolean): MoveInput {
   return {
     x,
     z,
-    run: !!(keys.ShiftLeft || keys.ShiftRight) || Math.hypot(touch.x, touch.y) > 0.95,
-    jump: !!keys.Space || jumpRequested,
+    // Стик до упора — бег; на геймпаде ещё LB или нажатый левый стик
+    run:
+      !!(keys.ShiftLeft || keys.ShiftRight) ||
+      Math.hypot(touch.x, touch.y) > 0.95 ||
+      Math.hypot(pad.x, pad.y) > 0.95 ||
+      gamepad.down(BTN.LB) ||
+      gamepad.down(BTN.L3),
+    jump: !!keys.Space || jumpRequested || gamepad.pressed(BTN.A),
   };
 }
 

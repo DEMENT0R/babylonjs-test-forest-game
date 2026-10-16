@@ -4,6 +4,7 @@
 import { Engine, Vector3 } from '@babylonjs/core';
 import { Footsteps, GameAudio } from './audio';
 import { CameraRig } from './camera';
+import { BTN, gamepad } from './gamepad';
 import { loadHero, type HeroDef } from './heroes';
 import type { LevelLayout } from './levels/generator';
 import { completeLevel, formatTime, progress, setCurrentLevel } from './levels/progress';
@@ -12,6 +13,7 @@ import { clearInput, keys, Player, setupTouchControls } from './player';
 import { applySettings, settings } from './settings';
 import { say, setCrystals, setHintLevel, setLevelTitle, setupHud, showCameraMode, tickFps } from './ui/hud';
 import { MainMenu } from './ui/menu';
+import { activate, navigate, sendKey } from './ui/pad-nav';
 import { SelectScreen } from './ui/select';
 import { SettingsPanel } from './ui/settings-panel';
 import { isTransitioning, setTransitionText, transition } from './ui/transition';
@@ -263,6 +265,60 @@ addEventListener('keydown', (e) => {
 addEventListener('keyup', (e) => (keys[e.code] = false));
 addEventListener('blur', clearInput);
 
+// ---------- Геймпад ----------
+
+addEventListener('gamepadconnected', () => say('Геймпад подключён'));
+// Подсказки показывают кнопки того устройства, которым пользовались последним
+const setInputKind = (kind: 'pad' | 'keys') => {
+  if (document.body.dataset.input !== kind) document.body.dataset.input = kind;
+};
+for (const type of ['keydown', 'pointerdown', 'pointermove'] as const) {
+  addEventListener(type, (e) => e.isTrusted && setInputKind('keys'), { capture: true, passive: true });
+}
+addEventListener('gamepaddisconnected', () => say('Геймпад отключён'));
+
+/** Экран, по которому сейчас ходит фокус геймпада; null — идёт игра. */
+function padScreen(): HTMLElement | null {
+  if (settingsPanel.isOpen) return byId('settings');
+  if (state === 'menu') return byId('menu');
+  if (state === 'select') return byId('select');
+  return null;
+}
+
+/**
+ * Кнопки геймпада вне движения и камеры: в игре Start — пауза, Y — режим камеры,
+ * View/Back — настройки; в меню крестовина или стик водят фокус, A — выбрать, B — назад.
+ */
+function handleGamepad(): void {
+  if (!gamepad.connected || isTransitioning()) return;
+  if (gamepad.pressed(BTN.BACK)) {
+    if (settingsPanel.isOpen) settingsPanel.close();
+    else settingsPanel.open();
+    return;
+  }
+  const screen = padScreen();
+  if (!screen) {
+    if (gamepad.pressed(BTN.START)) openMenu();
+    else if (gamepad.pressed(BTN.Y)) rig.cycleMode();
+    return;
+  }
+  const dir = gamepad.nav();
+  if (dir) navigate(screen, dir);
+  if (settingsPanel.isOpen) {
+    if (gamepad.pressed(BTN.LB)) settingsPanel.switchTab(-1);
+    if (gamepad.pressed(BTN.RB)) settingsPanel.switchTab(1);
+  }
+  if (gamepad.pressed(BTN.A)) {
+    // На выборе героя A играет выбранным героем, если фокус не на кнопках внизу
+    const onFootBtn = document.activeElement?.closest('.sel-foot button:not(#play)');
+    if (state === 'select' && !settingsPanel.isOpen && !onFootBtn) sendKey('Enter');
+    else activate(screen);
+    // «Продолжить» по A не должно тут же подбросить героя в прыжке
+    gamepad.consume(BTN.A);
+  }
+  if (gamepad.pressed(BTN.B) || (gamepad.pressed(BTN.START) && state === 'menu')) sendKey('Escape');
+}
+
 // ---------- Игровой цикл ----------
 
 world.scene.onBeforeRenderObservable.add(() => {
@@ -302,6 +358,9 @@ world.scene.onBeforeRenderObservable.add(() => {
 });
 
 engine.runRenderLoop(() => {
+  gamepad.poll();
+  if (gamepad.used) setInputKind('pad');
+  handleGamepad();
   wind.update(Math.min(engine.getDeltaTime() / 1000, 0.1));
   (state === 'select' ? select.scene : world.scene).render();
   tickFps(engine);

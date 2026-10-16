@@ -64,7 +64,9 @@ const TABS: readonly Tab[] = [
       { sec: 'Камера' },
       { key: 'fov', label: 'Поле зрения', range: [45, 100, 1], fmt: (v) => `${v}°` },
       { key: 'sens', label: 'Чувствительность мыши', range: [0.3, 3, 0.1], fmt: (v) => `${v.toFixed(1)}×` },
-      { key: 'invertY', label: 'Инверсия по вертикали', toggle: true },
+      { key: 'invertY', label: 'Инверсия по вертикали', hint: 'Для мыши и геймпада', toggle: true },
+      { sec: 'Геймпад' },
+      { key: 'padSens', label: 'Чувствительность стика', hint: 'Правый стик поворачивает камеру', range: [0.3, 3, 0.1], fmt: (v) => `${v.toFixed(1)}×` },
     ],
   },
   {
@@ -145,7 +147,7 @@ export class SettingsPanel {
   }
 
   /**
-   * Esc и O закрывают панель, Q/E листают вкладки, стрелки — тоже, если фокус на вкладке.
+   * Esc и O закрывают панель, Q/E (на геймпаде LB/RB) листают вкладки, стрелки — тоже, если фокус на вкладке.
    * Пока панель открыта, остальные клавиши игре не достаются.
    */
   handleKey(e: KeyboardEvent): void {
@@ -185,14 +187,14 @@ export class SettingsPanel {
 
   private renderTabs(): void {
     this.tabsEl.innerHTML = '';
-    const hint = (text: string, cls: string) => {
-      const k = document.createElement('kbd');
-      k.className = cls;
-      k.textContent = text;
-      k.setAttribute('aria-hidden', 'true');
-      return k;
+    const hint = (key: string, pad: string, cls: string) => {
+      const span = document.createElement('span');
+      span.className = cls;
+      span.setAttribute('aria-hidden', 'true');
+      span.innerHTML = `<kbd class="key-only">${key}</kbd><kbd class="pad-only">${pad}</kbd>`;
+      return span;
     };
-    this.tabsEl.appendChild(hint('Q', 'hint-l'));
+    this.tabsEl.appendChild(hint('Q', 'LB', 'hint-l'));
     TABS.forEach((t, i) => {
       const b = document.createElement('button');
       b.type = 'button';
@@ -205,7 +207,7 @@ export class SettingsPanel {
       b.addEventListener('click', () => this.selectTab(i));
       this.tabsEl.appendChild(b);
     });
-    this.tabsEl.appendChild(hint('E', 'hint-r'));
+    this.tabsEl.appendChild(hint('E', 'RB', 'hint-r'));
     this.body.setAttribute('aria-labelledby', `set-tab-${TABS[this.tab].id}`);
   }
 
@@ -214,6 +216,9 @@ export class SettingsPanel {
   }
 
   private render(): void {
+    // Перерисовка не должна терять фокус: без мыши (геймпад, клавиатура) иначе не продолжить
+    const active = document.activeElement;
+    const focusedKey = active && this.body.contains(active) ? active.closest<HTMLElement>('.row')?.dataset.key : undefined;
     this.body.innerHTML = '';
     for (const it of TABS[this.tab].rows) {
       if ('sec' in it) {
@@ -230,11 +235,15 @@ export class SettingsPanel {
     note.textContent =
       (this.engine.webGLVersion > 1 ? 'WebGL 2' : 'WebGL 1 — MSAA, PCF и SSAO недоступны') + ' · настройки сохраняются в этом браузере';
     this.body.appendChild(note);
+    if (focusedKey) {
+      this.body.querySelector<HTMLElement>(`.row[data-key="${focusedKey}"] :is([aria-pressed="true"], input)`)?.focus();
+    }
   }
 
   private renderRow(it: Row): HTMLElement {
     const row = document.createElement('div');
     row.className = 'row';
+    row.dataset.key = it.key;
     const id = `set-${it.key}`;
     const isSeg = 'seg' in it;
     const lbl = document.createElement(isSeg ? 'div' : 'label');

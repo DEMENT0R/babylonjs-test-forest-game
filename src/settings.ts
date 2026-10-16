@@ -50,6 +50,8 @@ export interface Settings extends GraphicsSettings {
   /** Поле зрения в градусах. */
   fov: number;
   sens: number;
+  /** Чувствительность правого стика геймпада. */
+  padSens: number;
   invertY: boolean;
   fps: boolean;
   /** Памятка по кнопкам: раскрыта на первом уровне, всегда или всегда свёрнута. */
@@ -74,7 +76,7 @@ export const PRESETS: Record<PresetId, GraphicsSettings> = {
 };
 
 const DEFAULTS: Settings = {
-  preset: 'high', ...PRESETS.high, fov: 60, sens: 1, invertY: false, fps: false, keyHint: 'first',
+  preset: 'high', ...PRESETS.high, fov: 60, sens: 1, padSens: 1, invertY: false, fps: false, keyHint: 'first',
   sound: true, volume: 0.8, stepsVolume: 0.8, natureVolume: 0.6,
 };
 const STORAGE_KEY = 'tihaya-polyana-settings';

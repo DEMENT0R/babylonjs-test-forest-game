@@ -1,7 +1,8 @@
-// Камера от третьего лица: три режима, мышь/свайп, захват курсора, колесо,
+// Камера от третьего лица: три режима, мышь/свайп/правый стик, захват курсора, колесо,
 // отъезд от препятствий и медленный облёт поляны за главным меню.
 
 import { Vector3 } from '@babylonjs/core';
+import { BTN, gamepad } from './gamepad';
 import type { Player } from './player';
 import { onSettingsApplied, settings } from './settings';
 import { clamp, damp, now, wrapAngle } from './utils';
@@ -88,8 +89,8 @@ export class CameraRig {
     this.dragging = null;
   }
 
-  private look(dx: number, dy: number, k: number): void {
-    k *= settings.sens;
+  private look(dx: number, dy: number, k: number, sens = settings.sens): void {
+    k *= sens;
     this.yaw += dx * k;
     this.pitch = clamp(this.pitch + (settings.invertY ? -dy : dy) * k, PITCH_MIN, PITCH_MAX);
     this.lastLook = now();
@@ -157,6 +158,14 @@ export class CameraRig {
     if (!hero) return;
     const D = hero.def;
     const id = this.mode.id;
+
+    // Правый стик крутит камеру, крестовина вверх/вниз приближает и отдаляет
+    if (this.opts.isActive()) {
+      const { x, y } = gamepad.look;
+      if (x || y) this.look(x * dt, y * dt, 2.6, settings.padSens);
+      const zoom = (gamepad.down(BTN.DOWN) ? 1 : 0) - (gamepad.down(BTN.UP) ? 1 : 0);
+      if (zoom) this.dist = clamp(this.dist + zoom * 6 * dt, DIST_MIN, DIST_MAX);
+    }
 
     // «За спиной»: пока игрок бежит вперёд и не крутит мышью, камера сама заходит ему за спину
     if (id === 'chase' && player.moving && player.inputZ > -0.3 && now() - this.lastLook > 0.8) {
