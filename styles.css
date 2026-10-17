@@ -47,8 +47,30 @@ h1{margin:0;font:700 15px/1.2 var(--f-display);letter-spacing:.02em}
 #fps{position:fixed;left:50%;transform:translateX(-50%);top:calc(10px + env(safe-area-inset-top,0px));font:600 11px var(--f-mono);font-variant-numeric:tabular-nums;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:2px 8px;pointer-events:none}
 @media (hover:hover) and (pointer:fine){#stick,#jump{display:none}}
 body[data-pad] #stick,body[data-pad] #jump{display:none}
-@media (hover:none),(pointer:coarse){#mode{bottom:auto;top:calc(110px + env(safe-area-inset-top,0px))}}
 @media (max-width:520px){.keys{display:none}}
+/* Сенсорный экран: без подсказок клавиш и памятки по клавиатуре, кнопки крупнее,
+   режим камеры — над кнопкой прыжка (с геймпадом прыжка нет — опускается в угол) */
+@media (hover:none){
+  .kbd-hint,body:not([data-input="pad"]) .keys{display:none}
+  .small-btn{padding:7px 11px;font-size:12px;border-radius:8px}
+  .btn-row{gap:6px}
+  #mode{bottom:calc(132px + env(safe-area-inset-bottom,0px));padding:10px 14px}
+  body[data-pad] #mode{bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+}
+@media (hover:none) and (max-width:520px){
+  .hud .card{padding:8px 10px}
+  h1{font-size:14px}
+  .score{font-size:12px}
+}
+/* Телефон в ландшафте: карточка HUD не должна съедать полэкрана по высоте */
+@media (max-height:520px) and (orientation:landscape){
+  .hud{top:calc(8px + env(safe-area-inset-top,0px))}
+  .hud .card{padding:6px 10px}
+  .btn-row{margin-top:6px}
+  #stick{width:104px;height:104px;bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+  #jump{width:68px;height:68px;bottom:calc(24px + env(safe-area-inset-bottom,0px))}
+}
+@media (hover:none) and (max-height:520px) and (orientation:landscape){#mode{bottom:calc(104px + env(safe-area-inset-bottom,0px))}}
 
 #portal-hint{color:var(--muted)}
 #portal-hint.open{color:var(--accent)}
@@ -94,6 +116,30 @@ body[data-pad] #stick,body[data-pad] #jump{display:none}
   .hero-tag,.hero-key,.sel-hint{display:none}
   .hero-name{font-size:13px}
   .stats{grid-template-columns:1fr}
+}
+/* Подсказки клавиш на сенсорном экране не нужны; авторы моделей есть в меню «Авторы» */
+@media (hover:none){.hero-key,.sel-hint{display:none}}
+@media (max-width:600px),(max-height:520px){.credits{display:none}}
+@media (max-width:600px) and (orientation:portrait){
+  .sel-foot{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%}
+  #play{grid-column:1/-1;min-height:52px}
+  .sel-foot .ghost{min-height:44px}
+}
+/* Телефон в ландшафте: заголовок в строку, карточки без описаний, кнопки сбоку от них */
+@media (max-height:520px) and (orientation:landscape){
+  #select{padding-block:calc(10px + env(safe-area-inset-top,0px)) calc(10px + env(safe-area-inset-bottom,0px))}
+  .sel-head .eyebrow{display:none}
+  .sel-head h2{margin:0;font-size:20px}
+  .sel-bottom{flex-direction:row;align-items:stretch;gap:10px;max-width:none}
+  .cards{flex:1;min-width:0;gap:8px}
+  .hero{padding:8px 10px;gap:6px}
+  .hero[aria-pressed="true"]{transform:translateY(-2px)}
+  .hero-tag,.hero-key,.sel-hint{display:none}
+  .hero-name{font-size:13px}
+  .stats{grid-template-columns:auto 1fr;font-size:10px}
+  .sel-foot{flex-direction:column;flex-wrap:nowrap;gap:6px;align-items:stretch;justify-content:center;width:170px;flex:none}
+  #play{padding:10px 16px;font-size:14px}
+  .sel-foot .ghost{padding:8px 12px}
 }
 
 /* Main menu

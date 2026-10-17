@@ -53,7 +53,7 @@ export function setHintLevel(level: number): void {
 }
 
 export function showCameraMode(mode: CameraMode, announce = true): void {
-  modeBtn.textContent = `Камера: ${mode.name} (C)`;
+  modeBtn.innerHTML = `Камера: ${mode.name}<span class="kbd-hint"> (C)</span>`;
   crossEl.hidden = mode.id !== 'shoulder';
   if (announce) say(mode.id === 'shoulder' ? 'Из-за плеча — кликни для захвата мыши' : mode.name);
 }

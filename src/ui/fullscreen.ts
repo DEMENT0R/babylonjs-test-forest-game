@@ -11,7 +11,7 @@ export function toggleFullscreen(): void {
 }
 
 function sync(): void {
-  btn.textContent = document.fullscreenElement ? 'Окно (F)' : 'Во весь экран (F)';
+  btn.innerHTML = `${document.fullscreenElement ? 'Окно' : 'Во весь экран'}<span class="kbd-hint"> (F)</span>`;
 }
 
 export function setupFullscreen(): void {

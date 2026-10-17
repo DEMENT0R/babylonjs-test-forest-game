@@ -176,7 +176,10 @@ export class CameraRig {
     const bs = D.height / 2.1;
     const camH = D.height * 0.82 + 0.1;
     const right = new Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
-    const shoulder = id === 'shoulder' ? 0.3 + 0.35 * bs : 0;
+    // Узкий кадр (телефон в портрете): плечо ближе к центру, камера дальше — иначе герой
+    // уходит за край экрана или закрывает его целиком
+    const fit = Math.min(1, this.world.scene.getEngine().getAspectRatio(this.world.camera));
+    const shoulder = id === 'shoulder' ? (0.3 + 0.35 * bs) * fit : 0;
     const target = player.pos.add(new Vector3(0, id === 'shoulder' ? camH + 0.1 : camH, 0)).add(right.scale(shoulder));
     this.smoothTarget = Vector3.Lerp(this.smoothTarget, target, damp(14, dt));
 
@@ -185,7 +188,7 @@ export class CameraRig {
       -Math.sin(this.pitch),
       Math.cos(this.yaw) * Math.cos(this.pitch),
     );
-    let want = this.dist * (0.6 + 0.4 * bs);
+    let want = this.dist * (0.6 + 0.4 * bs) * (1 + 0.7 * (1 - fit));
     // Деревья и камни между камерой и героем — подъезжаем ближе
     const hit = this.world.cameraHit(this.smoothTarget, lookDir.scale(-1), want);
     if (hit !== null) want = Math.max(0.9, hit - 0.3);

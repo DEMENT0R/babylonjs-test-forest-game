@@ -23,6 +23,12 @@ import { byId, damp, now, wrapAngle } from '../utils';
 
 const SLOT_X = [-3.4, 0, 3.4];
 const CAM_Z = -9;
+/** Наклон камеры вниз, как на широком экране: камера на 1.4 выше героя и в 9 позади. */
+const PITCH = Math.atan2(1.4, 9);
+/** Высота кадра «герой на подиуме» и какую долю свободной полосы экрана он занимает.
+    Общая для всех героев, чтобы камера не дёргалась вперёд-назад при выборе. */
+const FRAME_H = 2;
+const FILL = 0.5;
 const SKY = new Color3(0.55, 0.72, 0.78);
 
 interface Slot {
@@ -56,6 +62,11 @@ export class SelectScreen {
   private readonly playBtn = byId<HTMLButtonElement>('play');
   private index = 1;
   private camX = 0;
+  private camDist = -CAM_Z;
+  private camFocusY = 1;
+  /** Свободная полоса экрана между заголовком и карточками: середина и высота в долях экрана. */
+  private band = { center: 0.4, size: 0.5 };
+  private bandDirty = true;
   /** Все герои загружены и стоят на подиумах. */
   ready = false;
 
@@ -137,6 +148,7 @@ export class SelectScreen {
       if (n) this.choose((n.metadata as { hero: number }).hero);
     });
     scene.onBeforeRenderObservable.add(() => this.animate(Math.min(engine.getDeltaTime() / 1000, 0.05)));
+    window.addEventListener('resize', () => (this.bandDirty = true));
 
     this.choose(this.index);
   }
@@ -222,18 +234,48 @@ export class SelectScreen {
     });
   }
 
+  /** Где на экране свободно от заголовка и карточек — туда камера ставит героя. */
+  private measureBand(): void {
+    const top = byId('select').querySelector('.sel-head')!.getBoundingClientRect().bottom;
+    const bottom = byId('select').querySelector('.sel-bottom')!.getBoundingClientRect().top;
+    const h = window.innerHeight;
+    if (!h || bottom <= top) return;
+    this.band = { center: (top + bottom) / 2 / h, size: (bottom - top) / h };
+    this.bandDirty = false;
+  }
+
+  /**
+   * Камера держит выбранного героя в свободной полосе экрана. На широком экране она
+   * лишь слегка смещается к нему, чтобы были видны все три подиума; на узком (телефон
+   * в портрете) встаёт прямо напротив и отъезжает, чтобы подиум влезал по ширине.
+   */
   private animate(dt: number): void {
+    if (this.bandDirty) this.measureBand();
     const cam = this.camera;
-    this.camX += (SLOT_X[this.index] * 0.35 - this.camX) * damp(4, dt);
-    cam.position.set(this.camX + Math.sin(now() * 0.3) * 0.25, 2.4, CAM_Z);
-    cam.setTarget(new Vector3(this.camX, 1, 0));
+    const aspect = this.scene.getEngine().getAspectRatio(cam);
+    const tanHalf = Math.tan(cam.fov / 2);
+    const byHeight = FRAME_H / (2 * tanHalf * FILL * this.band.size);
+    const byWidth = 3.2 / (2 * tanHalf * aspect);
+    const dist = Math.min(14, Math.max(5.5, byHeight, byWidth));
+    const halfWidth = dist * tanHalf * aspect;
+    // Крайний подиум (x 3.4, радиус 1.2) влезает в кадр при смещении на 0.35 пути к нему
+    const follow = halfWidth > 3.6 ? 0.35 : 1;
+    this.camX += (SLOT_X[this.index] * follow - this.camX) * damp(4, dt);
+    this.camDist += (dist - this.camDist) * damp(4, dt);
+
+    // Точка героя попадает в середину полосы: камера доворачивается вниз на нужный угол
+    const look = PITCH + Math.atan((1 - 2 * this.band.center) * tanHalf);
+    this.camFocusY += (0.35 + HEROES[this.index].height / 2 - this.camFocusY) * damp(4, dt);
+    const sway = Math.sin(now() * 0.3) * 0.25;
+    cam.position.set(this.camX + sway, this.camFocusY + Math.sin(PITCH) * this.camDist, -Math.cos(PITCH) * this.camDist);
+    cam.setTarget(cam.position.add(new Vector3(-sway / this.camDist, -Math.sin(look), Math.cos(look))));
     this.grass.update(cam.position, null, 0);
 
     this.slots.forEach((s, k) => {
       const hero = s.hero;
       if (!hero) return;
       // Выбранный герой поворачивается к камере
-      const want = k === this.index ? Math.atan2(cam.position.x - SLOT_X[k], CAM_Z) : s.face;
+      const want = k === this.index ? Math.atan2(cam.position.x - SLOT_X[k], cam.position.z) : s.face;
       hero.root.rotation.y += wrapAngle(want - hero.root.rotation.y) * damp(5, dt);
 
       const hello = hero.anim('hello');
