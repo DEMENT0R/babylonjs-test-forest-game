@@ -153,6 +153,8 @@ function tickQuest(dt: number, got: number[]): void {
   });
   quest.onCollect(got);
   markers?.update(dt, (id) => quest.reachedTarget(id));
+  // Ночью садиться нечему
+  if (quest.quest.kind === 'time' && !layout.biome.crystalLights) world.setDusk(quest.timeShare);
   if (quest.failed && !was.failed) say('Задание провалено — но уровень можно пройти');
   else if (quest.complete && !was.complete) say('Задание выполнено ★ — осталось дойти до портала');
   updateQuestHud();

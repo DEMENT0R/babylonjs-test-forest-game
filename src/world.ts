@@ -2,6 +2,7 @@
 // внутри которой сменяются уровни. Здесь же — запросы для физики и камеры.
 
 import {
+  Color3,
   Color4,
   DirectionalLight,
   GlowLayer,
@@ -19,6 +20,16 @@ import { createLightingContext, refreshLighting, type LightingContext } from './
 
 export type { Obstacle, Platform };
 export type Surface = 'grass' | 'path' | 'stone' | 'snow' | 'water';
+
+/** Закат: золотой час и сумерки — небо, солнце и рассеянный свет. */
+const GOLD = { sky: new Color3(0.93, 0.64, 0.46), sun: new Color3(1, 0.7, 0.45), hemi: new Color3(1, 0.86, 0.74) };
+const DUSK = { sky: new Color3(0.24, 0.22, 0.38), sun: new Color3(0.8, 0.42, 0.5), hemi: new Color3(0.55, 0.58, 0.9) };
+const WHITE = new Color3(1, 1, 1);
+
+const smoothstep = (a: number, b: number, x: number) => {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
 
 /** Сетка для быстрого поиска препятствий рядом с точкой. */
 class ObstacleGrid {
@@ -66,6 +77,8 @@ export class World {
   private readonly hemi: HemisphericLight;
   /** Нормализованное направление солнечного света. */
   private sunDir = new Vector3(0, -1, 0);
+  /** Свет биома без заката — от него считается setDusk. */
+  private readonly base = { sky: new Color3(), sun: new Color3(), sunI: 1, hemiI: 1, dir: new Vector3(0, -1, 0) };
   private level: Level | null = null;
   private grid = new ObstacleGrid([]);
   private readonly near = new Set<Obstacle>();
@@ -124,6 +137,35 @@ export class World {
     this.sun.direction = new Vector3(...b.sun.dir);
     this.sun.diffuse = b.sun.color.clone();
     this.sun.intensity = b.sun.intensity;
+    this.sunDir = this.sun.direction.normalizeToNew();
+    this.hemi.diffuse = WHITE.clone();
+    this.base.sky.copyFrom(b.sky);
+    this.base.sun.copyFrom(b.sun.color);
+    this.base.sunI = b.sun.intensity;
+    this.base.hemiI = b.hemi.intensity;
+    this.base.dir.copyFrom(this.sun.direction);
+  }
+
+  /**
+   * Закат по ходу задания на время: k = 0 — свет биома, к 0.6 — золотой час,
+   * к 1 — сумерки. Солнце опускается, тени вытягиваются.
+   */
+  setDusk(k: number): void {
+    const a = smoothstep(0, 0.65, k);
+    const b = smoothstep(0.55, 1, k);
+    const base = this.base;
+    const sky = this.scene.fogColor;
+    Color3.LerpToRef(base.sky, GOLD.sky, a * 0.8, sky);
+    Color3.LerpToRef(sky, DUSK.sky, b * 0.8, sky);
+    this.scene.clearColor.set(sky.r, sky.g, sky.b, 1);
+    Color3.LerpToRef(base.sun, GOLD.sun, a, this.sun.diffuse);
+    Color3.LerpToRef(this.sun.diffuse, DUSK.sun, b, this.sun.diffuse);
+    this.sun.intensity = base.sunI * (1 - 0.15 * a - 0.35 * b);
+    Color3.LerpToRef(WHITE, GOLD.hemi, a, this.hemi.diffuse);
+    Color3.LerpToRef(this.hemi.diffuse, DUSK.hemi, b, this.hemi.diffuse);
+    this.hemi.intensity = base.hemiI * (1 - 0.1 * a - 0.3 * b);
+    // Солнце ниже к горизонту: вертикальная часть направления убывает
+    this.sun.direction.set(base.dir.x, base.dir.y * (1 - 0.72 * Math.min(1, k)), base.dir.z);
     this.sunDir = this.sun.direction.normalizeToNew();
   }
 

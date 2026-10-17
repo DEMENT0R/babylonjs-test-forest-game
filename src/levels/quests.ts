@@ -150,6 +150,11 @@ export class QuestRun {
     }
   }
 
+  /** Какая доля лимита времени прошла (0…1); у заданий без лимита — 0. */
+  get timeShare(): number {
+    return this.maxTime > 0 ? Math.min(1, this.time / this.maxTime) : 0;
+  }
+
   /** Задание уже не выполнить на этом уровне. */
   get failed(): boolean {
     return this.broken || (this.quest.kind === 'time' && this.time > this.maxTime);
