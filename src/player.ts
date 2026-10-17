@@ -3,7 +3,7 @@
 import { Color3, MeshBuilder, StandardMaterial, TransformNode, Vector3, type Mesh } from '@babylonjs/core';
 import { BTN, gamepad } from './gamepad';
 import { blendAnims, type Hero } from './heroes';
-import { onSettingsApplied } from './settings';
+import { onSettingsApplied, settings } from './settings';
 import { byId, clamp, damp, wrapAngle } from './utils';
 import { MAX_WADE_DEPTH } from './levels/generator';
 import { MAX_WALK_SLOPE } from './levels/terrain';
@@ -28,17 +28,32 @@ export const keys: Record<string, boolean> = {};
 const touch = { x: 0, y: 0 };
 let jumpRequested = false;
 let knob: HTMLElement | null = null;
+let stickEl: HTMLElement | null = null;
+
+/** Вернуть стик в покой: ручку в центр, плавающий — на место по умолчанию. */
+function releaseStick(): void {
+  touch.x = touch.y = 0;
+  if (knob) knob.style.transform = '';
+  if (stickEl) {
+    stickEl.style.left = stickEl.style.top = stickEl.style.bottom = '';
+    stickEl.classList.remove('held');
+  }
+}
 
 export function clearInput(): void {
   for (const k in keys) keys[k] = false;
-  touch.x = touch.y = 0;
   jumpRequested = false;
-  if (knob) knob.style.transform = '';
+  releaseStick();
 }
 
-/** Экранный стик слева и кнопка прыжка справа (видны только на сенсорных экранах). */
+/**
+ * Экранный стик слева и кнопка прыжка справа (видны только на сенсорных экранах).
+ * Стик фиксированный — ловит касания только по себе; плавающий — появляется под пальцем
+ * в любом месте левой части экрана (зона #stick-zone).
+ */
 export function setupTouchControls(): void {
-  const stick = byId('stick');
+  const stick = (stickEl = byId('stick'));
+  const zone = byId('stick-zone');
   knob = byId('knob');
   let pointerId: number | null = null;
   const max = 40;
@@ -55,22 +70,45 @@ export function setupTouchControls(): void {
     touch.x = dx / max;
     touch.y = -dy / max;
   };
+  const start = (e: PointerEvent, el: HTMLElement) => {
+    if (pointerId !== null) return;
+    e.preventDefault();
+    pointerId = e.pointerId;
+    try {
+      el.setPointerCapture(pointerId);
+    } catch {
+      // pointerId мог уже завершиться
+    }
+    if (settings.stick === 'float') {
+      // Центр стика — под пальцем, но целиком на экране
+      const r = stick.getBoundingClientRect();
+      const half = r.width / 2;
+      const x = clamp(e.clientX, half + 4, innerWidth - half - 4);
+      const y = clamp(e.clientY, half + 4, innerHeight - half - 4);
+      stick.style.left = `${x - half}px`;
+      stick.style.top = `${y - half}px`;
+      stick.style.bottom = 'auto';
+    }
+    stick.classList.add('held');
+    move(e);
+  };
   const end = (e: PointerEvent) => {
     if (e.pointerId !== pointerId) return;
     pointerId = null;
-    touch.x = touch.y = 0;
-    knob!.style.transform = '';
+    releaseStick();
   };
-  stick.addEventListener('pointerdown', (e) => {
-    pointerId = e.pointerId;
-    stick.setPointerCapture(pointerId);
-    move(e);
+  for (const el of [stick, zone]) {
+    el.addEventListener('pointerdown', (e) => start(e, el));
+    el.addEventListener('pointermove', (e) => {
+      if (e.pointerId === pointerId) move(e);
+    });
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+  }
+  onSettingsApplied((s) => {
+    zone.hidden = s.stick !== 'float';
+    stick.classList.toggle('floating', s.stick === 'float');
   });
-  stick.addEventListener('pointermove', (e) => {
-    if (e.pointerId === pointerId) move(e);
-  });
-  stick.addEventListener('pointerup', end);
-  stick.addEventListener('pointercancel', end);
   const jump = byId('jump');
   let jumpFlash = 0;
   jump.addEventListener('pointerdown', (e) => {

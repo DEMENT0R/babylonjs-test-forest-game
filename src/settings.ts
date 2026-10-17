@@ -53,6 +53,8 @@ export interface Settings extends GraphicsSettings {
   /** Чувствительность правого стика геймпада. */
   padSens: number;
   invertY: boolean;
+  /** Сенсорный стик: на своём месте или появляется под пальцем в левой части экрана. */
+  stick: 'float' | 'fixed';
   fps: boolean;
   /** Памятка по кнопкам: раскрыта на первом уровне, всегда или всегда свёрнута. */
   keyHint: 'first' | 'open' | 'closed';
@@ -76,7 +78,7 @@ export const PRESETS: Record<PresetId, GraphicsSettings> = {
 };
 
 const DEFAULTS: Settings = {
-  preset: 'high', ...PRESETS.high, fov: 60, sens: 1, padSens: 1, invertY: false, fps: false, keyHint: 'first',
+  preset: 'high', ...PRESETS.high, fov: 60, sens: 1, padSens: 1, invertY: false, stick: 'float', fps: false, keyHint: 'first',
   sound: true, volume: 0.8, stepsVolume: 0.8, natureVolume: 0.6,
 };
 const STORAGE_KEY = 'tihaya-polyana-settings';

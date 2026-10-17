@@ -46,6 +46,10 @@ h1{margin:0;font:700 15px/1.2 var(--f-display);letter-spacing:.02em}
 #mode{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--panel);border:1px solid var(--line);border-radius:8px;font:600 12px var(--f-mono);padding:8px 12px;cursor:pointer}
 #mode:hover{border-color:var(--accent)}
 #stick{position:fixed;left:calc(max(16px,env(safe-area-inset-left,0px)) + 8px);bottom:calc(24px + env(safe-area-inset-bottom,0px));width:120px;height:120px;border-radius:50%;border:1px solid var(--line);background:var(--panel);touch-action:none}
+/* Плавающий стик: в покое полупрозрачный на своём месте, при касании — под пальцем */
+#stick-zone{position:fixed;left:0;top:35%;bottom:0;width:50%;touch-action:none}
+#stick.floating{opacity:.45;transition:opacity .15s}
+#stick.floating.held{opacity:1;transition:none}
 #knob{position:absolute;left:50%;top:50%;width:48px;height:48px;margin:-24px 0 0 -24px;border-radius:50%;background:var(--ink);opacity:.8}
 #jump{position:fixed;right:calc(max(16px,env(safe-area-inset-right,0px)) + 8px);--jump-bottom:calc(40px + env(safe-area-inset-bottom,0px));bottom:var(--jump-bottom);width:76px;height:76px;border-radius:50%;border:1px solid var(--line);background:var(--panel);font:700 12px var(--f-display);touch-action:none;transition:transform .08s,background .08s}
 /* Зона нажатия шире кнопки: влево к центру экрана и до самых краёв угла, чтобы большой палец
@@ -53,8 +57,8 @@ h1{margin:0;font:700 15px/1.2 var(--f-display);letter-spacing:.02em}
 #jump::after{content:'';position:absolute;left:-40px;top:-8px;right:calc(-1 * (max(16px,env(safe-area-inset-right,0px)) + 8px));bottom:calc(-1 * var(--jump-bottom))}
 #jump.on{transform:scale(.9);background:var(--accent);color:var(--accent-ink)}
 #fps{position:fixed;left:50%;transform:translateX(-50%);top:calc(10px + env(safe-area-inset-top,0px));font:600 11px var(--f-mono);font-variant-numeric:tabular-nums;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:2px 8px;pointer-events:none}
-@media (hover:hover) and (pointer:fine){#stick,#jump{display:none}}
-body[data-pad] #stick,body[data-pad] #jump{display:none}
+@media (hover:hover) and (pointer:fine){#stick,#stick-zone,#jump{display:none}}
+body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump{display:none}
 @media (max-width:520px){.keys{display:none}}
 /* Сенсорный экран: без подсказок клавиш и памятки по клавиатуре, кнопки крупнее,
    режим камеры — над кнопкой прыжка (с геймпадом прыжка нет — опускается в угол) */
