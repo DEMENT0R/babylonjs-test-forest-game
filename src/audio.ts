@@ -81,12 +81,12 @@ interface SurfaceSound {
 }
 
 const SURFACES: Record<Surface, SurfaceSound> = {
-  grass: { freq: 1700, q: 0.7, dur: 0.11, noise: 0.45, thump: 0.25, thumpFreq: 95 },
-  path: { freq: 3200, q: 1.1, dur: 0.08, noise: 0.6, thump: 0.25, thumpFreq: 110 },
-  stone: { freq: 950, q: 2.2, dur: 0.05, noise: 0.5, thump: 0.55, thumpFreq: 150 },
-  snow: { freq: 2300, q: 0.9, dur: 0.05, noise: 0.55, thump: 0.12, thumpFreq: 80, grains: 5 },
+  grass: { freq: 1700, q: 0.7, dur: 0.11, noise: 0.3, thump: 0.25, thumpFreq: 95 },
+  path: { freq: 2000, q: 1.1, dur: 0.08, noise: 0.4, thump: 0.25, thumpFreq: 110 },
+  stone: { freq: 950, q: 2.2, dur: 0.05, noise: 0.33, thump: 0.55, thumpFreq: 150 },
+  snow: { freq: 2300, q: 0.9, dur: 0.05, noise: 0.37, thump: 0.12, thumpFreq: 80, grains: 5 },
   // Плеск: низкий широкий шум с «хвостом» капель
-  water: { freq: 850, q: 0.5, dur: 0.22, noise: 0.75, thump: 0.08, thumpFreq: 70, grains: 3 },
+  water: { freq: 850, q: 0.5, dur: 0.22, noise: 0.5, thump: 0.08, thumpFreq: 70, grains: 3 },
 };
 
 // ---------- Движок звука ----------
@@ -141,7 +141,12 @@ export class GameAudio {
 
     this.stepsBus = ac.createGain();
     this.natureBus = ac.createGain();
-    this.stepsBus.connect(this.master);
+    // Срез верхов, чтобы шаги не шипели
+    const stepsLp = ac.createBiquadFilter();
+    stepsLp.type = 'lowpass';
+    stepsLp.frequency.value = 3200;
+    stepsLp.Q.value = 0.5;
+    this.stepsBus.connect(stepsLp).connect(this.master);
     this.natureBus.connect(this.master);
     this.sfxBus = ac.createGain();
     this.sfxBus.gain.value = 0.6;
@@ -152,6 +157,10 @@ export class GameAudio {
     const wet = ac.createGain();
     wet.gain.value = 0.35;
     this.reverb.connect(wet).connect(this.natureBus);
+    // Немного леса и в шагах — сухой шаг выпрыгивает из реверберированного фона
+    const stepsSend = ac.createGain();
+    stepsSend.gain.value = 0.12;
+    stepsLp.connect(stepsSend).connect(this.reverb);
 
     // У музыки своя шина и свой, более долгий хвост — её громкость не зависит от природы
     this.musicBus = ac.createGain();
@@ -482,8 +491,10 @@ export class GameAudio {
     out.pan.value = pan;
     out.connect(this.stepsBus);
 
-    // Шорох/хруст — полоса шума; снег хрустит серией коротких «зёрен»
+    // Шорох/хруст — полоса шума; снег хрустит серией коротких «зёрен».
+    // Плавная атака, чтобы шаг не щёлкал; зёрнам — короче, иначе они сольются
     const grains = sp.grains ?? 1;
+    const attack = grains > 1 ? 0.008 : 0.018;
     let gt = t;
     for (let i = 0; i < grains; i++) {
       const src = ac.createBufferSource();
@@ -497,10 +508,10 @@ export class GameAudio {
       const dur = sp.dur * (0.8 + weight * 0.5);
       const peak = sp.noise * force * (0.5 + weight * 0.6) * (grains > 1 ? rand(0.5, 1) * (1 - i / (grains + 1)) : 1);
       g.gain.setValueAtTime(0, gt);
-      g.gain.linearRampToValueAtTime(peak, gt + 0.004);
-      g.gain.exponentialRampToValueAtTime(0.001, gt + dur);
+      g.gain.linearRampToValueAtTime(peak, gt + attack);
+      g.gain.exponentialRampToValueAtTime(0.001, gt + attack + dur);
       src.connect(bp).connect(g).connect(out);
-      src.start(gt, rand(0, 0.8), dur + 0.05);
+      src.start(gt, rand(0, 0.8), attack + dur + 0.05);
       gt += rand(0.014, 0.028);
     }
 
@@ -512,8 +523,8 @@ export class GameAudio {
     osc.frequency.exponentialRampToValueAtTime(f, t + 0.04);
     const og = ac.createGain();
     og.gain.setValueAtTime(0, t);
-    og.gain.linearRampToValueAtTime(sp.thump * force * (0.3 + weight), t + 0.004);
-    og.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+    og.gain.linearRampToValueAtTime(sp.thump * force * (0.3 + weight), t + 0.008);
+    og.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
     osc.connect(og).connect(out);
     osc.start(t);
     osc.stop(t + 0.12);
@@ -578,10 +589,12 @@ export class Footsteps {
     if (this.travelled < stride) return;
     this.travelled -= stride;
     this.side = -this.side;
-    const force = 0.7 + runK * 0.5;
+    // Живой разброс силы и лёгкий сдвиг по времени — чтобы не звучал метроном
+    const force = (0.7 + runK * 0.5) * rand(0.75, 1.1);
     const pan = this.side * 0.12;
-    this.audio.footfall(surface, weight, force, pan);
+    const jitter = rand(0, 0.015);
+    this.audio.footfall(surface, weight, force, pan, jitter);
     // Четыре лапы: на бегу каждый «шаг» — пара ударов
-    if (runK > 0.3) this.audio.footfall(surface, weight, force * 0.75, -pan, rand(0.05, 0.08));
+    if (runK > 0.3) this.audio.footfall(surface, weight, force * rand(0.6, 0.85), -pan, jitter + rand(0.05, 0.08));
   }
 }
