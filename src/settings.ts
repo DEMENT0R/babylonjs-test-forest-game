@@ -60,10 +60,11 @@ export interface Settings extends GraphicsSettings {
   keyHint: 'first' | 'open' | 'closed';
   /** Звук включён (клавиша M). */
   sound: boolean;
-  /** Громкость 0…1: общая, шагов и природы (ветер, птицы). */
+  /** Громкость 0…1: общая, шагов, природы (ветер, птицы) и фоновой музыки. */
   volume: number;
   stepsVolume: number;
   natureVolume: number;
+  musicVolume: number;
 }
 
 export const PRESETS: Record<PresetId, GraphicsSettings> = {
@@ -79,7 +80,7 @@ export const PRESETS: Record<PresetId, GraphicsSettings> = {
 
 const DEFAULTS: Settings = {
   preset: 'high', ...PRESETS.high, fov: 60, sens: 1, padSens: 1, invertY: false, stick: 'float', fps: false, keyHint: 'first',
-  sound: true, volume: 0.8, stepsVolume: 0.8, natureVolume: 0.6,
+  sound: true, volume: 0.8, stepsVolume: 0.8, natureVolume: 0.6, musicVolume: 0.5,
 };
 const STORAGE_KEY = 'tihaya-polyana-settings';
 

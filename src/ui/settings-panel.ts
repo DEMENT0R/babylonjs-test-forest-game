@@ -79,6 +79,7 @@ const TABS: readonly Tab[] = [
       { key: 'volume', label: 'Общая громкость', range: [0, 1, 0.05], fmt: percent },
       { key: 'stepsVolume', label: 'Шаги', range: [0, 1, 0.05], fmt: percent },
       { key: 'natureVolume', label: 'Ветер и птицы', range: [0, 1, 0.05], fmt: percent },
+      { key: 'musicVolume', label: 'Музыка', hint: 'Тихий эмбиент, свой у каждого биома', range: [0, 1, 0.05], fmt: percent },
     ],
   },
   {

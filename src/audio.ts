@@ -2,7 +2,8 @@
 // Ветер — розовый шум с порывами из общей модели (wind.ts), птицы — свисты и трели нескольких «видов»
 // (и изредка кукушка), шаги — короткие шумовые щелчки, зависящие от поверхности и веса героя.
 
-import type { Ambience } from './levels/biomes';
+import type { Ambience, BiomeId } from './levels/biomes';
+import { Music } from './music';
 import type { Player } from './player';
 import { onSettingsApplied, settings, type Settings } from './settings';
 import { clamp } from './utils';
@@ -95,6 +96,9 @@ export class GameAudio {
   private master!: GainNode;
   private stepsBus!: GainNode;
   private natureBus!: GainNode;
+  private musicBus!: GainNode;
+  private music: Music | null = null;
+  private biome: BiomeId = 'meadow';
   /** Игровые сигналы: кристаллы и портал. Громкость — общая. */
   private sfxBus!: GainNode;
   private reverb!: ConvolverNode;
@@ -149,6 +153,17 @@ export class GameAudio {
     wet.gain.value = 0.35;
     this.reverb.connect(wet).connect(this.natureBus);
 
+    // У музыки своя шина и свой, более долгий хвост — её громкость не зависит от природы
+    this.musicBus = ac.createGain();
+    this.musicBus.connect(this.master);
+    const musicVerb = ac.createConvolver();
+    musicVerb.buffer = forestImpulse(ac, 3);
+    const musicWet = ac.createGain();
+    musicWet.gain.value = 0.5;
+    musicVerb.connect(musicWet).connect(this.musicBus);
+    this.music = new Music(ac, this.musicBus, musicVerb, () => this.running && settings.musicVolume > 0);
+    this.music.setBiome(this.biome);
+
     this.stepNoise = whiteNoise(ac, 1);
     this.applyVolumes(settings);
     this.startWind();
@@ -163,6 +178,12 @@ export class GameAudio {
     this.ambience = a;
   }
 
+  /** Лад фоновой музыки — по биому уровня. */
+  setMusic(id: BiomeId): void {
+    this.biome = id;
+    this.music?.setBiome(id);
+  }
+
   private applyVolumes(s: Readonly<Settings>): void {
     const ac = this.ac;
     if (!ac) return;
@@ -170,6 +191,7 @@ export class GameAudio {
     this.master.gain.setTargetAtTime(s.sound ? s.volume : 0, t, 0.05);
     this.stepsBus.gain.setTargetAtTime(s.stepsVolume, t, 0.05);
     this.natureBus.gain.setTargetAtTime(s.natureVolume, t, 0.05);
+    this.musicBus.gain.setTargetAtTime(s.musicVolume, t, 0.05);
   }
 
   private get running(): boolean {

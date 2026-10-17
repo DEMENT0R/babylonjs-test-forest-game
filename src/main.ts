@@ -169,6 +169,7 @@ function beginLevel(index: number): void {
   quest = new QuestRun(fitQuest(recipe.quest, layout), layout);
   placeMarkers();
   audio.setAmbience(layout.biome.ambience);
+  audio.setMusic(layout.biome.id);
   wind.setScale(layout.biome.ambience.wind);
   player.reset(layout.spawn);
   rig.reset();
