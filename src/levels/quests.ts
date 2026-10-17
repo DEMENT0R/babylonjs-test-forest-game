@@ -158,6 +158,23 @@ export class QuestRun {
     }
   }
 
+  /** Места, к которым задание ведёт игрока (поляны или озёра); id — номер цели в счётчике. */
+  get places(): { id: number; x: number; z: number }[] {
+    switch (this.quest.kind) {
+      case 'explore':
+        return this.layout.clearings.map((c, id) => ({ id, x: c.x, z: c.z })).slice(1);
+      case 'swim':
+        return this.layout.lakes.map((l, id) => ({ id, x: l.x, z: l.z }));
+      default:
+        return [];
+    }
+  }
+
+  /** Цель с этим номером уже достигнута. */
+  reachedTarget(id: number): boolean {
+    return this.reached.has(id);
+  }
+
   /** Собраны кристаллы с этими номерами. */
   onCollect(indices: readonly number[]): void {
     const want = this.quest.kind === 'tops' ? 'top' : this.quest.kind === 'hidden' ? 'hidden' : null;

@@ -1,13 +1,14 @@
 // Точка входа: движок, сцены и переключение состояний меню → выбор героя → игра,
 // а внутри игры — смена уровней через портал.
 
-import { Engine, Vector3 } from '@babylonjs/core';
+import { Color3, Engine, Vector3 } from '@babylonjs/core';
 import { Footsteps, GameAudio } from './audio';
 import { CameraRig } from './camera';
 import { BTN, gamepad } from './gamepad';
 import { loadHero, type HeroDef } from './heroes';
 import type { LevelLayout } from './levels/generator';
 import { completeLevel, formatTime, progress, setCurrentLevel } from './levels/progress';
+import { QuestMarkers } from './levels/markers';
 import { fitQuest, QuestRun } from './levels/quests';
 import { recipeFor } from './levels/recipes';
 import { clearInput, keys, Player, setupTouchControls } from './player';
@@ -50,6 +51,7 @@ let level = progress.current;
 let layout: LevelLayout;
 let levelTime = 0;
 let quest: QuestRun;
+let markers: QuestMarkers | null = null;
 
 // Браузер включает звук только после действия пользователя — первый клик или клавиша
 for (const type of ['pointerdown', 'keydown'] as const) addEventListener(type, () => audio.unlock(), { capture: true });
@@ -117,6 +119,21 @@ function updateQuestHud(): void {
   setQuest(quest.goal, quest.status, quest.failed ? 'failed' : quest.complete ? 'done' : 'active');
 }
 
+/** Столбы света над полянами или озёрами, куда зовёт задание: озёра — голубые, поляны — золотые. */
+function placeMarkers(): void {
+  markers?.dispose();
+  const places = quest.places;
+  const swim = quest.quest.kind === 'swim';
+  markers = places.length
+    ? new QuestMarkers(
+        world.scene,
+        world.lighting,
+        places.map((p) => ({ ...p, y: swim ? (layout.waterLevel ?? 0) : world.terrainAt(p.x, p.z) })),
+        swim ? new Color3(0.3, 0.7, 1) : new Color3(1, 0.82, 0.45),
+      )
+    : null;
+}
+
 /** Задание следит за героем после его шага: прыжок, вода, поляны, собранные кристаллы. */
 function tickQuest(dt: number, got: number[]): void {
   const was = { failed: quest.failed, complete: quest.complete };
@@ -131,6 +148,7 @@ function tickQuest(dt: number, got: number[]): void {
     wet: surface !== null && y < surface ? world.waterDepth(x, z) : 0,
   });
   quest.onCollect(got);
+  markers?.update(dt, (id) => quest.reachedTarget(id));
   if (quest.failed && !was.failed) say('Задание провалено — но уровень можно пройти');
   else if (quest.complete && !was.complete) say('Задание выполнено ★ — осталось дойти до портала');
   updateQuestHud();
@@ -143,6 +161,7 @@ function beginLevel(index: number): void {
   const recipe = recipeFor(index);
   layout = world.loadLevel(recipe);
   quest = new QuestRun(fitQuest(recipe.quest, layout), layout);
+  placeMarkers();
   audio.setAmbience(layout.biome.ambience);
   wind.setScale(layout.biome.ambience.wind);
   player.reset(layout.spawn);
