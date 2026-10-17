@@ -246,7 +246,7 @@ addEventListener('keydown', (e) => {
   }
   switch (state) {
     case 'menu':
-      if (e.code === 'Escape' && gameStarted) {
+      if (e.code === 'Escape' && gameStarted && !menu.isInfoOpen) {
         e.preventDefault();
         resumeGame();
       } else {

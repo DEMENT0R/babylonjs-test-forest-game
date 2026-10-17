@@ -14,22 +14,34 @@
   <canvas id="c" tabindex="0"></canvas>
 
   <!-- Главное меню -->
+  <!-- Раскладка: на широком экране колонка слева и панель справа; на телефоне в портрете
+       заголовок сверху и пункты у большого пальца снизу; в ландшафте — две колонки.
+       На узких экранах панель («Уровни», «Управление»…) закрывает меню целиком. -->
   <div id="menu">
     <div class="menu-col">
-      <h2 class="menu-title">Тихая<br><em>поляна</em></h2>
-      <p class="menu-sub">Прогулка по лесным полянам от третьего лица. Собирай кристаллы — портал в каменном круге откроется, когда найдёшь большую их часть. Каждый уровень новый.</p>
-      <div class="menu-progress" id="menu-progress" hidden></div>
+      <header class="menu-head">
+        <h2 class="menu-title">Тихая <em>поляна</em></h2>
+        <p class="menu-sub">Прогулка по лесным полянам от третьего лица. Собирай кристаллы — портал в каменном круге откроется, когда найдёшь большую их часть. Каждый уровень новый.</p>
+        <div class="menu-progress" id="menu-progress" hidden></div>
+      </header>
       <nav class="menu-list" aria-label="Главное меню">
-        <button type="button" id="m-continue" class="primary" hidden>Продолжить <span>Esc</span></button>
+        <button type="button" id="m-continue" class="primary" hidden>Продолжить <span class="key-only">Esc</span></button>
         <button type="button" id="m-new">Играть</button>
-        <button type="button" id="m-levels">Уровни</button>
+        <button type="button" id="m-levels" aria-expanded="false">Уровни</button>
         <button type="button" id="m-hero" hidden>Сменить героя</button>
         <button type="button" id="m-settings">Настройки</button>
-        <button type="button" id="m-help">Управление</button>
-        <button type="button" id="m-about">Авторы</button>
+        <button type="button" id="m-help" aria-expanded="false">Управление</button>
+        <button type="button" id="m-changes" aria-expanded="false">Что нового <i class="dot" id="m-changes-dot" hidden aria-label="есть новое"></i></button>
+        <button type="button" id="m-about" aria-expanded="false">Авторы</button>
       </nav>
     </div>
-    <div class="menu-info" id="menu-info" hidden></div>
+    <section class="menu-info" id="menu-info" hidden aria-labelledby="menu-info-title">
+      <div class="info-head">
+        <h4 id="menu-info-title"></h4>
+        <button type="button" class="small-btn" id="menu-info-close">Назад <span class="key-only">(Esc)</span></button>
+      </div>
+      <div class="info-body" id="menu-info-body"></div>
+    </section>
   </div>
 
   <!-- Экран выбора героя -->

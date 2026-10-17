@@ -96,38 +96,111 @@ body[data-pad] #stick,body[data-pad] #jump{display:none}
   .stats{grid-template-columns:1fr}
 }
 
-/* Main menu */
-#menu{position:fixed;inset:0;display:flex;align-items:center;gap:32px;flex-wrap:wrap;align-content:center;
+/* Main menu
+   Широкий экран: колонка слева, панель справа. Телефон в портрете: заголовок сверху,
+   пункты снизу под большим пальцем. Низкий экран (телефон в ландшафте): заголовок слева,
+   пункты справа в две колонки. На телефоне панель открывается вместо меню. */
+#menu{position:fixed;inset:0;display:flex;align-items:center;gap:32px;
   background:linear-gradient(90deg,rgba(9,16,14,.82) 0%,rgba(9,16,14,.55) 38%,rgba(9,16,14,0) 70%);
-  padding-left:max(24px,calc(env(safe-area-inset-left,0px) + 16px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px;overflow:auto}
-.menu-col{display:flex;flex-direction:column;gap:18px;max-width:380px;min-width:0}
+  padding-left:max(24px,calc(env(safe-area-inset-left,0px) + 16px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:calc(24px + env(safe-area-inset-top,0px)) calc(24px + env(safe-area-inset-bottom,0px));overflow:auto}
+.menu-col{display:flex;flex-direction:column;gap:18px;width:380px;max-width:100%;min-width:0;flex:none}
+.menu-head{display:flex;flex-direction:column;gap:14px}
 .menu-title{margin:0;font:700 clamp(40px,7vw,72px)/.95 var(--f-display);letter-spacing:-.01em;text-wrap:balance}
-.menu-title em{font-style:normal;color:var(--accent)}
+.menu-title em{font-style:normal;color:var(--accent);display:block}
 .menu-sub{margin:0;font:400 13px/1.55 var(--f-mono);color:var(--muted);max-width:34ch}
 .menu-progress{font:600 12px var(--f-mono);color:var(--ink);font-variant-numeric:tabular-nums}
 .menu-progress b{color:var(--accent)}
-.menu-list{display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin-top:6px}
-.menu-list button{background:none;border:0;padding:7px 0;font:700 clamp(18px,2.4vw,22px)/1.2 var(--f-display);color:var(--ink);cursor:pointer;display:flex;align-items:baseline;gap:12px;opacity:.82;transition:opacity .15s,transform .15s,color .15s}
+.menu-list{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+.menu-list button{background:none;border:0;padding:7px 0;font:700 clamp(18px,2.4vw,22px)/1.2 var(--f-display);color:var(--ink);cursor:pointer;display:flex;align-items:center;gap:12px;opacity:.82;text-align:left;
+  -webkit-tap-highlight-color:transparent;transition:opacity .15s,transform .15s,color .15s,border-color .15s}
 .menu-list button::before{content:"›";color:var(--accent);opacity:0;transition:opacity .15s}
-.menu-list button:hover,.menu-list button:focus-visible{opacity:1;transform:translateX(6px);color:var(--accent);outline:none}
-.menu-list button:hover::before,.menu-list button:focus-visible::before{opacity:1}
+.menu-list button:focus-visible,.menu-list button[aria-expanded="true"]{opacity:1;color:var(--accent);outline:none}
+.menu-list button:focus-visible::before,.menu-list button[aria-expanded="true"]::before{opacity:1}
+.menu-list button:focus-visible{transform:translateX(6px)}
+@media (hover:hover){
+  .menu-list button:hover{opacity:1;transform:translateX(6px);color:var(--accent)}
+  .menu-list button:hover::before{opacity:1}
+}
 .menu-list button span{font:600 11px var(--f-mono);color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 5px}
-.menu-list button.primary{color:var(--accent);opacity:1}
-.menu-info{max-width:420px;min-width:0;background:var(--panel-hi);border:1px solid var(--line);border-radius:12px;padding:16px 18px;backdrop-filter:blur(8px)}
-.menu-info h4{margin:0 0 10px;font:700 15px var(--f-display)}
+.menu-list button.primary,.menu-list:has(#m-continue[hidden]) #m-new{color:var(--accent);opacity:1}
+.menu-list .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px rgba(255,207,90,.2)}
+@media (hover:none){#menu .key-only{display:none}}
+
+.menu-info{width:420px;max-width:100%;max-height:100%;min-width:0;display:flex;flex-direction:column;background:var(--panel-hi);border:1px solid var(--line);border-radius:12px;backdrop-filter:blur(8px);overflow:hidden}
+.info-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px 10px;border-bottom:1px solid var(--line)}
+.info-head h4{margin:0;font:700 15px var(--f-display)}
+.info-body{padding:12px 18px 16px;overflow:auto;overscroll-behavior:contain}
 .menu-info dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;font:400 12px/1.5 var(--f-mono)}
 .menu-info dt{color:var(--ink);font-weight:600;white-space:nowrap}
 .menu-info dd{margin:0;color:var(--muted)}
 .menu-info p{margin:0 0 8px;font:400 12px/1.6 var(--f-mono);color:var(--muted)}
 .menu-info a{color:var(--ink);text-decoration:underline;text-underline-offset:2px}
-.level-list{display:flex;flex-direction:column;gap:4px;max-height:50vh;overflow:auto}
+.menu-info h5{margin:16px 0 6px;font:600 11px var(--f-mono);letter-spacing:.16em;text-transform:uppercase;color:var(--accent)}
+.menu-info h5:first-child{margin-top:0}
+.menu-info ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;font:400 12px/1.5 var(--f-mono);color:var(--muted)}
+.menu-info li{padding-left:14px;position:relative}
+.menu-info li::before{content:"·";position:absolute;left:2px;color:var(--ink)}
+.level-list{display:flex;flex-direction:column;gap:4px}
 .level-list button{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:baseline;text-align:left;background:transparent;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:400 12px var(--f-mono);color:var(--ink);cursor:pointer}
 .level-list button:hover,.level-list button:focus-visible{border-color:var(--accent)}
 .level-list button[aria-current="true"]{border-color:var(--accent);background:rgba(255,207,90,.08)}
 .level-list b{font:700 13px var(--f-display)}
 .level-list span{color:var(--muted);font-variant-numeric:tabular-nums}
 .level-list .star{color:var(--accent)}
-@media (max-width:640px){#menu{background:rgba(9,16,14,.7)}}
+@media (pointer:coarse){.level-list button{padding:12px}.info-head .small-btn{padding:8px 14px;font-size:12px}}
+
+/* Узкий или низкий экран: панель вместо меню, а не рядом */
+@media (max-width:760px),(max-height:520px){
+  #menu.info-open{justify-content:center;align-items:stretch}
+  #menu.info-open .menu-col{display:none}
+  .menu-info{width:min(560px,100%)}
+}
+
+/* Телефон: пункты — крупные плитки в сетке, «Играть» и «Продолжить» во всю ширину.
+   Без «Сменить героя» второстепенных пунктов нечётное число — последний тоже во всю ширину. */
+@media (max-width:760px) and (orientation:portrait),(max-height:520px) and (orientation:landscape){
+  .menu-list{display:grid;grid-template-columns:1fr 1fr;gap:6px;align-items:stretch}
+  .menu-list button{justify-content:center;min-height:48px;padding:10px 12px;font-size:15px;opacity:1;text-align:center;
+    border:1px solid var(--line);border-radius:12px;background:var(--panel);backdrop-filter:blur(6px)}
+  .menu-list button::before{display:none}
+  .menu-list button:focus-visible{transform:none;border-color:var(--accent)}
+  .menu-list .primary,.menu-list #m-new{grid-column:1/-1;font-size:17px}
+  .menu-list:has(#m-hero[hidden]) #m-about{grid-column:1/-1}
+  .menu-list button.primary,.menu-list:has(#m-continue[hidden]) #m-new{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);min-height:54px;font-size:18px}
+  .menu-list button.primary span{color:var(--accent-ink);border-color:rgba(29,22,6,.3)}
+  .menu-list button.primary:focus-visible,.menu-list #m-new:focus-visible{box-shadow:0 0 0 2px var(--ink)}
+}
+
+/* Телефон в портрете: заголовок сверху, меню снизу, середина экрана — сцене */
+@media (max-width:760px) and (orientation:portrait){
+  #menu{flex-direction:column;align-items:stretch;gap:0;padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px));
+    background:linear-gradient(180deg,rgba(9,16,14,.75) 0%,rgba(9,16,14,.2) 28%,rgba(9,16,14,.1) 45%,rgba(9,16,14,.78) 68%,rgba(9,16,14,.92) 100%)}
+  .menu-col{width:100%;flex:1 0 auto;justify-content:space-between;gap:24px}
+  .menu-head{gap:10px;text-align:center;align-items:center}
+  .menu-title{font-size:clamp(36px,11vw,52px)}
+  .menu-sub{font-size:12px;max-width:40ch}
+  .menu-list{width:100%;max-width:440px;margin:0 auto}
+  .menu-info{flex:1 1 auto;width:100%;max-width:560px;margin:0 auto}
+}
+@media (max-width:760px) and (orientation:portrait) and (max-height:700px){.menu-sub{display:none}}
+@media (max-width:380px) and (orientation:portrait){.menu-list button{font-size:13px;padding-inline:8px}}
+
+/* Телефон в ландшафте: заголовок слева, плитки справа */
+@media (max-height:520px) and (orientation:landscape){
+  #menu{gap:24px;align-items:stretch;padding-block:calc(12px + env(safe-area-inset-top,0px)) calc(12px + env(safe-area-inset-bottom,0px));
+    background:linear-gradient(90deg,rgba(9,16,14,.82) 0%,rgba(9,16,14,.55) 45%,rgba(9,16,14,.75) 100%)}
+  .menu-col{width:100%;flex-direction:row;align-items:center;gap:24px}
+  .menu-head{flex:1 1 0;min-width:0;gap:8px}
+  .menu-title{font-size:clamp(26px,8vh,40px)}
+  .menu-sub{font-size:11px}
+  .menu-list{flex:1.3 1 0;min-width:0;max-height:100%;overflow:auto;padding:2px}
+  .menu-list button{min-height:42px;padding:6px 10px;font-size:14px}
+  .menu-list .primary,.menu-list #m-new{font-size:15px}
+  .menu-list button.primary,.menu-list:has(#m-continue[hidden]) #m-new{min-height:46px;font-size:16px}
+  .menu-info{width:min(640px,100%)}
+}
+@media (max-height:380px) and (orientation:landscape){.menu-sub{display:none}}
 @media (prefers-reduced-motion:reduce){.menu-list button{transition:none}.menu-list button:hover,.menu-list button:focus-visible{transform:none}}
 
 /* Settings sheet */
