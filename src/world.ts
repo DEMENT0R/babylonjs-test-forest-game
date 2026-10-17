@@ -237,17 +237,17 @@ export class World {
 
   // ---------- Кристаллы и портал ----------
 
-  /** Собирает кристаллы в радиусе от точки; возвращает, сколько собрано за этот вызов. */
-  collectNear(center: Vector3, radius = 1.2): number {
-    let n = 0;
-    for (const k of this.crystals) {
+  /** Собирает кристаллы в радиусе от точки; возвращает номера собранных за этот вызов. */
+  collectNear(center: Vector3, radius = 1.2): number[] {
+    const got: number[] = [];
+    this.crystals.forEach((k, i) => {
       if (k.mesh.isEnabled() && Vector3.Distance(k.mesh.position, center) < radius) {
         k.mesh.setEnabled(false);
-        n++;
+        got.push(i);
       }
-    }
-    this.collected += n;
-    return n;
+    });
+    this.collected += got.length;
+    return got;
   }
 
   openPortal(): void {

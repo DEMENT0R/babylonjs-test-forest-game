@@ -39,7 +39,15 @@ export interface TreeSpot { x: number; z: number; s: number; yaw: number; tint: 
 export interface RockSpot { x: number; z: number; s: number; rx: number; ry: number; rz: number }
 export interface PillarSpot { x: number; z: number; h: number; yaw: number }
 /** y — высота опоры (земли или верха платформы); кристалл висит на метр выше. */
-export interface CrystalSpot { x: number; z: number; y: number }
+export interface CrystalSpot {
+  x: number;
+  z: number;
+  y: number;
+  /** На вершине цепочки платформ или спрятан у камня либо дерева — для заданий. */
+  kind?: 'top' | 'hidden';
+}
+/** Озеро — котловина, залитая водой. */
+export interface Lake { x: number; z: number; r: number }
 
 export interface LevelLayout {
   recipe: LevelRecipe;
@@ -51,6 +59,7 @@ export interface LevelLayout {
   spawn: { x: number; z: number };
   portal: { x: number; z: number };
   clearings: Clearing[];
+  lakes: Lake[];
   trees: TreeSpot[];
   rocks: RockSpot[];
   pillars: PillarSpot[];
@@ -198,6 +207,7 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
   const water = biome.water;
   // Уровень воды не выше того, что затопляет 6% естественных низин, — иначе озёра сольются в море
   let waterLevel: number | null = null;
+  const lakes: Lake[] = [];
   if (water) {
     const hs: number[] = [];
     for (let x = -half + 3; x < half - 3; x += 3) for (let z = -half + 3; z < half - 3; z += 3) hs.push(raw(x, z));
@@ -215,6 +225,7 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
       if (clearings.some((c) => Math.hypot(c.x - x, c.z - z) < c.r + r + 6)) continue;
       if (platforms.some((p) => Math.hypot(p.x - x, p.z - z) < r + 10)) continue;
       flats.push({ x, z, r, fade: 7, strength: 1, target: waterLevel! - 1.3 });
+      lakes.push({ x, z, r });
       made++;
     }
   }
@@ -229,7 +240,7 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
   flats.push({ x: 0, z: 0, r: CENTER_R + 1, fade: 10, strength: 1, target: 0 });
   const terrain = bakeTerrain(raw, flats, half + 60);
   for (const p of platforms) p.y0 = terrain.heightAt(p.x, p.z);
-  const tops: CrystalSpot[] = chainTops.map((p) => ({ x: p.x, z: p.z, y: p.y0 + p.h }));
+  const tops: CrystalSpot[] = chainTops.map((p) => ({ x: p.x, z: p.z, y: p.y0 + p.h, kind: 'top' }));
   const at = (x: number, z: number) => terrain.heightAt(x, z);
   /** Глубина воды в точке (0 — суша). */
   const depth = (x: number, z: number) => (waterLevel !== null ? Math.max(0, waterLevel - at(x, z)) : 0);
@@ -315,7 +326,7 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
     const a = rk.range(0, Math.PI * 2);
     const x = o.x + Math.cos(a) * (o.r + HERO_R + 0.3), z = o.z + Math.sin(a) * (o.r + HERO_R + 0.3);
     if (free(x, z)) {
-      crystals.push({ x, z, y: at(x, z) });
+      crystals.push({ x, z, y: at(x, z), kind: 'hidden' });
       i++;
     }
   }
@@ -344,6 +355,7 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
     spawn,
     portal,
     clearings,
+    lakes,
     trees,
     rocks,
     pillars,

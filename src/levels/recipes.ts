@@ -42,16 +42,17 @@ const CAMPAIGN: readonly Omit<LevelRecipe, 'index' | 'seed' | 'quest'>[] = [
   { biome: 'rocky', half: 85, crystals: 20, chains: 4, steps: [4, 5], hidden: 0.5, clearings: 6, relief: 1.3 },
 ];
 
-// Задания чередуются; лимиты времени с запасом на поиск кристаллов: задание про темп, а не про идеальный маршрут
+// У каждого уровня кампании своё задание; лимит времени с запасом на поиск кристаллов —
+// задание про темп, а не про идеальный маршрут
 const CAMPAIGN_QUESTS: readonly Quest[] = [
   { kind: 'time', limit: 150, intro: 'Солнце клонится к лесу — успей до заката' },
   { kind: 'walk', intro: 'Совы спят до вечера — не разбуди их топотом' },
-  { kind: 'time', limit: 210, intro: 'Ветер метёт листву — поспеши, пока видна тропа' },
+  { kind: 'hop', intro: 'Опавшие листья пружинят — скачи, не останавливаясь' },
   { kind: 'jumps', spare: 6, intro: 'Снег глубокий — береги силы' },
-  { kind: 'time', limit: 240, intro: 'Над скалами собирается гроза — успей до первых капель' },
-  { kind: 'walk', intro: 'Ночью лес слышит каждый шаг — ступай тихо' },
-  { kind: 'time', limit: 330, intro: 'Над озёрами поднимается туман — не задерживайся' },
-  { kind: 'jumps', spare: 6, intro: 'Камни скользкие — прыгай только по делу' },
+  { kind: 'hidden', intro: 'Кристаллы попрятались за камнями и деревьями' },
+  { kind: 'tops', intro: 'С вершин видно светлячков' },
+  { kind: 'swim', intro: 'Вода в озёрах тёплая' },
+  { kind: 'explore', intro: 'Кто-то оставил следы на полянах' },
 ];
 
 const BIOME_IDS = Object.keys(BIOMES) as BiomeId[];
@@ -63,10 +64,11 @@ export function recipeFor(index: number): LevelRecipe {
   // Бесконечный режим: каждый следующий уровень немного больше, но с потолком
   const extra = index - CAMPAIGN_LENGTH;
   const rng = Rng.stream(seed, 'recipe');
+  const biome = rng.pick(BIOME_IDS);
   return {
     index,
     seed,
-    biome: rng.pick(BIOME_IDS),
+    biome,
     half: Math.min(100, 70 + extra * 3 + rng.int(0, 10)),
     crystals: Math.min(26, 16 + extra),
     chains: Math.min(6, 3 + Math.floor(extra / 2)),
@@ -74,12 +76,25 @@ export function recipeFor(index: number): LevelRecipe {
     hidden: Math.min(0.6, 0.4 + extra * 0.02),
     clearings: Math.min(8, 5 + Math.floor(extra / 2)),
     relief: Math.min(1.5, 1.2 + extra * 0.03),
-    quest: rng.pick<Quest>([
-      { kind: 'time', limit: Math.min(480, 360 + extra * 15), intro: 'Лес засыпает — успей до темноты' },
-      { kind: 'walk', intro: 'В чаще дремлют звери — не беги' },
-      { kind: 'jumps', spare: 6, intro: 'Тропа долгая — береги силы на прыжки' },
-    ]),
+    quest: rng.pick(endlessQuests(biome, extra)),
   };
+}
+
+/** Задания бесконечного режима; про озёра — только там, где есть вода. */
+function endlessQuests(biome: BiomeId, extra: number): Quest[] {
+  const quests: Quest[] = [
+    { kind: 'time', limit: Math.min(480, 360 + extra * 15), intro: 'Лес засыпает — успей до темноты' },
+    { kind: 'walk', intro: 'В чаще дремлют звери — не беги' },
+    { kind: 'jumps', spare: 6, intro: 'Тропа долгая — береги силы на прыжки' },
+    { kind: 'hop', intro: 'Земля холодная — скачи, не останавливаясь' },
+    { kind: 'tops', intro: 'С вершин виден весь лес' },
+    { kind: 'hidden', intro: 'Кристаллы попрятались' },
+    { kind: 'explore', intro: 'Обойди все поляны' },
+  ];
+  if (BIOMES[biome].water) {
+    quests.push({ kind: 'swim', intro: 'Вода в озёрах тёплая' }, { kind: 'dry', intro: 'Вода ледяная — обходи озёра' });
+  }
+  return quests;
 }
 
 export function requiredCrystals(total: number): number {

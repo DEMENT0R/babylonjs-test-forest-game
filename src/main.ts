@@ -8,7 +8,7 @@ import { BTN, gamepad } from './gamepad';
 import { loadHero, type HeroDef } from './heroes';
 import type { LevelLayout } from './levels/generator';
 import { completeLevel, formatTime, progress, setCurrentLevel } from './levels/progress';
-import { QuestRun } from './levels/quests';
+import { fitQuest, QuestRun } from './levels/quests';
 import { recipeFor } from './levels/recipes';
 import { clearInput, keys, Player, setupTouchControls } from './player';
 import { applySettings, settings } from './settings';
@@ -114,7 +114,26 @@ function updateCrystalsHud(): void {
 }
 
 function updateQuestHud(): void {
-  setQuest(quest.goal, quest.status, quest.failed ? 'failed' : 'active');
+  setQuest(quest.goal, quest.status, quest.failed ? 'failed' : quest.complete ? 'done' : 'active');
+}
+
+/** Задание следит за героем после его шага: прыжок, вода, поляны, собранные кристаллы. */
+function tickQuest(dt: number, got: number[]): void {
+  const was = { failed: quest.failed, complete: quest.complete };
+  const { x, y, z } = player.pos;
+  const surface = layout.waterLevel;
+  quest.tick(dt, {
+    x,
+    z,
+    running: player.running,
+    jumped: player.jumped,
+    onGround: player.onGround,
+    wet: surface !== null && y < surface ? world.waterDepth(x, z) : 0,
+  });
+  quest.onCollect(got);
+  if (quest.failed && !was.failed) say('Задание провалено — но уровень можно пройти');
+  else if (quest.complete && !was.complete) say('Задание выполнено ★ — осталось дойти до портала');
+  updateQuestHud();
 }
 
 /** Построить уровень и поставить героя на старт. */
@@ -123,7 +142,7 @@ function beginLevel(index: number): void {
   setCurrentLevel(index);
   const recipe = recipeFor(index);
   layout = world.loadLevel(recipe);
-  quest = new QuestRun(recipe.quest, { platforms: layout.platforms.length });
+  quest = new QuestRun(fitQuest(recipe.quest, layout), layout);
   audio.setAmbience(layout.biome.ambience);
   wind.setScale(layout.biome.ambience.wind);
   player.reset(layout.spawn);
@@ -358,20 +377,14 @@ world.scene.onBeforeRenderObservable.add(() => {
   }
 
   const active = !settingsPanel.isOpen && !isTransitioning();
-  if (active) {
-    levelTime += dt;
-    const wasFailed = quest.failed;
-    quest.tick(dt, player);
-    if (quest.failed && !wasFailed) say('Задание провалено — но уровень можно пройти');
-    updateQuestHud();
-  }
+  if (active) levelTime += dt;
   player.update(dt, { yaw: rig.yaw, modeId: rig.mode.id }, active);
   world.followSun(player.pos);
   rig.update(dt, player);
   footsteps.update(dt, player);
 
   const got = world.collectNear(player.center);
-  if (got > 0) {
+  if (got.length > 0) {
     const all = world.collected === world.crystals.length;
     audio.chime(all);
     if (!world.portalOpen && world.collected >= layout.required) {
@@ -383,6 +396,8 @@ world.scene.onBeforeRenderObservable.add(() => {
     }
     updateCrystalsHud();
   }
+  // После надписи о кристалле — чтобы весть о задании её перекрыла, а не наоборот
+  if (active) tickQuest(dt, got);
   if (active && world.inPortal(player.pos)) finishLevel();
 });
 
