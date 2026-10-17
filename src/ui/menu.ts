@@ -49,6 +49,8 @@ export interface MenuActions {
 export interface MenuProgress { heroName: string; level: number; got: number; total: number }
 
 const levelName = (i: number) => BIOMES[recipeFor(i).biome].name;
+const starHtml = (got: boolean, what: string) =>
+  `<span class="star${got ? '' : ' off'}" title="${what}${got ? '' : ' — нет'}">★</span>`;
 
 export class MainMenu {
   private readonly root = byId('menu');
@@ -151,17 +153,18 @@ export class MainMenu {
     return getComputedStyle(this.root.querySelector('.menu-col')!).display === 'none';
   }
 
-  /** Открытые уровни: биом, звезда за все кристаллы и лучшее время. */
+  /** Открытые уровни: биом, звёзды за кристаллы и задание, лучшее время. */
   private levelsHtml(): string {
     const rows: string[] = [];
     for (let i = 1; i <= saved.unlocked; i++) {
       const r = saved.records[i];
-      const meta = r ? `${r.star ? '<span class="star">★</span> ' : ''}${formatTime(r.time)}` : 'не пройден';
+      const stars = r ? `${starHtml(r.star, 'все кристаллы')}${starHtml(r.quest ?? false, 'задание')} ` : '';
+      const meta = r ? `${stars}${formatTime(r.time)}` : 'не пройден';
       rows.push(
         `<button type="button" data-level="${i}" aria-current="${i === saved.current}"><b>${i}</b>${levelName(i)}<span>${meta}</span></button>`,
       );
     }
-    return `<p>Звезда — собраны все кристаллы уровня.</p><div class="level-list">${rows.join('')}</div>`;
+    return `<p>Две звезды за уровень: за все кристаллы и за задание.</p><div class="level-list">${rows.join('')}</div>`;
   }
 
   /**

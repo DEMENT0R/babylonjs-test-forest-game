@@ -27,6 +27,10 @@ body[data-input="pad"] .key-only,body:not([data-input="pad"]) .pad-only{display:
 h1{margin:0;font:700 15px/1.2 var(--f-display);letter-spacing:.02em}
 .score{font:600 13px/1.4 var(--f-mono);color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums}
 .score b{color:var(--accent);font-weight:600}
+.quest{font:400 12px/1.4 var(--f-mono);color:var(--muted);margin-top:2px;font-variant-numeric:tabular-nums}
+#quest-goal{color:var(--ink)}
+.quest.done #quest-status{color:var(--accent)}
+.quest.failed #quest-goal{text-decoration:line-through;color:var(--muted)}
 .keys{font:400 12px/1.7 var(--f-mono);color:var(--muted)}
 .keys summary{pointer-events:auto;cursor:pointer;list-style:none;font-weight:600;color:var(--ink);user-select:none}
 .keys summary::-webkit-details-marker{display:none}
@@ -61,6 +65,7 @@ body[data-pad] #stick,body[data-pad] #jump{display:none}
   .hud .card{padding:8px 10px}
   h1{font-size:14px}
   .score{font-size:12px}
+  .quest{font-size:11px}
 }
 /* Телефон в ландшафте: карточка HUD не должна съедать полэкрана по высоте */
 @media (max-height:520px) and (orientation:landscape){
@@ -194,6 +199,7 @@ body[data-pad] #stick,body[data-pad] #jump{display:none}
 .level-list b{font:700 13px var(--f-display)}
 .level-list span{color:var(--muted);font-variant-numeric:tabular-nums}
 .level-list .star{color:var(--accent)}
+.level-list .star.off{color:var(--line)}
 @media (pointer:coarse){.level-list button{padding:12px}.info-head .small-btn{padding:8px 14px;font-size:12px}}
 
 /* Узкий или низкий экран: панель вместо меню, а не рядом */

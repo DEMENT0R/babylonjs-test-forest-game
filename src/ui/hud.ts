@@ -10,6 +10,9 @@ const gotEl = byId('got');
 const totalEl = byId('total');
 const portalHint = byId('portal-hint');
 const levelTitle = byId('level-title');
+const questEl = byId('quest');
+const questGoal = byId('quest-goal');
+const questStatus = byId('quest-status');
 const fpsEl = byId('fps');
 const modeBtn = byId<HTMLButtonElement>('mode');
 const crossEl = byId('cross');
@@ -31,6 +34,15 @@ export function setCrystals(got: number, total: number, required: number, portal
   totalEl.textContent = String(total);
   portalHint.textContent = portalOpen ? '· портал открыт' : `· портал после ${required}`;
   portalHint.classList.toggle('open', portalOpen);
+}
+
+/** Строка задания: цель и прогресс; обновляет DOM, только когда текст меняется. */
+export function setQuest(goal: string, status: string, state: 'active' | 'failed' | 'done'): void {
+  if (questGoal.textContent !== goal) questGoal.textContent = goal;
+  const text = `· ${status}`;
+  if (questStatus.textContent !== text) questStatus.textContent = text;
+  questEl.classList.toggle('failed', state === 'failed');
+  questEl.classList.toggle('done', state === 'done');
 }
 
 export function setLevelTitle(text: string): void {

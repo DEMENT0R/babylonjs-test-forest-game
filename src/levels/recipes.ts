@@ -3,6 +3,7 @@
 
 import { Rng } from '../rng';
 import { BIOMES, type BiomeId } from './biomes';
+import type { Quest } from './quests';
 
 export interface LevelRecipe {
   /** Номер уровня, с 1. */
@@ -22,13 +23,15 @@ export interface LevelRecipe {
   clearings: number;
   /** Множитель рельефа биома: первые уровни почти плоские. */
   relief: number;
+  /** Задание на вторую звезду. */
+  quest: Quest;
 }
 
 /** Доля кристаллов, после которой открывается портал. */
 export const PORTAL_SHARE = 0.8;
 export const CAMPAIGN_LENGTH = 8;
 
-const CAMPAIGN: readonly Omit<LevelRecipe, 'index' | 'seed'>[] = [
+const CAMPAIGN: readonly Omit<LevelRecipe, 'index' | 'seed' | 'quest'>[] = [
   { biome: 'meadow', half: 42, crystals: 8, chains: 1, steps: [2, 2], hidden: 0, clearings: 2, relief: 0.35 },
   { biome: 'meadow', half: 50, crystals: 10, chains: 1, steps: [2, 3], hidden: 0.1, clearings: 3, relief: 0.6 },
   { biome: 'autumn', half: 55, crystals: 12, chains: 2, steps: [2, 3], hidden: 0.2, clearings: 3, relief: 0.8 },
@@ -39,12 +42,24 @@ const CAMPAIGN: readonly Omit<LevelRecipe, 'index' | 'seed'>[] = [
   { biome: 'rocky', half: 85, crystals: 20, chains: 4, steps: [4, 5], hidden: 0.5, clearings: 6, relief: 1.3 },
 ];
 
+// Лимиты с запасом на поиск кристаллов: задание про темп, а не про идеальный маршрут
+const CAMPAIGN_QUESTS: readonly Quest[] = [
+  { kind: 'time', limit: 150, intro: 'Солнце клонится к лесу — успей до заката' },
+  { kind: 'time', limit: 180, intro: 'Белки зовут на ужин — не опоздай' },
+  { kind: 'time', limit: 210, intro: 'Ветер метёт листву — поспеши, пока видна тропа' },
+  { kind: 'time', limit: 240, intro: 'Мороз крепчает — не мешкай' },
+  { kind: 'time', limit: 240, intro: 'Над скалами собирается гроза — успей до первых капель' },
+  { kind: 'time', limit: 300, intro: 'Светлячки скоро уснут — успей, пока они светят' },
+  { kind: 'time', limit: 330, intro: 'Над озёрами поднимается туман — не задерживайся' },
+  { kind: 'time', limit: 360, intro: 'Камни остывают к ночи — успей, пока они тёплые' },
+];
+
 const BIOME_IDS = Object.keys(BIOMES) as BiomeId[];
 
 export function recipeFor(index: number): LevelRecipe {
   const seed = 1000 + index * 7919;
   const base = CAMPAIGN[index - 1];
-  if (base) return { ...base, index, seed };
+  if (base) return { ...base, index, seed, quest: CAMPAIGN_QUESTS[index - 1] };
   // Бесконечный режим: каждый следующий уровень немного больше, но с потолком
   const extra = index - CAMPAIGN_LENGTH;
   const rng = Rng.stream(seed, 'recipe');
@@ -59,6 +74,7 @@ export function recipeFor(index: number): LevelRecipe {
     hidden: Math.min(0.6, 0.4 + extra * 0.02),
     clearings: Math.min(8, 5 + Math.floor(extra / 2)),
     relief: Math.min(1.5, 1.2 + extra * 0.03),
+    quest: { kind: 'time', limit: Math.min(480, 360 + extra * 15), intro: 'Лес засыпает — успей до темноты' },
   };
 }
 

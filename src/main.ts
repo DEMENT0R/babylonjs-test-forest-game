@@ -8,10 +8,11 @@ import { BTN, gamepad } from './gamepad';
 import { loadHero, type HeroDef } from './heroes';
 import type { LevelLayout } from './levels/generator';
 import { completeLevel, formatTime, progress, setCurrentLevel } from './levels/progress';
+import { questGoal, QuestRun } from './levels/quests';
 import { recipeFor } from './levels/recipes';
 import { clearInput, keys, Player, setupTouchControls } from './player';
 import { applySettings, settings } from './settings';
-import { say, setCrystals, setHintLevel, setLevelTitle, setupHud, showCameraMode, tickFps } from './ui/hud';
+import { say, setCrystals, setHintLevel, setLevelTitle, setQuest, setupHud, showCameraMode, tickFps } from './ui/hud';
 import { setupFullscreen, toggleFullscreen } from './ui/fullscreen';
 import { MainMenu } from './ui/menu';
 import { activate, navigate, sendKey } from './ui/pad-nav';
@@ -48,6 +49,7 @@ const footsteps = new Footsteps(audio, world);
 let level = progress.current;
 let layout: LevelLayout;
 let levelTime = 0;
+let quest: QuestRun;
 
 // Браузер включает звук только после действия пользователя — первый клик или клавиша
 for (const type of ['pointerdown', 'keydown'] as const) addEventListener(type, () => audio.unlock(), { capture: true });
@@ -111,11 +113,17 @@ function updateCrystalsHud(): void {
   setCrystals(world.collected, world.crystals.length, layout.required, world.portalOpen);
 }
 
+function updateQuestHud(): void {
+  setQuest(questGoal(quest.quest), quest.status, quest.failed ? 'failed' : 'active');
+}
+
 /** Построить уровень и поставить героя на старт. */
 function beginLevel(index: number): void {
   level = index;
   setCurrentLevel(index);
-  layout = world.loadLevel(recipeFor(index));
+  const recipe = recipeFor(index);
+  layout = world.loadLevel(recipe);
+  quest = new QuestRun(recipe.quest);
   audio.setAmbience(layout.biome.ambience);
   wind.setScale(layout.biome.ambience.wind);
   player.reset(layout.spawn);
@@ -125,6 +133,7 @@ function beginLevel(index: number): void {
   setLevelTitle(levelLabel(index, layout));
   setHintLevel(index);
   updateCrystalsHud();
+  updateQuestHud();
 }
 
 function restartLevel(): void {
@@ -148,14 +157,15 @@ function pickLevel(index: number): void {
 function finishLevel(): void {
   const star = world.collected === world.crystals.length;
   const time = levelTime;
-  completeLevel(level, star, time);
+  const questDone = quest.passed();
+  completeLevel(level, star, questDone, time);
   audio.portalEnter();
   rig.releaseLock();
   clearInput();
   const next = level + 1;
   void transition(
     {
-      eyebrow: `Уровень ${level} пройден · ${formatTime(time)}${star ? ' · ★ все кристаллы' : ''}`,
+      eyebrow: `Уровень ${level} пройден · ${formatTime(time)}${star ? ' · ★ все кристаллы' : ''}${questDone ? ' · ★ задание' : ''}`,
       title: `Уровень ${next}`,
       sub: '',
     },
@@ -163,7 +173,7 @@ function finishLevel(): void {
       beginLevel(next);
       setTransitionText({
         title: levelLabel(next, layout),
-        sub: `Кристаллов: ${layout.crystals.length}, портал откроется после ${layout.required}`,
+        sub: `Кристаллов: ${layout.crystals.length}, портал откроется после ${layout.required}. ${quest.quest.intro}: ${questGoal(quest.quest).toLowerCase()}`,
       });
     },
   ).then(() => canvas.focus());
@@ -348,7 +358,13 @@ world.scene.onBeforeRenderObservable.add(() => {
   }
 
   const active = !settingsPanel.isOpen && !isTransitioning();
-  if (active) levelTime += dt;
+  if (active) {
+    levelTime += dt;
+    const wasFailed = quest.failed;
+    quest.tick(dt);
+    if (quest.failed && !wasFailed) say('Задание провалено — но уровень можно пройти');
+    updateQuestHud();
+  }
   player.update(dt, { yaw: rig.yaw, modeId: rig.mode.id }, active);
   world.followSun(player.pos);
   rig.update(dt, player);
@@ -392,4 +408,4 @@ byId('m-new').focus();
 void select.load();
 
 // Для отладки из консоли браузера; в production-сборку не попадает
-if (import.meta.env.DEV) Object.assign(window, { __game: { world, player, rig, beginLevel, get layout() { return layout; } } });
+if (import.meta.env.DEV) Object.assign(window, { __game: { world, player, rig, beginLevel, get layout() { return layout; }, get quest() { return quest; } } });

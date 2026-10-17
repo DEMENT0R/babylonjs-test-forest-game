@@ -3,6 +3,8 @@
 export interface LevelRecord {
   /** Собраны все кристаллы. */
   star: boolean;
+  /** Выполнено задание уровня; в старых сохранениях поля нет. */
+  quest?: boolean;
   /** Лучшее время прохождения, с. */
   time: number;
 }
@@ -45,10 +47,11 @@ export function setCurrentLevel(index: number): void {
 }
 
 /** Записывает прохождение и открывает следующий уровень. */
-export function completeLevel(index: number, star: boolean, time: number): void {
+export function completeLevel(index: number, star: boolean, quest: boolean, time: number): void {
   const prev = progress.records[index];
   progress.records[index] = {
     star: star || (prev?.star ?? false),
+    quest: quest || (prev?.quest ?? false),
     time: prev ? Math.min(prev.time, time) : time,
   };
   progress.unlocked = Math.max(progress.unlocked, index + 1);
