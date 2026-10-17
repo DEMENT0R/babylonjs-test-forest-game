@@ -11,6 +11,10 @@ import type { World } from './world';
 import type { CameraModeId } from './camera';
 
 const GRAVITY = -24;
+/** На сколько тело доворачивает от камеры в сторону шага в режиме «из-за плеча». */
+const MAX_STRAFE_TURN = Math.PI * 0.42;
+/** Наибольший крен в повороте, рад. */
+const MAX_LEAN = 0.12;
 
 // ---------- Ввод ----------
 
@@ -105,6 +109,8 @@ export class Player {
   readonly pos = new Vector3(0, 0, -2.5);
   readonly vel = Vector3.Zero();
   facing = 0;
+  /** Текущий крен в повороте. */
+  private lean = 0;
   onGround = true;
   /** Есть ли ввод движения в этом кадре. */
   moving = false;
@@ -147,6 +153,7 @@ export class Player {
     this.pos.set(spawn.x, this.world.groundAt(spawn.x, spawn.z, 100), spawn.z);
     this.vel.setAll(0);
     this.facing = 0;
+    this.lean = 0;
     this.onGround = true;
   }
 
@@ -175,10 +182,20 @@ export class Player {
     this.vel.x += (dir.x * speed - this.vel.x) * damp(acc, dt);
     this.vel.z += (dir.z * speed - this.vel.z) * damp(acc, dt);
 
-    // Поворот тела: из-за плеча — всегда по камере, иначе — по ходу движения
+    // Поворот тела: из-за плеча — по камере, но с разворотом в сторону шага, чтобы зверь
+    // не ехал боком (пятясь — зеркально, задом по ходу); в остальных режимах — по ходу движения
     const turnTo = (a: number) => (this.facing += wrapAngle(a - this.facing) * damp(12, dt));
-    if (shoulder) turnTo(yaw);
-    else if (this.moving) turnTo(Math.atan2(dir.x, dir.z));
+    const before = this.facing;
+    if (shoulder) {
+      const back = input.z < -0.1;
+      const off = Math.atan2(back ? -input.x : input.x, back ? -input.z : input.z);
+      turnTo(yaw + (this.moving ? clamp(off, -MAX_STRAFE_TURN, MAX_STRAFE_TURN) : 0));
+    } else if (this.moving) turnTo(Math.atan2(dir.x, dir.z));
+
+    // Наклон в поворот: чем быстрее бег и круче поворот, тем сильнее крен
+    const turnRate = dt > 0 ? wrapAngle(this.facing - before) / dt : 0;
+    const leanTo = this.onGround ? clamp(-turnRate * this.horizontalSpeed * 0.012, -MAX_LEAN, MAX_LEAN) : 0;
+    this.lean += (leanTo - this.lean) * damp(8, dt);
 
     if (input.jump && this.onGround) {
       this.vel.y = D.jump * (wading > 0.3 ? 0.65 : 1);
@@ -195,7 +212,10 @@ export class Player {
 
     this.root.position.copyFrom(this.pos);
     this.root.rotation.y = this.facing;
-    blendAnims(hero, this.horizontalSpeed, this.onGround, dt);
+    this.root.rotation.z = this.lean;
+    // Пятится — шаги проигрываются задом наперёд
+    const ahead = this.vel.x * Math.sin(this.facing) + this.vel.z * Math.cos(this.facing);
+    blendAnims(hero, this.horizontalSpeed, this.onGround, dt, shoulder && ahead < -0.3);
   }
 
   private integrate(dt: number, height: number): void {

@@ -143,9 +143,9 @@ export async function loadHero(def: HeroDef, ctx: LightingContext): Promise<Hero
 
 /**
  * Плавно смешивает idle / walk / run / jump по горизонтальной скорости
- * и подстраивает темп шагов под реальную скорость.
+ * и подстраивает темп шагов под реальную скорость; `reverse` — шаги задом наперёд.
  */
-export function blendAnims(hero: Hero, speed: number, onGround: boolean, dt: number): void {
+export function blendAnims(hero: Hero, speed: number, onGround: boolean, dt: number, reverse = false): void {
   const d = hero.def;
   const jump = hero.anim('jump');
   const jumping = !onGround && !!jump?.isPlaying;
@@ -166,6 +166,7 @@ export function blendAnims(hero: Hero, speed: number, onGround: boolean, dt: num
   }
   const walk = hero.anim('walk');
   const run = hero.anim('run');
-  if (walk) walk.speedRatio = clamp(speed / d.walkRef, 0.7, 1.6);
-  if (run) run.speedRatio = clamp(speed / d.runRef, 0.75, 1.4);
+  const sign = reverse ? -1 : 1;
+  if (walk) walk.speedRatio = sign * clamp(speed / d.walkRef, 0.7, 1.6);
+  if (run) run.speedRatio = sign * clamp(speed / d.runRef, 0.75, 1.4);
 }
