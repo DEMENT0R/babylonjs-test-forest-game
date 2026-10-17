@@ -17,6 +17,8 @@ const MAX_STRAFE_TURN = Math.PI * 0.42;
 const MAX_LEAN = 0.12;
 /** «Койот-тайм»: сколько секунд после схода с края ещё можно оттолкнуться. */
 const COYOTE_TIME = 0.1;
+/** Буфер прыжка: нажатие чуть раньше приземления срабатывает в момент касания земли, с. */
+const JUMP_BUFFER = 0.12;
 
 // ---------- Ввод ----------
 
@@ -122,6 +124,8 @@ export class Player {
   private lean = 0;
   /** Сколько секунд герой в воздухе, не прыгнув; после прыжка — Infinity до приземления. */
   private airTime = 0;
+  /** Сколько ещё секунд ждёт нажатый в воздухе прыжок. */
+  private jumpBuffer = 0;
   onGround = true;
   /** Есть ли ввод движения в этом кадре. */
   moving = false;
@@ -170,6 +174,7 @@ export class Player {
     this.facing = 0;
     this.lean = 0;
     this.airTime = 0;
+    this.jumpBuffer = 0;
     this.onGround = true;
   }
 
@@ -214,9 +219,13 @@ export class Player {
     const leanTo = this.onGround ? clamp(-turnRate * this.horizontalSpeed * 0.012, -MAX_LEAN, MAX_LEAN) : 0;
     this.lean += (leanTo - this.lean) * damp(8, dt);
 
-    // Сошёл с края — ещё COYOTE_TIME можно прыгнуть, будто стоит на земле
-    this.jumped = input.jump && this.airTime <= COYOTE_TIME;
+    // Сошёл с края — ещё COYOTE_TIME можно прыгнуть, будто стоит на земле;
+    // нажал чуть раньше приземления — прыжок дождётся касания земли
+    if (input.jump) this.jumpBuffer = JUMP_BUFFER;
+    this.jumped = this.jumpBuffer > 0 && this.airTime <= COYOTE_TIME;
+    this.jumpBuffer -= dt;
     if (this.jumped) {
+      this.jumpBuffer = 0;
       this.vel.y = D.jump * (wading > 0.3 ? 0.65 : 1);
       this.onGround = false;
       this.airTime = Infinity;
