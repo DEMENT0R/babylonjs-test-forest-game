@@ -61,29 +61,31 @@
     </div>
   </div>
 
-  <!-- HUD игры -->
+  <!-- HUD игры: слева — уровень, кристаллы и задание; справа — кнопки и памятка -->
   <div class="hud play-ui">
-    <div class="card">
+    <div class="card hud-info">
       <h1 id="level-title">Тихая поляна</h1>
       <div class="score">Кристаллы: <b id="got">0</b> / <span id="total">0</span> <span id="portal-hint"></span></div>
       <div class="quest" id="quest">Задание: <span id="quest-goal"></span> <span id="quest-status"></span></div>
+    </div>
+    <div class="hud-side">
       <div class="btn-row">
+        <button class="small-btn" id="mode" type="button"><span class="mode-pre">Камера: </span>Из-за плеча<span class="kbd-hint"> (C)</span></button>
         <button class="small-btn" id="to-menu" type="button">Меню<span class="kbd-hint"> (Esc)</span></button>
         <button class="small-btn" id="back" type="button">Герой<span class="kbd-hint"> (H)</span></button>
         <button class="small-btn" id="hud-settings" type="button">Настройки<span class="kbd-hint"> (O)</span></button>
         <button class="small-btn" id="fullscreen" type="button">Во весь экран<span class="kbd-hint"> (F)</span></button>
       </div>
+      <details class="card keys" id="keys">
+        <summary>Кнопки</summary>
+        <div class="keys-body key-only"><kbd>WASD</kbd>ходьба · <kbd>Shift</kbd>бег<br><kbd>Space</kbd>прыжок · <kbd>мышь</kbd>камера · <kbd>колесо</kbd>зум<br><kbd>C</kbd>режим камеры · <kbd>M</kbd>звук · <kbd>F</kbd>весь экран · <kbd>Esc</kbd>пауза и меню</div>
+        <div class="keys-body pad-only"><kbd>L</kbd>ходьба, до упора — бег · <kbd>LB</kbd>бег<br><kbd>A</kbd>прыжок · <kbd>R</kbd>камера · <kbd>↑↓</kbd>зум<br><kbd>Y</kbd>режим камеры · <kbd>View</kbd>настройки · <kbd>Start</kbd>пауза</div>
+      </details>
     </div>
-    <details class="card keys" id="keys">
-      <summary>Кнопки</summary>
-      <div class="keys-body key-only"><kbd>WASD</kbd>ходьба · <kbd>Shift</kbd>бег<br><kbd>Space</kbd>прыжок · <kbd>мышь</kbd>камера · <kbd>колесо</kbd>зум<br><kbd>C</kbd>режим камеры · <kbd>M</kbd>звук · <kbd>F</kbd>весь экран · <kbd>Esc</kbd>пауза и меню</div>
-      <div class="keys-body pad-only"><kbd>L</kbd>ходьба, до упора — бег · <kbd>LB</kbd>бег<br><kbd>A</kbd>прыжок · <kbd>R</kbd>камера · <kbd>↑↓</kbd>зум<br><kbd>Y</kbd>режим камеры · <kbd>View</kbd>настройки · <kbd>Start</kbd>пауза</div>
-    </details>
   </div>
   <div id="fps" hidden>— FPS</div>
   <div id="toast" aria-live="polite"></div>
   <div id="cross" class="play-ui"></div>
-  <button id="mode" class="play-ui" type="button">Камера: Из-за плеча<span class="kbd-hint"> (C)</span></button>
   <div id="stick" class="play-ui"><div id="knob"></div></div>
   <button id="jump" class="play-ui" type="button">Прыжок</button>
 

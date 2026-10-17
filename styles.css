@@ -41,10 +41,12 @@ h1{margin:0;font:700 15px/1.2 var(--f-display);letter-spacing:.02em}
 .btn-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .small-btn{pointer-events:auto;background:transparent;border:1px solid var(--line);border-radius:6px;padding:3px 8px;font:600 11px var(--f-mono);color:var(--muted);cursor:pointer}
 .small-btn:hover{color:var(--ink);border-color:var(--accent)}
+/* Правая колонка HUD: кнопки (режим камеры первым) и под ними памятка */
+.hud-side{display:flex;flex-direction:column;align-items:flex-end;gap:8px;margin-left:auto}
+.hud-side .btn-row{margin-top:0;justify-content:flex-end}
+.hud-side .small-btn{background:var(--panel);backdrop-filter:blur(6px);color:var(--ink)}
 #toast{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);font:700 22px var(--f-display);color:var(--accent);text-shadow:0 2px 12px rgba(0,0,0,.5);pointer-events:none;opacity:0;transition:opacity .4s;text-align:center;padding:0 16px}
 #cross{position:fixed;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:var(--ink);box-shadow:0 0 0 2px rgba(0,0,0,.35);pointer-events:none}
-#mode{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--panel);border:1px solid var(--line);border-radius:8px;font:600 12px var(--f-mono);padding:8px 12px;cursor:pointer}
-#mode:hover{border-color:var(--accent)}
 #stick{position:fixed;left:calc(max(16px,env(safe-area-inset-left,0px)) + 8px);bottom:calc(24px + env(safe-area-inset-bottom,0px));width:120px;height:120px;border-radius:50%;border:1px solid var(--line);background:var(--panel);touch-action:none}
 /* Плавающий стик: в покое полупрозрачный на своём месте, при касании — под пальцем */
 #stick-zone{position:fixed;left:0;top:35%;bottom:0;width:50%;touch-action:none}
@@ -66,8 +68,6 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump{display:no
   .kbd-hint,body:not([data-input="pad"]) .keys{display:none}
   .small-btn{padding:7px 11px;font-size:12px;border-radius:8px}
   .btn-row{gap:6px}
-  #mode{bottom:calc(132px + env(safe-area-inset-bottom,0px));padding:10px 14px}
-  body[data-pad] #mode{bottom:calc(16px + env(safe-area-inset-bottom,0px))}
 }
 @media (hover:none) and (max-width:520px){
   .hud .card{padding:8px 10px}
@@ -79,11 +79,21 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump{display:no
 @media (max-height:520px) and (orientation:landscape){
   .hud{top:calc(8px + env(safe-area-inset-top,0px))}
   .hud .card{padding:6px 10px}
-  .btn-row{margin-top:6px}
   #stick{width:104px;height:104px;bottom:calc(16px + env(safe-area-inset-bottom,0px))}
   #jump{width:68px;height:68px;--jump-bottom:calc(24px + env(safe-area-inset-bottom,0px))}
 }
-@media (hover:none) and (max-height:520px) and (orientation:landscape){#mode{bottom:calc(104px + env(safe-area-inset-bottom,0px))}}
+/* Телефон в ландшафте: HUD в одну полосу сверху — слева строки уровня, справа кнопки.
+   «Герой» и «Настройки» есть в меню паузы, у режима камеры — только название */
+@media (hover:none) and (max-height:520px) and (orientation:landscape){
+  .hud{flex-wrap:nowrap}
+  .hud .hud-info{min-width:0;padding:5px 10px}
+  .hud h1{font-size:12px}
+  .hud .score{font-size:11px;margin-top:2px;line-height:1.3}
+  .hud .quest{font-size:10px;line-height:1.3}
+  .hud-side{flex:none}
+  #back,#hud-settings,.mode-pre{display:none}
+  .hud-side .small-btn{padding:6px 10px}
+}
 
 #portal-hint{color:var(--muted)}
 #portal-hint.open{color:var(--accent)}
