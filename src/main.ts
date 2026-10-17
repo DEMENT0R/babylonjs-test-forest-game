@@ -12,6 +12,7 @@ import { QuestMarkers } from './levels/markers';
 import { fitQuest, QuestRun } from './levels/quests';
 import { recipeFor } from './levels/recipes';
 import { clearInput, keys, Player, setupTouchControls } from './player';
+import { Ripples } from './ripples';
 import { applySettings, settings } from './settings';
 import { say, setCrystals, setHintLevel, setLevelTitle, setQuest, setupHud, showCameraMode, tickFps } from './ui/hud';
 import { setupFullscreen, toggleFullscreen } from './ui/fullscreen';
@@ -45,6 +46,7 @@ const world = new World(engine);
 const player = new Player(world);
 const audio = new GameAudio();
 const footsteps = new Footsteps(audio, world);
+const ripples = new Ripples(world.scene);
 
 /** Текущий уровень и время, проведённое в нём (только в игре, без пауз). */
 let level = progress.current;
@@ -167,6 +169,7 @@ function beginLevel(index: number): void {
   player.reset(layout.spawn);
   rig.reset();
   footsteps.reset();
+  ripples.clear();
   levelTime = 0;
   setLevelTitle(levelLabel(index, layout));
   setHintLevel(index);
@@ -400,6 +403,7 @@ world.scene.onBeforeRenderObservable.add(() => {
     rig.updateMenuOrbit(dt, center);
     world.followSun(center);
     player.idle(dt);
+    ripples.update(dt, null, null, 0, 0);
     return;
   }
 
@@ -409,6 +413,7 @@ world.scene.onBeforeRenderObservable.add(() => {
   world.followSun(player.pos);
   rig.update(dt, player);
   footsteps.update(dt, player);
+  ripples.update(dt, player.pos, layout.waterLevel, world.waterDepth(player.pos.x, player.pos.z), -player.vel.y);
 
   const got = world.collectNear(player.center);
   if (got.length > 0) {
