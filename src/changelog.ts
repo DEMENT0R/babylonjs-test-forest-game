@@ -4,6 +4,12 @@ export interface ChangeDay { date: string; items: string[] }
 
 export const CHANGELOG: ChangeDay[] = [
   {
+    date: '2026-10-18',
+    items: [
+      'Камера по умолчанию — «за спиной»',
+    ],
+  },
+  {
     date: '2026-10-17',
     items: [
       'Кнопки HUD и режим камеры — в правом верхнем углу; на телефоне в ландшафте HUD сжат в узкую полосу сверху',

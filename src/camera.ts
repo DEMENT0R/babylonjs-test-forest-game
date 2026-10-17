@@ -23,6 +23,9 @@ export const CAMERA_MODES: readonly CameraMode[] = [
   { id: 'orbit', name: 'Свободная', dist: 7 },
 ];
 
+/** Режим при запуске — «За спиной». */
+const DEFAULT_MODE = 1;
+
 const PITCH_MIN = -0.4;
 const PITCH_MAX = 1.2;
 const DIST_MIN = 2.2;
@@ -39,8 +42,8 @@ export interface CameraRigOptions {
 export class CameraRig {
   yaw = 0;
   pitch = 0.28;
-  private modeIndex = 0;
-  private dist = CAMERA_MODES[0].dist;
+  private modeIndex = DEFAULT_MODE;
+  private dist = CAMERA_MODES[DEFAULT_MODE].dist;
   private curDist = this.dist;
   private lastLook = -9;
   private dragging: { id: number; x: number; y: number } | null = null;
