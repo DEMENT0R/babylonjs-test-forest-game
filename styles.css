@@ -47,7 +47,11 @@ h1{margin:0;font:700 15px/1.2 var(--f-display);letter-spacing:.02em}
 #mode:hover{border-color:var(--accent)}
 #stick{position:fixed;left:calc(max(16px,env(safe-area-inset-left,0px)) + 8px);bottom:calc(24px + env(safe-area-inset-bottom,0px));width:120px;height:120px;border-radius:50%;border:1px solid var(--line);background:var(--panel);touch-action:none}
 #knob{position:absolute;left:50%;top:50%;width:48px;height:48px;margin:-24px 0 0 -24px;border-radius:50%;background:var(--ink);opacity:.8}
-#jump{position:fixed;right:calc(max(16px,env(safe-area-inset-right,0px)) + 8px);bottom:calc(40px + env(safe-area-inset-bottom,0px));width:76px;height:76px;border-radius:50%;border:1px solid var(--line);background:var(--panel);font:700 12px var(--f-display);touch-action:none}
+#jump{position:fixed;right:calc(max(16px,env(safe-area-inset-right,0px)) + 8px);--jump-bottom:calc(40px + env(safe-area-inset-bottom,0px));bottom:var(--jump-bottom);width:76px;height:76px;border-radius:50%;border:1px solid var(--line);background:var(--panel);font:700 12px var(--f-display);touch-action:none;transition:transform .08s,background .08s}
+/* Зона нажатия шире кнопки: влево к центру экрана и до самых краёв угла, чтобы большой палец
+   не промахивался; вверх — чуть-чуть, там кнопка режима камеры */
+#jump::after{content:'';position:absolute;left:-40px;top:-8px;right:calc(-1 * (max(16px,env(safe-area-inset-right,0px)) + 8px));bottom:calc(-1 * var(--jump-bottom))}
+#jump.on{transform:scale(.9);background:var(--accent);color:var(--accent-ink)}
 #fps{position:fixed;left:50%;transform:translateX(-50%);top:calc(10px + env(safe-area-inset-top,0px));font:600 11px var(--f-mono);font-variant-numeric:tabular-nums;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:2px 8px;pointer-events:none}
 @media (hover:hover) and (pointer:fine){#stick,#jump{display:none}}
 body[data-pad] #stick,body[data-pad] #jump{display:none}
@@ -73,7 +77,7 @@ body[data-pad] #stick,body[data-pad] #jump{display:none}
   .hud .card{padding:6px 10px}
   .btn-row{margin-top:6px}
   #stick{width:104px;height:104px;bottom:calc(16px + env(safe-area-inset-bottom,0px))}
-  #jump{width:68px;height:68px;bottom:calc(24px + env(safe-area-inset-bottom,0px))}
+  #jump{width:68px;height:68px;--jump-bottom:calc(24px + env(safe-area-inset-bottom,0px))}
 }
 @media (hover:none) and (max-height:520px) and (orientation:landscape){#mode{bottom:calc(104px + env(safe-area-inset-bottom,0px))}}
 

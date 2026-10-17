@@ -15,6 +15,8 @@ const GRAVITY = -24;
 const MAX_STRAFE_TURN = Math.PI * 0.42;
 /** Наибольший крен в повороте, рад. */
 const MAX_LEAN = 0.12;
+/** «Койот-тайм»: сколько секунд после схода с края ещё можно оттолкнуться. */
+const COYOTE_TIME = 0.1;
 
 // ---------- Ввод ----------
 
@@ -67,9 +69,16 @@ export function setupTouchControls(): void {
   });
   stick.addEventListener('pointerup', end);
   stick.addEventListener('pointercancel', end);
-  byId('jump').addEventListener('pointerdown', (e) => {
+  const jump = byId('jump');
+  let jumpFlash = 0;
+  jump.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     jumpRequested = true;
+    // Отклик на нажатие: вспышка кнопки и короткая вибрация (где она есть)
+    jump.classList.add('on');
+    clearTimeout(jumpFlash);
+    jumpFlash = window.setTimeout(() => jump.classList.remove('on'), 120);
+    navigator.vibrate?.(12);
   });
 }
 
@@ -111,6 +120,8 @@ export class Player {
   facing = 0;
   /** Текущий крен в повороте. */
   private lean = 0;
+  /** Сколько секунд герой в воздухе, не прыгнув; после прыжка — Infinity до приземления. */
+  private airTime = 0;
   onGround = true;
   /** Есть ли ввод движения в этом кадре. */
   moving = false;
@@ -158,6 +169,7 @@ export class Player {
     this.vel.setAll(0);
     this.facing = 0;
     this.lean = 0;
+    this.airTime = 0;
     this.onGround = true;
   }
 
@@ -202,10 +214,12 @@ export class Player {
     const leanTo = this.onGround ? clamp(-turnRate * this.horizontalSpeed * 0.012, -MAX_LEAN, MAX_LEAN) : 0;
     this.lean += (leanTo - this.lean) * damp(8, dt);
 
-    this.jumped = input.jump && this.onGround;
+    // Сошёл с края — ещё COYOTE_TIME можно прыгнуть, будто стоит на земле
+    this.jumped = input.jump && this.airTime <= COYOTE_TIME;
     if (this.jumped) {
       this.vel.y = D.jump * (wading > 0.3 ? 0.65 : 1);
       this.onGround = false;
+      this.airTime = Infinity;
       const j = hero.anim('jump');
       if (j) {
         j.stop();
@@ -215,6 +229,7 @@ export class Player {
     this.vel.y += GRAVITY * dt;
 
     this.integrate(dt, D.height);
+    this.airTime = this.onGround ? 0 : this.airTime + dt;
 
     this.root.position.copyFrom(this.pos);
     this.root.rotation.y = this.facing;
