@@ -5,25 +5,37 @@ import { formatTime } from './progress';
 
 export type Quest =
   /** Дойти до портала, уложившись в лимит, с. */
-  { kind: 'time'; limit: number; intro: string };
+  | { kind: 'time'; limit: number; intro: string }
+  /** Пройти уровень, ни разу не побежав. */
+  | { kind: 'walk'; intro: string };
+
+/** Что заданию нужно знать о герое в кадре. */
+export interface QuestInput { running: boolean }
 
 /** Цель одной строкой — для экрана перехода и HUD. */
 export function questGoal(q: Quest): string {
-  return `Дойди до портала за ${formatTime(q.limit)}`;
+  switch (q.kind) {
+    case 'time':
+      return `Дойди до портала за ${formatTime(q.limit)}`;
+    case 'walk':
+      return 'Пройди уровень без бега';
+  }
 }
 
 export class QuestRun {
   private time = 0;
+  private broken = false;
 
   constructor(readonly quest: Quest) {}
 
   /** Задание уже не выполнить на этом уровне. */
   get failed(): boolean {
-    return this.time > this.quest.limit;
+    return this.broken || (this.quest.kind === 'time' && this.time > this.quest.limit);
   }
 
-  tick(dt: number): void {
+  tick(dt: number, input: QuestInput): void {
     this.time += dt;
+    if (this.quest.kind === 'walk' && input.running) this.broken = true;
   }
 
   /** Проверка при входе в портал. */
@@ -33,7 +45,11 @@ export class QuestRun {
 
   /** Строка для HUD с текущим прогрессом. */
   get status(): string {
-    if (this.failed) return 'время вышло';
-    return `осталось ${formatTime(Math.ceil(this.quest.limit - this.time))}`;
+    switch (this.quest.kind) {
+      case 'time':
+        return this.failed ? 'время вышло' : `осталось ${formatTime(Math.ceil(this.quest.limit - this.time))}`;
+      case 'walk':
+        return this.failed ? 'был бег' : 'пока шагом';
+    }
   }
 }

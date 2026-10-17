@@ -42,14 +42,14 @@ const CAMPAIGN: readonly Omit<LevelRecipe, 'index' | 'seed' | 'quest'>[] = [
   { biome: 'rocky', half: 85, crystals: 20, chains: 4, steps: [4, 5], hidden: 0.5, clearings: 6, relief: 1.3 },
 ];
 
-// Лимиты с запасом на поиск кристаллов: задание про темп, а не про идеальный маршрут
+// Задания чередуются; лимиты времени с запасом на поиск кристаллов: задание про темп, а не про идеальный маршрут
 const CAMPAIGN_QUESTS: readonly Quest[] = [
   { kind: 'time', limit: 150, intro: 'Солнце клонится к лесу — успей до заката' },
-  { kind: 'time', limit: 180, intro: 'Белки зовут на ужин — не опоздай' },
+  { kind: 'walk', intro: 'Совы спят до вечера — не разбуди их топотом' },
   { kind: 'time', limit: 210, intro: 'Ветер метёт листву — поспеши, пока видна тропа' },
   { kind: 'time', limit: 240, intro: 'Мороз крепчает — не мешкай' },
   { kind: 'time', limit: 240, intro: 'Над скалами собирается гроза — успей до первых капель' },
-  { kind: 'time', limit: 300, intro: 'Светлячки скоро уснут — успей, пока они светят' },
+  { kind: 'walk', intro: 'Ночью лес слышит каждый шаг — ступай тихо' },
   { kind: 'time', limit: 330, intro: 'Над озёрами поднимается туман — не задерживайся' },
   { kind: 'time', limit: 360, intro: 'Камни остывают к ночи — успей, пока они тёплые' },
 ];
@@ -74,7 +74,9 @@ export function recipeFor(index: number): LevelRecipe {
     hidden: Math.min(0.6, 0.4 + extra * 0.02),
     clearings: Math.min(8, 5 + Math.floor(extra / 2)),
     relief: Math.min(1.5, 1.2 + extra * 0.03),
-    quest: { kind: 'time', limit: Math.min(480, 360 + extra * 15), intro: 'Лес засыпает — успей до темноты' },
+    quest: rng.chance(0.5)
+      ? { kind: 'time', limit: Math.min(480, 360 + extra * 15), intro: 'Лес засыпает — успей до темноты' }
+      : { kind: 'walk', intro: 'В чаще дремлют звери — не беги' },
   };
 }
 

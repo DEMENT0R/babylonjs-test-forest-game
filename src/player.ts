@@ -114,6 +114,8 @@ export class Player {
   onGround = true;
   /** Есть ли ввод движения в этом кадре. */
   moving = false;
+  /** Бежит в этом кадре: идёт и держит бег. */
+  running = false;
   /** Ввод «вперёд/назад» в этом кадре (-1…1). */
   inputZ = 0;
   hero: Hero | null = null;
@@ -170,6 +172,7 @@ export class Player {
     const right = new Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
     const dir = fwd.scale(input.z).add(right.scale(input.x));
     this.moving = dir.lengthSquared() > 0.01;
+    this.running = this.moving && input.run;
     this.inputZ = input.z;
     const shoulder = view.modeId === 'shoulder';
     let speed = input.run ? D.run : D.walk;

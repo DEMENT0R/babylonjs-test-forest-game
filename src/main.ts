@@ -361,7 +361,7 @@ world.scene.onBeforeRenderObservable.add(() => {
   if (active) {
     levelTime += dt;
     const wasFailed = quest.failed;
-    quest.tick(dt);
+    quest.tick(dt, player);
     if (quest.failed && !wasFailed) say('Задание провалено — но уровень можно пройти');
     updateQuestHud();
   }
