@@ -481,8 +481,9 @@ export class GameAudio {
    * Один удар лапы.
    * @param weight 0…1 — «тяжесть» героя (олень тяжелее лисы)
    * @param force громкость удара, 1 — обычный шаг
+   * @param pitch множитель тона: задние лапы галопа звучат ниже
    */
-  footfall(surface: Surface, weight: number, force = 1, pan = 0, delay = 0): void {
+  footfall(surface: Surface, weight: number, force = 1, pan = 0, delay = 0, pitch = 1): void {
     if (!this.running) return;
     const ac = this.ac!;
     const sp = SURFACES[surface];
@@ -502,7 +503,7 @@ export class GameAudio {
       src.playbackRate.value = rand(0.85, 1.15);
       const bp = ac.createBiquadFilter();
       bp.type = 'bandpass';
-      bp.frequency.value = sp.freq * rand(0.8, 1.2) * (1.15 - weight * 0.3);
+      bp.frequency.value = sp.freq * pitch * rand(0.8, 1.2) * (1.15 - weight * 0.3);
       bp.Q.value = sp.q;
       const g = ac.createGain();
       const dur = sp.dur * (0.8 + weight * 0.5);
@@ -518,7 +519,7 @@ export class GameAudio {
     // Глухой удар — короткий низкий тон с падающей частотой
     const osc = ac.createOscillator();
     osc.type = 'sine';
-    const f = sp.thumpFreq * (1.3 - weight * 0.5);
+    const f = sp.thumpFreq * pitch * (1.3 - weight * 0.5);
     osc.frequency.setValueAtTime(f * 1.6, t);
     osc.frequency.exponentialRampToValueAtTime(f, t + 0.04);
     const og = ac.createGain();
@@ -534,13 +535,22 @@ export class GameAudio {
 
 // ---------- Ритм шагов ----------
 
+/** Поворотный галоп: две задние, две передние — доли интервала g и громкость каждой лапы. */
+const GALLOP = [
+  { at: 0, force: 1, pitch: 0.88 },
+  { at: 0.8, force: 0.6, pitch: 0.88 },
+  { at: 1.9, force: 0.7, pitch: 1 },
+  { at: 2.6, force: 0.9, pitch: 1 },
+] as const;
+
 /**
  * Следит за игроком и выдаёт удары лап в такт движению:
- * шаг — через каждые stride метров, на бегу — сдвоенный удар галопа,
- * плюс приземление после прыжка.
+ * шагом — одиночные удары через каждые stride метров, рысью — пары,
+ * галопом — «тыгдык» из четырёх лап и пауза полёта; плюс приземление после прыжка.
  */
 export class Footsteps {
-  private travelled = 0;
+  /** Фаза цикла шага, 0…1: на переходе через 1 звучит удар. */
+  private phase = 0;
   private wasOnGround = true;
   private airTime = 0;
   private side = 1;
@@ -548,7 +558,7 @@ export class Footsteps {
   constructor(private readonly audio: GameAudio, private readonly world: World) {}
 
   reset(): void {
-    this.travelled = 0;
+    this.phase = 0;
     this.wasOnGround = true;
     this.airTime = 0;
   }
@@ -575,26 +585,41 @@ export class Footsteps {
       }
       this.wasOnGround = true;
       this.airTime = 0;
-      this.travelled = 0;
+      this.phase = 0;
     }
 
     if (speed < 0.4) {
-      this.travelled = 0;
+      this.phase = 0;
       return;
     }
     const runK = clamp((speed - d.walk) / (d.run - d.walk), 0, 1);
-    // Длина шага растёт с размером героя и на бегу
-    const stride = Math.max(0.6, d.height * (0.85 + runK * 1.1));
-    this.travelled += speed * dt;
-    if (this.travelled < stride) return;
-    this.travelled -= stride;
+    const gallop = runK > 0.5;
+    // Шаг и рысь — по пройденным метрам (длина шага растёт с размером героя и скоростью),
+    // галоп — своим темпом: мелкий зверь скачет чаще, крупный реже
+    const rate = gallop
+      ? (3.4 - d.height * 0.7) * (0.8 + runK * 0.2)
+      : speed / Math.max(0.6, d.height * (0.85 + runK * 2.5));
+    this.phase += rate * dt;
+    if (this.phase < 1) return;
+    this.phase -= 1;
     this.side = -this.side;
     // Живой разброс силы и лёгкий сдвиг по времени — чтобы не звучал метроном
     const force = (0.7 + runK * 0.5) * rand(0.75, 1.1);
     const pan = this.side * 0.12;
     const jitter = rand(0, 0.015);
+
+    if (gallop) {
+      // Интервал между лапами чуть длиннее у крупного зверя
+      const g = 0.05 + d.height * 0.008;
+      GALLOP.forEach((leg, i) => {
+        const at = Math.max(0, jitter + leg.at * g + rand(-0.006, 0.006));
+        const legPan = (i % 2 ? -pan : pan) * 0.8;
+        this.audio.footfall(surface, weight, force * 0.85 * leg.force * rand(0.85, 1.1), legPan, at, leg.pitch);
+      });
+      return;
+    }
     this.audio.footfall(surface, weight, force, pan, jitter);
-    // Четыре лапы: на бегу каждый «шаг» — пара ударов
-    if (runK > 0.3) this.audio.footfall(surface, weight, force * rand(0.6, 0.85), -pan, jitter + rand(0.05, 0.08));
+    // Рысь: диагональные лапы ставятся почти вместе — пара ударов
+    if (runK > 0.2) this.audio.footfall(surface, weight, force * rand(0.6, 0.85), -pan, jitter + rand(0.05, 0.08));
   }
 }
