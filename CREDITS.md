@@ -2,7 +2,7 @@
 
 ## Игра
 
-Разработка — Максим Безрукавников, при участии Claude (Anthropic).
+Разработка — [Максим Безрукавников](https://github.com/DEMENT0R), при участии Claude (Anthropic).
 
 ## 3D-модели (`public/models/`)
 

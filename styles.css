@@ -118,6 +118,7 @@ h1{margin:0;font:700 15px/1.2 var(--f-display);letter-spacing:.02em}
 .menu-info dt{color:var(--ink);font-weight:600;white-space:nowrap}
 .menu-info dd{margin:0;color:var(--muted)}
 .menu-info p{margin:0 0 8px;font:400 12px/1.6 var(--f-mono);color:var(--muted)}
+.menu-info a{color:var(--ink);text-decoration:underline;text-underline-offset:2px}
 .level-list{display:flex;flex-direction:column;gap:4px;max-height:50vh;overflow:auto}
 .level-list button{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:baseline;text-align:left;background:transparent;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:400 12px var(--f-mono);color:var(--ink);cursor:pointer}
 .level-list button:hover,.level-list button:focus-visible{border-color:var(--accent)}

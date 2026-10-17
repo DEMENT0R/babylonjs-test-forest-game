@@ -17,7 +17,7 @@ const INFO = {
       Y — режим камеры, крестовина ↑↓ — зум, View — настройки, Start — пауза;
       в меню крестовина или стик выбирают пункт, A — нажать, B — назад, LB/RB — вкладки настроек</dd></dl>`,
   about: `<h4>Авторы</h4>
-    <p>Разработка — Максим Безрукавников, при участии Claude (Anthropic).</p>
+    <p>Разработка — <a href="https://github.com/DEMENT0R" target="_blank" rel="noopener">Максим Безрукавников</a>, при участии Claude (Anthropic).</p>
     <p>Движок — Babylon.js ${Engine.Version}.</p>
     <p>Волк и олень — Quaternius, Ultimate Animated Animals (CC0).</p>
     <p>Лиса — PixelMannen (CC0), риг и анимация @tomkranis (CC BY 4.0), из Khronos glTF Sample Assets.</p>
