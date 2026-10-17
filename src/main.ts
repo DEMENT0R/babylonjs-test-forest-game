@@ -196,14 +196,22 @@ function finishLevel(): void {
   const star = world.collected === world.crystals.length;
   const time = levelTime;
   const questDone = quest.passed();
+  const best = progress.records[level]?.time;
   completeLevel(level, star, questDone, time);
+  // Рекорд сравнивается по показанным секундам, чтобы «0:42, рекорд 0:42» не звалось новым
+  const timeText =
+    best === undefined
+      ? formatTime(time)
+      : Math.floor(time) < Math.floor(best)
+        ? `${formatTime(time)} · новый рекорд!`
+        : `${formatTime(time)} (рекорд ${formatTime(best)})`;
   audio.portalEnter();
   rig.releaseLock();
   clearInput();
   const next = level + 1;
   void transition(
     {
-      eyebrow: `Уровень ${level} пройден · ${formatTime(time)}${star ? ' · ★ все кристаллы' : ''}${questDone ? ' · ★ задание' : ''}`,
+      eyebrow: `Уровень ${level} пройден · ${timeText}${star ? ' · ★ все кристаллы' : ''}${questDone ? ' · ★ задание' : ''}`,
       title: `Уровень ${next}`,
       sub: '',
     },
