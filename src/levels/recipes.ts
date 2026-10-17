@@ -42,13 +42,12 @@ const CAMPAIGN: readonly Omit<LevelRecipe, 'index' | 'seed' | 'quest'>[] = [
   { biome: 'rocky', half: 85, crystals: 20, chains: 4, steps: [4, 5], hidden: 0.5, clearings: 6, relief: 1.3 },
 ];
 
-// У каждого уровня кампании своё задание; лимит времени с запасом на поиск кристаллов —
-// задание про темп, а не про идеальный маршрут
+// У каждого уровня кампании своё задание; лимиты времени и прыжков считаются по раскладке уровня
 const CAMPAIGN_QUESTS: readonly Quest[] = [
-  { kind: 'time', limit: 150, intro: 'Солнце клонится к лесу — успей до заката' },
+  { kind: 'time', intro: 'Солнце клонится к лесу — успей до заката' },
   { kind: 'walk', intro: 'Совы спят до вечера — не разбуди их топотом' },
   { kind: 'hop', intro: 'Опавшие листья пружинят — скачи, не останавливаясь' },
-  { kind: 'jumps', spare: 6, intro: 'Снег глубокий — береги силы' },
+  { kind: 'jumps', intro: 'Снег глубокий — береги силы' },
   { kind: 'hidden', intro: 'Кристаллы попрятались за камнями и деревьями' },
   { kind: 'tops', intro: 'С вершин видно светлячков' },
   { kind: 'swim', intro: 'Вода в озёрах тёплая' },
@@ -76,16 +75,16 @@ export function recipeFor(index: number): LevelRecipe {
     hidden: Math.min(0.6, 0.4 + extra * 0.02),
     clearings: Math.min(8, 5 + Math.floor(extra / 2)),
     relief: Math.min(1.5, 1.2 + extra * 0.03),
-    quest: rng.pick(endlessQuests(biome, extra)),
+    quest: rng.pick(endlessQuests(biome)),
   };
 }
 
 /** Задания бесконечного режима; про озёра — только там, где есть вода. */
-function endlessQuests(biome: BiomeId, extra: number): Quest[] {
+function endlessQuests(biome: BiomeId): Quest[] {
   const quests: Quest[] = [
-    { kind: 'time', limit: Math.min(480, 360 + extra * 15), intro: 'Лес засыпает — успей до темноты' },
+    { kind: 'time', intro: 'Лес засыпает — успей до темноты' },
     { kind: 'walk', intro: 'В чаще дремлют звери — не беги' },
-    { kind: 'jumps', spare: 6, intro: 'Тропа долгая — береги силы на прыжки' },
+    { kind: 'jumps', intro: 'Тропа долгая — береги силы на прыжки' },
     { kind: 'hop', intro: 'Земля холодная — скачи, не останавливаясь' },
     { kind: 'tops', intro: 'С вершин виден весь лес' },
     { kind: 'hidden', intro: 'Кристаллы попрятались' },

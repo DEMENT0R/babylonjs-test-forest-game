@@ -5,12 +5,12 @@ import type { LevelLayout } from './generator';
 import { formatTime } from './progress';
 
 export type Quest =
-  /** Дойти до портала, уложившись в лимит, с. */
-  | { kind: 'time'; limit: number; intro: string }
+  /** Дойти до портала, уложившись в лимит; лимит считается по раскладке уровня. */
+  | { kind: 'time'; intro: string }
   /** Пройти уровень, ни разу не побежав. */
   | { kind: 'walk'; intro: string }
-  /** Прыжков не больше, чем платформ на уровне, плюс запас. */
-  | { kind: 'jumps'; spare: number; intro: string }
+  /** Прыжков не больше, чем платформ на уровне, плюс запас на промахи. */
+  | { kind: 'jumps'; intro: string }
   /** Собрать кристаллы на вершинах всех цепочек. */
   | { kind: 'tops'; intro: string }
   /** Найти все спрятанные кристаллы. */
@@ -30,6 +30,37 @@ export type QuestKind = Quest['kind'];
 const HOP_GROUND = 2.5;
 /** Глубина, с которой вода считается купанием, а не мелководьем у берега, м. */
 const SWIM_DEPTH = 0.3;
+/** Скорость бега самого медленного героя (олень), м/с. */
+const SLOWEST_RUN = 10;
+/** Во сколько раз путь по лесу длиннее прямых отрезков между кристаллами. */
+const DETOUR = 1.4;
+/** Во сколько раз игрок, ищущий кристаллы, медленнее знающего маршрут. */
+const SEARCH = 3;
+/** Секунд на каждую цепочку платформ — забраться и примериться к прыжкам. */
+const CHAIN_TIME = 10;
+
+/**
+ * Лимит задания «на время», с: сколько бежать от старта по ближайшим кристаллам до открытия
+ * портала и потом к порталу, с поправкой на обходы и поиск. Округлён до 10 с.
+ */
+function timeLimit(layout: LevelLayout): number {
+  let cur = layout.spawn;
+  let path = 0;
+  const left = [...layout.crystals];
+  for (let k = 0; k < layout.required && left.length; k++) {
+    let best = 0;
+    left.forEach((c, i) => {
+      if (Math.hypot(c.x - cur.x, c.z - cur.z) < Math.hypot(left[best].x - cur.x, left[best].z - cur.z)) best = i;
+    });
+    const next = left.splice(best, 1)[0];
+    path += Math.hypot(next.x - cur.x, next.z - cur.z);
+    cur = next;
+  }
+  path += Math.hypot(layout.portal.x - cur.x, layout.portal.z - cur.z);
+  const chains = layout.crystals.filter((c) => c.kind === 'top').length;
+  const t = ((path * DETOUR) / SLOWEST_RUN) * SEARCH + chains * CHAIN_TIME + 30;
+  return Math.round(t / 10) * 10;
+}
 
 /** Что заданию нужно знать о герое в кадре. */
 export interface QuestInput {
@@ -62,7 +93,7 @@ function targetCount(kind: QuestKind, layout: LevelLayout): number | null {
 /** Задание, которое на этом уровне не выполнить (нет цепочек, тайников или озёр), заменяется заданием на время. */
 export function fitQuest(q: Quest, layout: LevelLayout): Quest {
   if (targetCount(q.kind, layout) !== 0) return q;
-  return { kind: 'time', limit: Math.round(120 + layout.half * 2.5), intro: 'Лес засыпает — успей до темноты' };
+  return { kind: 'time', intro: 'Лес засыпает — успей до темноты' };
 }
 
 /** «Не больше 21 прыжка», но «не больше 25 прыжков». */
@@ -74,7 +105,8 @@ export class QuestRun {
   private time = 0;
   private jumps = 0;
   private broken = false;
-  /** Лимит прыжков; для остальных заданий не нужен. */
+  /** Лимиты для заданий на время и на прыжки, считаются по уровню. */
+  private readonly maxTime: number;
   private readonly maxJumps: number;
   /** Сколько герой стоит на земле после прыжка; null — ещё не прыгал. */
   private grounded: number | null = null;
@@ -86,8 +118,11 @@ export class QuestRun {
     readonly quest: Quest,
     private readonly layout: LevelLayout,
   ) {
-    // Каждую платформу хватит одного прыжка — на вершину любой цепочки забраться можно
-    this.maxJumps = quest.kind === 'jumps' ? layout.platforms.length + quest.spare : 0;
+    this.maxTime = quest.kind === 'time' ? timeLimit(layout) : 0;
+    // На каждую платформу по прыжку — на вершину любой цепочки забраться можно — и по паре
+    // на цепочку про запас: промахнуться мимо ступени нетрудно
+    const chains = layout.crystals.filter((c) => c.kind === 'top').length;
+    this.maxJumps = quest.kind === 'jumps' ? layout.platforms.length + 4 + chains * 2 : 0;
     this.targets = targetCount(quest.kind, layout);
   }
 
@@ -95,7 +130,7 @@ export class QuestRun {
   get goal(): string {
     switch (this.quest.kind) {
       case 'time':
-        return `Дойди до портала за ${formatTime(this.quest.limit)}`;
+        return `Дойди до портала за ${formatTime(this.maxTime)}`;
       case 'walk':
         return 'Пройди уровень без бега';
       case 'jumps':
@@ -117,7 +152,7 @@ export class QuestRun {
 
   /** Задание уже не выполнить на этом уровне. */
   get failed(): boolean {
-    return this.broken || (this.quest.kind === 'time' && this.time > this.quest.limit);
+    return this.broken || (this.quest.kind === 'time' && this.time > this.maxTime);
   }
 
   /** Все цели задания со счётчиком достигнуты; остаётся дойти до портала. */
@@ -192,7 +227,7 @@ export class QuestRun {
     const count = `${this.reached.size}/${this.targets}`;
     switch (this.quest.kind) {
       case 'time':
-        return this.failed ? 'время вышло' : `осталось ${formatTime(Math.ceil(this.quest.limit - this.time))}`;
+        return this.failed ? 'время вышло' : `осталось ${formatTime(Math.ceil(this.maxTime - this.time))}`;
       case 'walk':
         return this.failed ? 'был бег' : 'пока шагом';
       case 'jumps':
