@@ -282,6 +282,13 @@ for (const type of ['keydown', 'pointerdown', 'pointermove'] as const) {
   addEventListener(type, (e) => e.isTrusted && setInputKind('keys'), { capture: true, passive: true });
 }
 addEventListener('gamepaddisconnected', () => say('Геймпад отключён'));
+// Пока подключён геймпад, сенсорные стик и кнопка прыжка не нужны и только закрывают обзор
+let padConnected = false;
+const syncPadConnected = () => {
+  if (gamepad.connected === padConnected) return;
+  padConnected = gamepad.connected;
+  document.body.toggleAttribute('data-pad', padConnected);
+};
 
 /** Экран, по которому сейчас ходит фокус геймпада; null — идёт игра. */
 function padScreen(): HTMLElement | null {
@@ -366,6 +373,7 @@ world.scene.onBeforeRenderObservable.add(() => {
 engine.runRenderLoop(() => {
   gamepad.poll();
   if (gamepad.used) setInputKind('pad');
+  syncPadConnected();
   handleGamepad();
   wind.update(Math.min(engine.getDeltaTime() / 1000, 0.1));
   (state === 'select' ? select.scene : world.scene).render();

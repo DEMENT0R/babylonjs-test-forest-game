@@ -46,6 +46,7 @@ h1{margin:0;font:700 15px/1.2 var(--f-display);letter-spacing:.02em}
 #jump{position:fixed;right:calc(max(16px,env(safe-area-inset-right,0px)) + 8px);bottom:calc(40px + env(safe-area-inset-bottom,0px));width:76px;height:76px;border-radius:50%;border:1px solid var(--line);background:var(--panel);font:700 12px var(--f-display);touch-action:none}
 #fps{position:fixed;left:50%;transform:translateX(-50%);top:calc(10px + env(safe-area-inset-top,0px));font:600 11px var(--f-mono);font-variant-numeric:tabular-nums;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:2px 8px;pointer-events:none}
 @media (hover:hover) and (pointer:fine){#stick,#jump{display:none}}
+body[data-pad] #stick,body[data-pad] #jump{display:none}
 @media (hover:none),(pointer:coarse){#mode{bottom:auto;top:calc(110px + env(safe-area-inset-top,0px))}}
 @media (max-width:520px){.keys{display:none}}
 
