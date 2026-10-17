@@ -8,7 +8,7 @@ import { BTN, gamepad } from './gamepad';
 import { loadHero, type HeroDef } from './heroes';
 import type { LevelLayout } from './levels/generator';
 import { completeLevel, formatTime, progress, setCurrentLevel } from './levels/progress';
-import { questGoal, QuestRun } from './levels/quests';
+import { QuestRun } from './levels/quests';
 import { recipeFor } from './levels/recipes';
 import { clearInput, keys, Player, setupTouchControls } from './player';
 import { applySettings, settings } from './settings';
@@ -114,7 +114,7 @@ function updateCrystalsHud(): void {
 }
 
 function updateQuestHud(): void {
-  setQuest(questGoal(quest.quest), quest.status, quest.failed ? 'failed' : 'active');
+  setQuest(quest.goal, quest.status, quest.failed ? 'failed' : 'active');
 }
 
 /** Построить уровень и поставить героя на старт. */
@@ -123,7 +123,7 @@ function beginLevel(index: number): void {
   setCurrentLevel(index);
   const recipe = recipeFor(index);
   layout = world.loadLevel(recipe);
-  quest = new QuestRun(recipe.quest);
+  quest = new QuestRun(recipe.quest, { platforms: layout.platforms.length });
   audio.setAmbience(layout.biome.ambience);
   wind.setScale(layout.biome.ambience.wind);
   player.reset(layout.spawn);
@@ -173,7 +173,7 @@ function finishLevel(): void {
       beginLevel(next);
       setTransitionText({
         title: levelLabel(next, layout),
-        sub: `Кристаллов: ${layout.crystals.length}, портал откроется после ${layout.required}. ${quest.quest.intro}: ${questGoal(quest.quest).toLowerCase()}`,
+        sub: `Кристаллов: ${layout.crystals.length}, портал откроется после ${layout.required}. ${quest.quest.intro}: ${quest.goal.toLowerCase()}`,
       });
     },
   ).then(() => canvas.focus());

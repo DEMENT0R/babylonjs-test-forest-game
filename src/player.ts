@@ -114,6 +114,8 @@ export class Player {
   onGround = true;
   /** Есть ли ввод движения в этом кадре. */
   moving = false;
+  /** Оттолкнулся в прыжке в этом кадре. */
+  jumped = false;
   /** Бежит в этом кадре: идёт и держит бег. */
   running = false;
   /** Ввод «вперёд/назад» в этом кадре (-1…1). */
@@ -200,7 +202,8 @@ export class Player {
     const leanTo = this.onGround ? clamp(-turnRate * this.horizontalSpeed * 0.012, -MAX_LEAN, MAX_LEAN) : 0;
     this.lean += (leanTo - this.lean) * damp(8, dt);
 
-    if (input.jump && this.onGround) {
+    this.jumped = input.jump && this.onGround;
+    if (this.jumped) {
       this.vel.y = D.jump * (wading > 0.3 ? 0.65 : 1);
       this.onGround = false;
       const j = hero.anim('jump');
