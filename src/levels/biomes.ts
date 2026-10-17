@@ -34,6 +34,8 @@ export interface Biome {
   surface: 'grass' | 'snow';
   /** Частицы в воздухе. */
   particles?: 'snow' | 'fireflies';
+  /** Мороз: у героя пар изо рта. */
+  frost?: boolean;
   /** Ночь: ближайшие к герою кристаллы светят на округу. */
   crystalLights?: boolean;
   /** Вода в низинах: наибольший уровень относительно центра, цвет и сколько озёр прокопать. */
@@ -148,6 +150,7 @@ export const BIOMES: Record<BiomeId, Biome> = {
     ambience: { ...QUIET, birds: 0.2, wind: 1.4 },
     surface: 'snow',
     particles: 'snow',
+    frost: true,
   },
   night: {
     id: 'night',

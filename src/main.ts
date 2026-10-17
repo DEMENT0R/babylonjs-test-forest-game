@@ -3,6 +3,7 @@
 
 import { Color3, Engine, Vector3 } from '@babylonjs/core';
 import { Footsteps, GameAudio } from './audio';
+import { Breath } from './breath';
 import { CameraRig } from './camera';
 import { BTN, gamepad } from './gamepad';
 import { loadHero, type HeroDef } from './heroes';
@@ -47,6 +48,7 @@ const player = new Player(world);
 const audio = new GameAudio();
 const footsteps = new Footsteps(audio, world);
 const ripples = new Ripples(world.scene);
+const breath = new Breath(world.scene);
 
 /** Текущий уровень и время, проведённое в нём (только в игре, без пауз). */
 let level = progress.current;
@@ -404,6 +406,7 @@ world.scene.onBeforeRenderObservable.add(() => {
     world.followSun(center);
     player.idle(dt);
     ripples.update(dt, null, null, 0, 0);
+    breath.update(dt, player.hero, false, !!layout.biome.frost);
     return;
   }
 
@@ -413,6 +416,7 @@ world.scene.onBeforeRenderObservable.add(() => {
   world.followSun(player.pos);
   rig.update(dt, player);
   footsteps.update(dt, player);
+  breath.update(dt, player.hero, player.running, !!layout.biome.frost);
   ripples.update(dt, player.pos, layout.waterLevel, world.waterDepth(player.pos.x, player.pos.z), -player.vel.y);
 
   const got = world.collectNear(player.center);

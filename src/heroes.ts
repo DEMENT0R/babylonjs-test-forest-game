@@ -1,6 +1,6 @@
 // Герои: описания, загрузка GLB-моделей из public/models и смешивание анимаций.
 
-import { ImportMeshAsync, TransformNode, type AbstractMesh, type AnimationGroup, type PBRMaterial, type Skeleton } from '@babylonjs/core';
+import { ImportMeshAsync, TransformNode, Vector3, type AbstractMesh, type AnimationGroup, type PBRMaterial, type Skeleton } from '@babylonjs/core';
 import '@babylonjs/loaders/glTF';
 import { addShadowCaster, type LightingContext } from './settings';
 import { clamp, damp } from './utils';
@@ -30,6 +30,8 @@ export interface HeroDef {
   runRef: number;
   /** Скорость и прыжок по пятибалльной шкале — для карточек выбора. */
   stats: [speed: number, jump: number];
+  /** Откуда идёт пар на морозе: узел скелета и сколько ещё метров вперёд до кончика морды. */
+  mouth: { node: string; ahead: number };
 }
 
 const AA = 'AnimalArmature|';
@@ -40,18 +42,21 @@ export const HEROES: readonly HeroDef[] = [
     srcH: 2.7, height: 1.35, yaw: 0,
     anims: { idle: AA + 'Idle', walk: AA + 'Walk', run: AA + 'Gallop', jump: AA + 'Gallop_Jump', hello: AA + 'Attack' },
     walk: 4.4, run: 11.5, jump: 9, jumpRatio: 1.2, walkRef: 3.2, runRef: 9, stats: [4, 3],
+    mouth: { node: 'Head_end', ahead: 0.05 },
   },
   {
     id: 'fox', name: 'Лиса', tag: 'Маленькая и самая быстрая.', file: 'fox.glb',
     srcH: 72, height: 1.0, yaw: 0,
     anims: { idle: 'Survey', walk: 'Walk', run: 'Run' },
     walk: 4.2, run: 12, jump: 9.5, walkRef: 2.6, runRef: 7, stats: [5, 4],
+    mouth: { node: 'b_Head_05', ahead: 0.32 },
   },
   {
     id: 'stag', name: 'Олень', tag: 'Медленнее всех, зато прыгает выше всех.', file: 'stag.glb',
     srcH: 4.2, height: 2.1, yaw: 0,
     anims: { idle: AA + 'Idle', walk: AA + 'Walk', run: AA + 'Gallop', jump: AA + 'Gallop_Jump', hello: AA + 'Attack_Headbutt' },
     walk: 4, run: 10, jump: 11, jumpRatio: 1.6, walkRef: 3, runRef: 8.5, stats: [3, 5],
+    mouth: { node: 'Head_end', ahead: 0.05 },
   },
 ];
 
@@ -64,6 +69,8 @@ export class Hero {
   readonly root: TransformNode;
   /** Текущие веса смешиваемых анимаций. */
   readonly weights: Partial<Record<BlendKey, number>> = {};
+  /** Узел скелета у морды; null — в модели его не нашлось. */
+  readonly mouth: TransformNode | null;
   private readonly byName: Map<string, AnimationGroup>;
 
   constructor(
@@ -75,6 +82,15 @@ export class Hero {
   ) {
     this.root = root;
     this.byName = new Map(groups.map((g) => [g.name, g]));
+    this.mouth = root.getDescendants(false, (n) => n.name === def.mouth.node)[0] as TransformNode | undefined ?? null;
+  }
+
+  /** Кончик морды в мировых координатах — сюда пар изо рта. */
+  mouthPosition(out: Vector3): Vector3 {
+    if (!this.mouth) return out.copyFrom(this.root.getAbsolutePosition()).addInPlaceFromFloats(0, this.def.height * 0.75, 0);
+    out.copyFrom(this.mouth.getAbsolutePosition());
+    const fwd = this.root.getDirection(Vector3.Forward());
+    return out.addInPlace(fwd.scaleInPlace(this.def.mouth.ahead));
   }
 
   anim(key: AnimKey): AnimationGroup | undefined {

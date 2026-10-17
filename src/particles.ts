@@ -8,7 +8,7 @@ import { wind, WIND_DIR } from './wind';
 export type ParticleKind = 'snow' | 'fireflies';
 
 /** Мягкая круглая точка — текстура для всех частиц. */
-function dotTexture(scene: Scene): DynamicTexture {
+export function dotTexture(scene: Scene): DynamicTexture {
   const size = 64;
   const tex = new DynamicTexture('particle-dot', size, scene, false);
   const ctx = tex.getContext() as CanvasRenderingContext2D;
