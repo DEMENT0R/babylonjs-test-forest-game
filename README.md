@@ -47,6 +47,7 @@ src/
     select.ts           экран выбора героя (3D-подиумы и карточки)
     settings-panel.ts   панель настроек
     hud.ts              счёт, подсказки, FPS, кнопка камеры
+    fullscreen.ts       полноэкранный режим: кнопка в HUD и клавиша F
     transition.ts       затемнение и экран итога между уровнями
 public/models/          wolf.glb, fox.glb, stag.glb
 CREDITS.md              лицензии моделей и шрифтов

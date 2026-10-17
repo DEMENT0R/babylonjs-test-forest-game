@@ -12,6 +12,7 @@ import { recipeFor } from './levels/recipes';
 import { clearInput, keys, Player, setupTouchControls } from './player';
 import { applySettings, settings } from './settings';
 import { say, setCrystals, setHintLevel, setLevelTitle, setupHud, showCameraMode, tickFps } from './ui/hud';
+import { setupFullscreen, toggleFullscreen } from './ui/fullscreen';
 import { MainMenu } from './ui/menu';
 import { activate, navigate, sendKey } from './ui/pad-nav';
 import { SelectScreen } from './ui/select';
@@ -100,6 +101,7 @@ setupHud({
   },
 });
 setupTouchControls();
+setupFullscreen();
 
 // ---------- Уровни ----------
 
@@ -236,6 +238,10 @@ addEventListener('keydown', (e) => {
   }
   if (e.code === 'KeyM' && !e.repeat) {
     toggleSound();
+    return;
+  }
+  if (e.code === 'KeyF' && !e.repeat) {
+    toggleFullscreen();
     return;
   }
   switch (state) {
