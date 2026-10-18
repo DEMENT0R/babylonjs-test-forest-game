@@ -122,6 +122,9 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump{display:no
 .hero-name{font:700 15px/1.2 var(--f-display)}
 .hero-key{font:600 11px var(--f-mono);color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 5px}
 .hero-tag{font:400 12px/1.45 var(--f-mono);color:var(--muted)}
+.hero-lock{font:600 11px var(--f-mono);color:var(--accent)}
+.hero-lock:empty{display:none}
+.hero.locked .hero-name{opacity:.6}
 .stats{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;align-items:center;font:600 11px var(--f-mono);color:var(--muted)}
 .bar{display:grid;grid-template-columns:repeat(5,1fr);gap:3px}
 .bar i{height:6px;border-radius:2px;background:var(--line)}
@@ -130,6 +133,7 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump{display:no
 #play{pointer-events:auto;background:var(--accent);color:var(--accent-ink);border:0;border-radius:10px;padding:12px 30px;font:700 15px var(--f-display);cursor:pointer;box-shadow:0 6px 24px rgba(0,0,0,.25)}
 #play:hover{filter:brightness(1.06)}
 #play:disabled{opacity:.5;cursor:wait}
+#select:has(.hero.locked[aria-pressed="true"]) #play:disabled{cursor:not-allowed}
 .ghost{pointer-events:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px 16px;font:600 12px var(--f-mono);cursor:pointer}
 .ghost:hover{border-color:var(--accent)}
 .sel-hint{font:400 12px var(--f-mono);opacity:.75}

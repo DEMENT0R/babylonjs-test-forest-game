@@ -15,9 +15,11 @@ import {
   type Engine,
   type Mesh,
   type Node,
+  type PBRMaterial,
 } from '@babylonjs/core';
 import { GrassField, MEADOW_GROUND, MEADOW_TIP } from '../grass';
 import { HEROES, loadHero, type Hero, type HeroDef } from '../heroes';
+import { totalStars } from '../levels/progress';
 import { addShadowCaster, createLightingContext, type LightingContext } from '../settings';
 import { byId, damp, now, wrapAngle } from '../utils';
 
@@ -30,6 +32,11 @@ const PITCH = Math.atan2(1.4, 9);
 const FRAME_H = 2;
 const FILL = 0.5;
 const SKY = new Color3(0.55, 0.72, 0.78);
+/** Закрытый герой стоит на подиуме тёмным силуэтом. */
+const SILHOUETTE = new Color3(0.03, 0.04, 0.05);
+
+/** Сколько звёзд не хватает до героя (0 — открыт). */
+export const starsMissing = (def: HeroDef): number => Math.max(0, def.stars - totalStars());
 
 interface Slot {
   pod: Mesh;
@@ -60,7 +67,8 @@ export class SelectScreen {
   private readonly ringOff: StandardMaterial;
   private readonly cardsEl = byId('cards');
   private readonly playBtn = byId<HTMLButtonElement>('play');
-  private index = 1;
+  private index = 0;
+  private busy = false;
   private camX = 0;
   private camDist = -CAM_Z;
   private camFocusY = 1;
@@ -173,18 +181,51 @@ export class SelectScreen {
       return;
     }
     this.ready = true;
-    this.setBusy(false);
-    this.playBtn.textContent = 'Играть';
+    this.refreshLocks();
     this.choose(this.index);
   }
 
   /** Блокирует кнопку «Играть», пока грузится герой для игровой сцены. */
   setBusy(busy: boolean): void {
-    this.playBtn.disabled = busy || !this.ready;
+    this.busy = busy;
+    this.syncPlay();
+  }
+
+  /** Звёзд стало больше: открытые герои выходят из тени, карточки и кнопка обновляются. */
+  refreshLocks(): void {
+    HEROES.forEach((h, i) => {
+      const missing = starsMissing(h);
+      const card = this.cardsEl.children[i] as HTMLElement | undefined;
+      if (card) {
+        card.classList.toggle('locked', missing > 0);
+        card.querySelector('.hero-lock')!.textContent = missing > 0 ? `★ ${h.stars} — ещё ${missing}` : '';
+      }
+      this.shade(this.slots[i].hero, missing > 0);
+    });
+    this.syncPlay();
+  }
+
+  /** Силуэт закрытого героя: альбедо в чёрный, исходный цвет хранится в metadata материала. */
+  private shade(hero: Hero | null, locked: boolean): void {
+    for (const m of hero?.meshes ?? []) {
+      const mat = m.material as PBRMaterial | null;
+      if (!mat?.albedoColor) continue;
+      const meta = (mat.metadata ??= {}) as { albedo?: Color3 };
+      meta.albedo ??= mat.albedoColor.clone();
+      mat.albedoColor.copyFrom(locked ? SILHOUETTE : meta.albedo);
+    }
+  }
+
+  private syncPlay(): void {
+    if (!this.ready) return;
+    const missing = starsMissing(this.selected);
+    this.playBtn.disabled = this.busy || missing > 0;
+    this.playBtn.textContent = missing > 0 ? `Откроется за ★ ${this.selected.stars}` : 'Играть';
   }
 
   choose(i: number): void {
     this.index = (i + HEROES.length) % HEROES.length;
+    this.syncPlay();
     [...this.cardsEl.children].forEach((b, k) => b.setAttribute('aria-pressed', String(k === this.index)));
     this.slots.forEach((s, k) => (s.ring.material = k === this.index ? this.ringOn : this.ringOff));
     // Выбранный герой здоровается
@@ -215,7 +256,7 @@ export class SelectScreen {
   }
 
   private confirm(): void {
-    if (this.ready) this.actions.onStart(this.selected);
+    if (this.ready && !starsMissing(this.selected)) this.actions.onStart(this.selected);
   }
 
   private buildCards(): void {
@@ -227,6 +268,7 @@ export class SelectScreen {
       b.id = `hero-${h.id}`;
       b.innerHTML = `<span class="hero-top"><span class="hero-name">${h.name}</span><span class="hero-key">${i + 1}</span></span>
         <span class="hero-tag">${h.tag}</span>
+        <span class="hero-lock"></span>
         <span class="stats"><span>Скорость</span>${bar(h.stats[0])}<span>Прыжок</span>${bar(h.stats[1])}</span>`;
       // Повторный клик по выбранной карточке — сразу в игру
       b.addEventListener('click', () => (this.index === i && this.ready ? this.confirm() : this.choose(i)));

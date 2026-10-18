@@ -32,24 +32,29 @@ export interface HeroDef {
   stats: [speed: number, jump: number];
   /** Откуда идёт пар на морозе: узел скелета и сколько ещё метров вперёд до кончика морды. */
   mouth: { node: string; ahead: number };
+  /** Сколько звёзд нужно, чтобы герой открылся (0 — доступен сразу). */
+  stars: number;
 }
 
 const AA = 'AnimalArmature|';
 
+/** Порядок — порядок открытия: лиса доступна сразу, остальные — за звёзды. */
 export const HEROES: readonly HeroDef[] = [
-  {
-    id: 'wolf', name: 'Волк', tag: 'Быстрый и ловкий, прыгает в галопе.', file: 'wolf.glb',
-    srcH: 2.7, height: 1.35, yaw: 0,
-    anims: { idle: AA + 'Idle', walk: AA + 'Walk', run: AA + 'Gallop', jump: AA + 'Gallop_Jump', hello: AA + 'Attack' },
-    walk: 4.4, run: 11.5, jump: 9, jumpRatio: 1.2, walkRef: 3.2, runRef: 9, stats: [4, 3],
-    mouth: { node: 'Head_end', ahead: 0.05 },
-  },
   {
     id: 'fox', name: 'Лиса', tag: 'Маленькая и самая быстрая.', file: 'fox.glb',
     srcH: 72, height: 1.0, yaw: 0,
     anims: { idle: 'Survey', walk: 'Walk', run: 'Run' },
     walk: 4.2, run: 12, jump: 9.5, walkRef: 2.6, runRef: 7, stats: [5, 4],
     mouth: { node: 'b_Head_05', ahead: 0.32 },
+    stars: 0,
+  },
+  {
+    id: 'wolf', name: 'Волк', tag: 'Быстрый и ловкий, прыгает в галопе.', file: 'wolf.glb',
+    srcH: 2.7, height: 1.35, yaw: 0,
+    anims: { idle: AA + 'Idle', walk: AA + 'Walk', run: AA + 'Gallop', jump: AA + 'Gallop_Jump', hello: AA + 'Attack' },
+    walk: 4.4, run: 11.5, jump: 9, jumpRatio: 1.2, walkRef: 3.2, runRef: 9, stats: [4, 3],
+    mouth: { node: 'Head_end', ahead: 0.05 },
+    stars: 6,
   },
   {
     id: 'stag', name: 'Олень', tag: 'Медленнее всех, зато прыгает выше всех.', file: 'stag.glb',
@@ -57,6 +62,7 @@ export const HEROES: readonly HeroDef[] = [
     anims: { idle: AA + 'Idle', walk: AA + 'Walk', run: AA + 'Gallop', jump: AA + 'Gallop_Jump', hello: AA + 'Attack_Headbutt' },
     walk: 4, run: 10, jump: 11, jumpRatio: 1.6, walkRef: 3, runRef: 8.5, stats: [3, 5],
     mouth: { node: 'Head_end', ahead: 0.05 },
+    stars: 15,
   },
 ];
 

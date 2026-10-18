@@ -59,6 +59,13 @@ export function completeLevel(index: number, star: boolean, quest: boolean, time
   save();
 }
 
+/** Всего звёзд по всем уровням: за кристаллы и за задания. */
+export function totalStars(): number {
+  let n = 0;
+  for (const r of Object.values(progress.records)) n += (r.star ? 1 : 0) + (r.quest ? 1 : 0);
+  return n;
+}
+
 export function formatTime(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);

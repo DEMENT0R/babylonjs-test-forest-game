@@ -6,7 +6,7 @@ import { Footsteps, GameAudio } from './audio';
 import { Breath } from './breath';
 import { CameraRig } from './camera';
 import { BTN, gamepad } from './gamepad';
-import { loadHero, type HeroDef } from './heroes';
+import { HEROES, loadHero, type HeroDef } from './heroes';
 import type { LevelLayout } from './levels/generator';
 import { completeLevel, formatTime, progress, setCurrentLevel } from './levels/progress';
 import { QuestMarkers } from './levels/markers';
@@ -19,7 +19,7 @@ import { say, setCrystals, setHintLevel, setLevelTitle, setQuest, setupHud, show
 import { setupFullscreen, toggleFullscreen } from './ui/fullscreen';
 import { MainMenu } from './ui/menu';
 import { activate, navigate, sendKey } from './ui/pad-nav';
-import { SelectScreen } from './ui/select';
+import { SelectScreen, starsMissing } from './ui/select';
 import { SettingsPanel } from './ui/settings-panel';
 import { isTransitioning, setTransitionText, transition } from './ui/transition';
 import { byId } from './utils';
@@ -205,7 +205,10 @@ function finishLevel(): void {
   const time = levelTime;
   const questDone = quest.passed();
   const best = progress.records[level]?.time;
+  const lockedBefore = HEROES.filter((h) => starsMissing(h) > 0);
   completeLevel(level, star, questDone, time);
+  const opened = lockedBefore.filter((h) => !starsMissing(h));
+  select.refreshLocks();
   // Рекорд сравнивается по показанным секундам, чтобы «0:42, рекорд 0:42» не звалось новым
   const timeText =
     best === undefined
@@ -230,7 +233,10 @@ function finishLevel(): void {
         sub: `Кристаллов: ${layout.crystals.length}, портал откроется после ${layout.required}. ${quest.quest.intro}: ${quest.goal.toLowerCase()}`,
       });
     },
-  ).then(() => canvas.focus());
+  ).then(() => {
+    canvas.focus();
+    if (opened.length) say(`Открыт новый герой: ${opened.map((h) => h.name).join(', ')} — смени его клавишей H`);
+  });
 }
 
 // ---------- Переходы между состояниями ----------
