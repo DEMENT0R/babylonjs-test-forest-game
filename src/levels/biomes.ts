@@ -38,6 +38,8 @@ export interface Biome {
   frost?: boolean;
   /** Ночь: ближайшие к герою кристаллы светят на округу. */
   crystalLights?: boolean;
+  /** Звёздное небо с созвездиями игрока. */
+  starSky?: boolean;
   /** Вода в низинах: наибольший уровень относительно центра, цвет и сколько озёр прокопать. */
   water?: { level: number; color: Color3; lakes: number };
 }
@@ -176,6 +178,7 @@ export const BIOMES: Record<BiomeId, Biome> = {
     surface: 'grass',
     particles: 'fireflies',
     crystalLights: true,
+    starSky: true,
   },
   lakes: {
     id: 'lakes',

@@ -8,13 +8,14 @@ import { CameraRig } from './camera';
 import { BTN, gamepad } from './gamepad';
 import { HEROES, loadHero, type HeroDef } from './heroes';
 import type { LevelLayout } from './levels/generator';
-import { completeLevel, formatTime, progress, setCurrentLevel } from './levels/progress';
+import { completeLevel, formatTime, progress, setCurrentLevel, totalStars } from './levels/progress';
 import { QuestMarkers } from './levels/markers';
 import { fitQuest, QuestRun } from './levels/quests';
 import { recipeFor } from './levels/recipes';
 import { clearInput, keys, Player, setupTouchControls } from './player';
 import { Ripples } from './ripples';
 import { applySettings, settings } from './settings';
+import { StarSky } from './starsky';
 import { say, setCrystals, setHintLevel, setLevelTitle, setQuest, setupHud, showCameraMode, tickFps } from './ui/hud';
 import { setupFullscreen, toggleFullscreen } from './ui/fullscreen';
 import { MainMenu } from './ui/menu';
@@ -49,6 +50,7 @@ const audio = new GameAudio();
 const footsteps = new Footsteps(audio, world);
 const ripples = new Ripples(world.scene);
 const breath = new Breath(world.scene);
+const starSky = new StarSky(world.scene, world.camera, world.lighting.glow);
 
 /** Текущий уровень и время, проведённое в нём (только в игре, без пауз). */
 let level = progress.current;
@@ -168,6 +170,7 @@ function beginLevel(index: number): void {
   layout = world.loadLevel(recipe);
   quest = new QuestRun(fitQuest(recipe.quest, layout), layout);
   placeMarkers();
+  starSky.show(!!layout.biome.starSky, totalStars());
   audio.setAmbience(layout.biome.ambience);
   audio.setMusic(layout.biome.id);
   wind.setScale(layout.biome.ambience.wind);
