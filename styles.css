@@ -222,6 +222,20 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump{display:no
 .level-list span{color:var(--muted);font-variant-numeric:tabular-nums}
 .level-list .star{color:var(--accent)}
 .level-list .star.off{color:var(--line)}
+.sky-summary b{color:var(--accent)}
+.sky-map{display:block;width:100%;max-width:420px;margin:10px auto 4px}
+.sky-back circle{fill:#cfdcff}
+.sky-line{stroke:rgba(190,210,255,.7);stroke-width:.55;stroke-linecap:round}
+.sky-line.part{stroke:rgba(190,210,255,.4)}
+.sky-hint{stroke:rgba(190,210,255,.3);stroke-width:.4;stroke-dasharray:1.2 1.6}
+.sky-ghost{fill:none;stroke:rgba(190,210,255,.55);stroke-width:.4}
+.sky-star{fill:#ffe7ae;filter:drop-shadow(0 0 1.6px rgba(255,214,130,.9))}
+.sky-star.new{animation:sky-light 1.2s ease-out backwards}
+.sky-name{fill:#c9d6f0;font:500 5px var(--f-mono);text-anchor:middle;opacity:.75}
+.sky-name.new{animation:sky-name 1.4s ease-out backwards;animation-delay:1s}
+@keyframes sky-light{0%{opacity:0;r:6px;fill:#fff}60%{opacity:1}100%{opacity:1}}
+@keyframes sky-name{from{opacity:0}to{opacity:.75}}
+@media (prefers-reduced-motion:reduce){.sky-star.new,.sky-name.new{animation:none}}
 @media (pointer:coarse){.level-list button{padding:12px}.info-head .small-btn{padding:8px 14px;font-size:12px}}
 
 /* Узкий или низкий экран: панель вместо меню, а не рядом */
@@ -232,7 +246,7 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump{display:no
 }
 
 /* Телефон: пункты — крупные плитки в сетке, «Играть» и «Продолжить» во всю ширину.
-   Без «Сменить героя» второстепенных пунктов нечётное число — последний тоже во всю ширину. */
+   С «Сменить героя» второстепенных пунктов нечётное число — последний тоже во всю ширину. */
 @media (max-width:760px) and (orientation:portrait),(max-height:520px) and (orientation:landscape){
   .menu-list{display:grid;grid-template-columns:1fr 1fr;gap:6px;align-items:stretch}
   .menu-list button{justify-content:center;min-height:48px;padding:10px 12px;font-size:15px;opacity:1;text-align:center;
@@ -240,7 +254,7 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump{display:no
   .menu-list button::before{display:none}
   .menu-list button:focus-visible{transform:none;border-color:var(--accent)}
   .menu-list .primary,.menu-list #m-new{grid-column:1/-1;font-size:17px}
-  .menu-list:has(#m-hero[hidden]) #m-about{grid-column:1/-1}
+  .menu-list:not(:has(#m-hero[hidden])) #m-about{grid-column:1/-1}
   .menu-list button.primary,.menu-list:has(#m-continue[hidden]) #m-new{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);min-height:54px;font-size:18px}
   .menu-list button.primary span{color:var(--accent-ink);border-color:rgba(29,22,6,.3)}
   .menu-list button.primary:focus-visible,.menu-list #m-new:focus-visible{box-shadow:0 0 0 2px var(--ink)}

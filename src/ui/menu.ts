@@ -3,9 +3,10 @@
 import { Engine } from '@babylonjs/core';
 import { CHANGELOG, hasUnseenChanges, markChangesSeen } from '../changelog';
 import { BIOMES } from '../levels/biomes';
-import { formatTime, progress as saved } from '../levels/progress';
+import { formatTime, progress as saved, totalStars } from '../levels/progress';
 import { recipeFor } from '../levels/recipes';
 import { byId } from '../utils';
+import { seenStars, skyHtml } from './sky-panel';
 
 const INFO = {
   help: `<dl>
@@ -25,11 +26,11 @@ const INFO = {
     <p>Звуки ветра, птиц и шагов синтезируются в браузере (Web Audio API).</p>
     <p>Шрифты — Unbounded и JetBrains Mono.</p>`,
 } as const;
-type InfoKey = keyof typeof INFO | 'levels' | 'changes';
+type InfoKey = keyof typeof INFO | 'levels' | 'sky' | 'changes';
 
-const TITLES: Record<InfoKey, string> = { levels: 'Уровни', help: 'Управление', changes: 'Что нового', about: 'Авторы' };
+const TITLES: Record<InfoKey, string> = { levels: 'Уровни', sky: 'Звёздное небо', help: 'Управление', changes: 'Что нового', about: 'Авторы' };
 /** Пункт меню, который открывает панель, — на него возвращается фокус при закрытии. */
-const OPENERS: Record<InfoKey, string> = { levels: 'm-levels', help: 'm-help', changes: 'm-changes', about: 'm-about' };
+const OPENERS: Record<InfoKey, string> = { levels: 'm-levels', sky: 'm-sky', help: 'm-help', changes: 'm-changes', about: 'm-about' };
 
 const dateFmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 const changesHtml = (): string =>
@@ -100,6 +101,14 @@ export class MainMenu {
       this.progressEl.innerHTML = `Уровень ${progress.level} · ${progress.heroName} · кристаллы <b>${progress.got}</b> / ${progress.total}`;
     }
     if (this.infoOpen === 'levels') this.infoBody.innerHTML = this.levelsHtml();
+    this.syncSky();
+  }
+
+  /** Число звёзд у пункта «Небо» и точка, если есть звёзды, которых игрок ещё не видел на небе. */
+  private syncSky(): void {
+    const total = totalStars();
+    byId('m-sky-count').textContent = `★ ${total}`;
+    byId('m-sky-dot').hidden = total <= seenStars();
   }
 
   focusFirst(): void {
@@ -131,8 +140,10 @@ export class MainMenu {
     this.root.classList.add('info-open');
     byId(OPENERS[key]).setAttribute('aria-expanded', 'true');
     this.infoTitle.textContent = TITLES[key];
-    this.infoBody.innerHTML = key === 'levels' ? this.levelsHtml() : key === 'changes' ? changesHtml() : INFO[key];
+    this.infoBody.innerHTML =
+      key === 'levels' ? this.levelsHtml() : key === 'sky' ? skyHtml(totalStars()) : key === 'changes' ? changesHtml() : INFO[key];
     this.infoBody.scrollTop = 0;
+    if (key === 'sky') this.syncSky();
     if (key === 'changes') {
       markChangesSeen();
       this.changesDot.hidden = true;
