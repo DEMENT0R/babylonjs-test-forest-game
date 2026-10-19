@@ -1,5 +1,5 @@
 // Главное меню в три яруса: игра (продолжить, играть, лес дня), прогресс (плитки «Уровни»,
-// «Небо», «Дневник»), служебное (настройки, в подвале — «Что нового» и «Авторы»).
+// «Небо», «Дневник»), служебное (настройки, в подвале — «Об игре»).
 // Панель справа бывает с вкладками (Q/E, на геймпаде LB/RB) — как «Дневник».
 
 import { Engine } from '@babylonjs/core';
@@ -14,21 +14,31 @@ import { copyText, dailyShareText } from '../share';
 import { JOURNAL_TABS } from './journal-panel';
 import { seenStars, skyHtml } from './sky-panel';
 
-const ABOUT = `
+const CREDITS = `
     <p>Разработка — <a href="https://github.com/DEMENT0R" target="_blank" rel="noopener">Максим Безрукавников</a>, при участии Claude (Anthropic).</p>
     <p>Движок — Babylon.js ${Engine.Version}.</p>
     <p>Волк и олень — Quaternius, Ultimate Animated Animals (CC0).</p>
     <p>Лиса — PixelMannen (CC0), риг и анимация @tomkranis (CC BY 4.0), из Khronos glTF Sample Assets.</p>
     <p>Звуки ветра, птиц и шагов синтезируются в браузере (Web Audio API).</p>
     <p>Шрифты — Unbounded и JetBrains Mono.</p>`;
+/** Начинается с описания игры из шапки меню — его там видит только тот, кто ещё не играл. */
+const howtoHtml = (): string => `
+    <p>${byId('menu-sub').textContent}</p>
+    <h5>Звёзды</h5>
+    <p>За уровень — две звезды: за все кристаллы и за задание. Звёзды открывают новых героев и окрасы и зажигают созвездия на «Небе».</p>
+    <h5>Лес дня</h5>
+    <p>Одна раскладка на день, у всех одинаковая. Лучшее время за день видно в меню, результатом можно поделиться.</p>
+    <h5>Дневник</h5>
+    <p>Достижения, редкие кристаллы, записки путника и поляна у круга, которая растёт день за днём.</p>
+    <p>Клавиши и геймпад — в настройках, во вкладке «Управление».</p>`;
 /** Вкладка панели: разметка строится заново при каждом показе. */
 export interface InfoTab { id: string; name: string; html: () => string }
 
-type InfoKey = 'levels' | 'sky' | 'journal' | 'changes' | 'about';
+type InfoKey = 'levels' | 'sky' | 'journal' | 'about';
 
-const TITLES: Record<InfoKey, string> = { levels: 'Уровни', sky: 'Звёздное небо', journal: 'Дневник', changes: 'Что нового', about: 'Авторы' };
+const TITLES: Record<InfoKey, string> = { levels: 'Уровни', sky: 'Звёздное небо', journal: 'Дневник', about: 'Об игре' };
 /** Пункт меню, который открывает панель, — на него возвращается фокус при закрытии. */
-const OPENERS: Record<InfoKey, string> = { levels: 'm-levels', sky: 'm-sky', journal: 'm-journal', changes: 'm-changes', about: 'm-about' };
+const OPENERS: Record<InfoKey, string> = { levels: 'm-levels', sky: 'm-sky', journal: 'm-journal', about: 'm-about' };
 
 const TAB_HINT = (key: string, pad: string, cls: string) =>
   `<span class="${cls}" aria-hidden="true"><kbd class="key-only">${key}</kbd><kbd class="pad-only">${pad}</kbd></span>`;
@@ -202,6 +212,8 @@ export class MainMenu {
       return;
     }
     this.closeInfo();
+    // С непрочитанными новостями «Об игре» открывается сразу на них
+    if (key === 'about' && hasUnseenChanges()) this.tabOf.about = 'changes';
     this.infoOpen = key;
     this.info.hidden = false;
     this.root.classList.add('info-open');
@@ -210,10 +222,6 @@ export class MainMenu {
     this.renderInfo();
     this.infoBody.scrollTop = 0;
     if (key === 'sky') this.syncSky();
-    if (key === 'changes') {
-      markChangesSeen();
-      this.changesDot.hidden = true;
-    }
     // Когда панель закрывает меню целиком (телефон), фокус переезжает в неё
     const target =
       key === 'levels'
@@ -231,8 +239,12 @@ export class MainMenu {
       case 'levels': return this.levelsHtml();
       case 'sky': return skyHtml(totalStars());
       case 'journal': return JOURNAL_TABS;
-      case 'changes': return changesHtml();
-      case 'about': return ABOUT;
+      case 'about':
+        return [
+          { id: 'howto', name: 'Как играть', html: howtoHtml },
+          { id: 'changes', name: 'Что нового', html: changesHtml },
+          { id: 'credits', name: 'Авторы', html: () => CREDITS },
+        ];
     }
   }
 
@@ -254,6 +266,10 @@ export class MainMenu {
     this.infoBody.setAttribute('role', 'tabpanel');
     this.infoBody.setAttribute('aria-labelledby', `info-tab-${cur.id}`);
     this.infoBody.innerHTML = cur.html();
+    if (cur.id === 'changes') {
+      markChangesSeen();
+      this.changesDot.hidden = true;
+    }
   }
 
   /** Вкладки открытой панели; null — панель без вкладок или закрыта. */
