@@ -7,6 +7,7 @@ import { Breath } from './breath';
 import { CameraRig } from './camera';
 import { BTN, gamepad } from './gamepad';
 import { HEROES, loadHero, type HeroDef } from './heroes';
+import { addShade, journal, RARE_CHANCE, SHADES } from './journal';
 import type { LevelLayout } from './levels/generator';
 import { completeDaily, completeLevel, dailyBest, formatTime, markPlayedToday, progress, setCurrentLevel, todayKey, totalStars } from './levels/progress';
 import { QuestMarkers } from './levels/markers';
@@ -59,6 +60,8 @@ let daily: string | null = null;
 let layout: LevelLayout;
 let levelTime = 0;
 let quest: QuestRun;
+/** Номер редкого кристалла на уровне; -1 — его нет. */
+let rare = -1;
 let markers: QuestMarkers | null = null;
 
 // Браузер включает звук только после действия пользователя — первый клик или клавиша
@@ -176,6 +179,8 @@ function beginLevel(index: number, dailyDate: string | null = null): void {
   const recipe = daily ? dailyRecipe(daily) : recipeFor(index);
   layout = world.loadLevel(recipe);
   quest = new QuestRun(fitQuest(recipe.quest, layout), layout);
+  rare = Math.random() < RARE_CHANCE ? Math.floor(Math.random() * world.crystals.length) : -1;
+  if (rare >= 0) world.markRare(rare, new Color3(...SHADES[layout.biome.id].color));
   placeMarkers();
   starSky.show(!!layout.biome.starSky, totalStars());
   audio.setAmbience(layout.biome.ambience);
@@ -190,6 +195,16 @@ function beginLevel(index: number, dailyDate: string | null = null): void {
   setHintLevel(level);
   updateCrystalsHud();
   updateQuestHud();
+}
+
+/** Редкий кристалл: в коллекцию оттенков дневника. */
+function foundRare(): void {
+  const biome = layout.biome.id;
+  const n = addShade(biome);
+  const shade = SHADES[biome];
+  const found = Object.values(journal.shades).filter(Boolean).length;
+  audio.chime(true);
+  say(n === 1 ? `Редкий кристалл! Новый оттенок «${shade.name}» — ${found} из ${Object.keys(SHADES).length}` : `Редкий кристалл «${shade.name}» · ×${n}`, 3000);
 }
 
 function restartLevel(): void {
@@ -479,6 +494,7 @@ world.scene.onBeforeRenderObservable.add(() => {
     } else {
       say(all ? 'Все кристаллы собраны! ★' : '+1 кристалл');
     }
+    if (got.includes(rare)) foundRare();
     updateCrystalsHud();
   }
   // После надписи о кристалле — чтобы весть о задании её перекрыла, а не наоборот

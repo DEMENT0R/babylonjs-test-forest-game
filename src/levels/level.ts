@@ -154,6 +154,16 @@ export class Level {
     }
   }
 
+  /** Сделать кристалл редким: свой цвет и чуть крупнее. */
+  makeRare(i: number, color: Color3): void {
+    const k = this.crystals[i];
+    if (!k) return;
+    const m = this.mat('crystal-rare', color);
+    m.emissiveColor = color.scale(0.75);
+    k.mesh.material = m;
+    k.mesh.scaling.set(1.3, 2.1, 1.3);
+  }
+
   /** Перенести свет на кристаллы, ближайшие к точке; свет мягко разгорается и гаснет. */
   updateCrystalLights(at: Vector3, dt: number): void {
     if (this.crystalLights.length === 0) return;

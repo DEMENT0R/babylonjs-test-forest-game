@@ -174,7 +174,7 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump{display:no
    Широкий экран: колонка слева, панель справа. Телефон в портрете: заголовок сверху,
    пункты снизу под большим пальцем. Низкий экран (телефон в ландшафте): заголовок слева,
    пункты справа в две колонки. На телефоне панель открывается вместо меню. */
-#menu{position:fixed;inset:0;display:flex;align-items:center;gap:32px;
+#menu{position:fixed;inset:0;display:flex;align-items:safe center;gap:32px;
   background:linear-gradient(90deg,rgba(9,16,14,.82) 0%,rgba(9,16,14,.55) 38%,rgba(9,16,14,0) 70%);
   padding-left:max(24px,calc(env(safe-area-inset-left,0px) + 16px));padding-right:max(16px,env(safe-area-inset-right,0px));
   padding-block:calc(24px + env(safe-area-inset-top,0px)) calc(24px + env(safe-area-inset-bottom,0px));overflow:auto}
@@ -188,7 +188,7 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump{display:no
 .menu-streak{font:600 12px var(--f-mono);color:var(--accent)}
 .menu-streak span{color:var(--muted);font-weight:400}
 .menu-list{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
-.menu-list button{background:none;border:0;padding:7px 0;font:700 clamp(18px,2.4vw,22px)/1.2 var(--f-display);color:var(--ink);cursor:pointer;display:flex;align-items:center;gap:12px;opacity:.82;text-align:left;
+.menu-list button{background:none;border:0;padding:5px 0;font:700 clamp(18px,2.4vw,22px)/1.2 var(--f-display);color:var(--ink);cursor:pointer;display:flex;align-items:center;gap:12px;opacity:.82;text-align:left;
   -webkit-tap-highlight-color:transparent;transition:opacity .15s,transform .15s,color .15s,border-color .15s}
 .menu-list button::before{content:"›";color:var(--accent);opacity:0;transition:opacity .15s}
 .menu-list button:focus-visible,.menu-list button[aria-expanded="true"]{opacity:1;color:var(--accent);outline:none}
@@ -226,6 +226,13 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump{display:no
 .level-list .star{color:var(--accent)}
 .level-list .star.off{color:var(--line)}
 .sky-summary b{color:var(--accent)}
+.menu-info .shade-list{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.menu-info .shade{display:flex;flex-direction:column;gap:2px;padding:8px 10px 8px 30px;border:1px solid var(--line);border-radius:8px;color:var(--ink)}
+.menu-info .shade::before{display:none}
+.menu-info .shade i{position:absolute;left:10px;top:11px;width:10px;height:14px;background:var(--c);clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+.menu-info .shade span{color:var(--muted);font-size:11px}
+.menu-info .shade.off{color:var(--muted)}
+.menu-info .shade.off i{background:var(--line)}
 .sky-map{display:block;width:100%;max-width:420px;margin:10px auto 4px}
 .sky-back circle{fill:#cfdcff}
 .sky-line{stroke:rgba(190,210,255,.7);stroke-width:.55;stroke-linecap:round}
@@ -257,7 +264,7 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump{display:no
   .menu-list button::before{display:none}
   .menu-list button:focus-visible{transform:none;border-color:var(--accent)}
   .menu-list .primary,.menu-list #m-new,.menu-list #m-daily{grid-column:1/-1;font-size:17px}
-  .menu-list:not(:has(#m-hero[hidden])) #m-about{grid-column:1/-1}
+  .menu-list:has(#m-hero[hidden]) #m-about{grid-column:1/-1}
   .menu-list button.primary,.menu-list:has(#m-continue[hidden]) #m-new{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);min-height:54px;font-size:18px}
   .menu-list button.primary span{color:var(--accent-ink);border-color:rgba(29,22,6,.3)}
   .menu-list button.primary:focus-visible,.menu-list #m-new:focus-visible{box-shadow:0 0 0 2px var(--ink)}

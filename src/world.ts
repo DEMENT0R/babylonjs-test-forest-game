@@ -292,6 +292,11 @@ export class World {
     return got;
   }
 
+  /** Кристалл i становится редким, цвета color. */
+  markRare(i: number, color: Color3): void {
+    this.level?.makeRare(i, color);
+  }
+
   openPortal(): void {
     this.level?.openPortal();
   }

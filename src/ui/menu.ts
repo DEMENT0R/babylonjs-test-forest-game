@@ -6,6 +6,7 @@ import { BIOMES } from '../levels/biomes';
 import { currentStreak, dailyBest, formatTime, progress as saved, todayKey, totalStars } from '../levels/progress';
 import { recipeFor } from '../levels/recipes';
 import { byId, plural } from '../utils';
+import { journalHtml } from './journal-panel';
 import { seenStars, skyHtml } from './sky-panel';
 
 const INFO = {
@@ -26,11 +27,11 @@ const INFO = {
     <p>Звуки ветра, птиц и шагов синтезируются в браузере (Web Audio API).</p>
     <p>Шрифты — Unbounded и JetBrains Mono.</p>`,
 } as const;
-type InfoKey = keyof typeof INFO | 'levels' | 'sky' | 'changes';
+type InfoKey = keyof typeof INFO | 'levels' | 'sky' | 'journal' | 'changes';
 
-const TITLES: Record<InfoKey, string> = { levels: 'Уровни', sky: 'Звёздное небо', help: 'Управление', changes: 'Что нового', about: 'Авторы' };
+const TITLES: Record<InfoKey, string> = { levels: 'Уровни', sky: 'Звёздное небо', journal: 'Дневник', help: 'Управление', changes: 'Что нового', about: 'Авторы' };
 /** Пункт меню, который открывает панель, — на него возвращается фокус при закрытии. */
-const OPENERS: Record<InfoKey, string> = { levels: 'm-levels', sky: 'm-sky', help: 'm-help', changes: 'm-changes', about: 'm-about' };
+const OPENERS: Record<InfoKey, string> = { levels: 'm-levels', sky: 'm-sky', journal: 'm-journal', help: 'm-help', changes: 'm-changes', about: 'm-about' };
 
 const dateFmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 const changesHtml = (): string =>
@@ -157,7 +158,15 @@ export class MainMenu {
     byId(OPENERS[key]).setAttribute('aria-expanded', 'true');
     this.infoTitle.textContent = TITLES[key];
     this.infoBody.innerHTML =
-      key === 'levels' ? this.levelsHtml() : key === 'sky' ? skyHtml(totalStars()) : key === 'changes' ? changesHtml() : INFO[key];
+      key === 'levels'
+        ? this.levelsHtml()
+        : key === 'sky'
+          ? skyHtml(totalStars())
+          : key === 'journal'
+            ? journalHtml()
+            : key === 'changes'
+              ? changesHtml()
+              : INFO[key];
     this.infoBody.scrollTop = 0;
     if (key === 'sky') this.syncSky();
     if (key === 'changes') {

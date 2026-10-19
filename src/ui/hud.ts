@@ -20,12 +20,12 @@ const keysEl = byId<HTMLDetailsElement>('keys');
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
 
-/** Короткая надпись посреди экрана. */
-export function say(text: string): void {
+/** Короткая надпись посреди экрана; ms — сколько она держится. */
+export function say(text: string, ms = 1600): void {
   toastEl.textContent = text;
   toastEl.style.opacity = '1';
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (toastEl.style.opacity = '0'), 1600);
+  toastTimer = setTimeout(() => (toastEl.style.opacity = '0'), ms);
 }
 
 /** Счёт кристаллов и подсказка, сколько нужно до портала. */
