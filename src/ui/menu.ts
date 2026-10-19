@@ -1,16 +1,17 @@
 // Главное меню в три яруса: игра (продолжить, играть, лес дня), прогресс (плитки «Уровни»,
 // «Небо», «Дневник»), служебное (настройки, в подвале — «Что нового» и «Авторы»).
+// Панель справа бывает с вкладками (Q/E, на геймпаде LB/RB) — как «Дневник».
 
 import { Engine } from '@babylonjs/core';
+import { ACHIEVEMENTS, isDone } from '../achievements';
 import { CHANGELOG, hasUnseenChanges, markChangesSeen } from '../changelog';
 import { BIOMES } from '../levels/biomes';
 import { currentStreak, dailyBest, formatTime, progress as saved, todayKey, totalStars } from '../levels/progress';
 import { recipeFor } from '../levels/recipes';
 import { byId, plural } from '../utils';
-import { journal, NOTES } from '../journal';
 import { growGarden, welcomeNote } from '../journal';
 import { copyText, dailyShareText } from '../share';
-import { journalHtml } from './journal-panel';
+import { JOURNAL_TABS } from './journal-panel';
 import { seenStars, skyHtml } from './sky-panel';
 
 const ABOUT = `
@@ -20,11 +21,17 @@ const ABOUT = `
     <p>Лиса — PixelMannen (CC0), риг и анимация @tomkranis (CC BY 4.0), из Khronos glTF Sample Assets.</p>
     <p>Звуки ветра, птиц и шагов синтезируются в браузере (Web Audio API).</p>
     <p>Шрифты — Unbounded и JetBrains Mono.</p>`;
+/** Вкладка панели: разметка строится заново при каждом показе. */
+export interface InfoTab { id: string; name: string; html: () => string }
+
 type InfoKey = 'levels' | 'sky' | 'journal' | 'changes' | 'about';
 
 const TITLES: Record<InfoKey, string> = { levels: 'Уровни', sky: 'Звёздное небо', journal: 'Дневник', changes: 'Что нового', about: 'Авторы' };
 /** Пункт меню, который открывает панель, — на него возвращается фокус при закрытии. */
 const OPENERS: Record<InfoKey, string> = { levels: 'm-levels', sky: 'm-sky', journal: 'm-journal', changes: 'm-changes', about: 'm-about' };
+
+const TAB_HINT = (key: string, pad: string, cls: string) =>
+  `<span class="${cls}" aria-hidden="true"><kbd class="key-only">${key}</kbd><kbd class="pad-only">${pad}</kbd></span>`;
 
 const SHARE_LABEL = 'Поделиться результатом дня ⧉';
 
@@ -55,6 +62,7 @@ export class MainMenu {
   private readonly info = byId('menu-info');
   private readonly infoTitle = byId('menu-info-title');
   private readonly infoBody = byId('menu-info-body');
+  private readonly infoTabs = byId('menu-info-tabs');
   private readonly progressEl = byId('menu-progress');
   private readonly btnContinue = byId('m-continue');
   private readonly btnHero = byId('m-hero');
@@ -62,6 +70,8 @@ export class MainMenu {
   private readonly btnSettings = byId('m-settings');
   private readonly changesDot = byId('m-changes-dot');
   private infoOpen: InfoKey | null = null;
+  /** Последняя открытая вкладка каждой панели — пока страница не перезагружена. */
+  private readonly tabOf: Partial<Record<InfoKey, string>> = {};
 
   constructor(actions: MenuActions) {
     this.btnContinue.addEventListener('click', actions.onContinue);
@@ -80,6 +90,10 @@ export class MainMenu {
       byId(OPENERS[key]).addEventListener('click', () => this.toggleInfo(key));
     }
     byId('menu-info-close').addEventListener('click', () => this.closeInfo(true));
+    this.infoTabs.addEventListener('click', (e) => {
+      const t = (e.target as HTMLElement).closest<HTMLElement>('[data-tab]');
+      if (t) this.selectTab(t.dataset.tab!, true);
+    });
     this.infoBody.addEventListener('click', (e) => {
       const b = (e.target as HTMLElement).closest<HTMLElement>('[data-level]');
       if (!b) return;
@@ -109,8 +123,8 @@ export class MainMenu {
     // Описание игры нужно только тому, кто ещё не играл
     byId('menu-sub').hidden = started || Object.keys(saved.records).length > 0;
     byId('m-levels-count').textContent = `открыто ${saved.unlocked}`;
-    byId('m-journal-count').textContent = `записки ${journal.notes}/${NOTES.length}`;
-    if (this.infoOpen === 'levels') this.infoBody.innerHTML = this.levelsHtml();
+    byId('m-journal-count').textContent = `🏅 ${ACHIEVEMENTS.filter(isDone).length}/${ACHIEVEMENTS.length}`;
+    if (this.infoOpen === 'levels') this.renderInfo();
     this.syncSky();
     const best = dailyBest(todayKey());
     byId('m-daily-best').textContent = best === undefined ? 'новый' : `рекорд ${formatTime(best)}`;
@@ -176,16 +190,7 @@ export class MainMenu {
     this.root.classList.add('info-open');
     byId(OPENERS[key]).setAttribute('aria-expanded', 'true');
     this.infoTitle.textContent = TITLES[key];
-    this.infoBody.innerHTML =
-      key === 'levels'
-        ? this.levelsHtml()
-        : key === 'sky'
-          ? skyHtml(totalStars())
-          : key === 'journal'
-            ? journalHtml()
-            : key === 'changes'
-              ? changesHtml()
-              : ABOUT;
+    this.renderInfo();
     this.infoBody.scrollTop = 0;
     if (key === 'sky') this.syncSky();
     if (key === 'changes') {
@@ -201,6 +206,60 @@ export class MainMenu {
           : null;
     target?.focus();
     target?.scrollIntoView({ block: 'nearest' });
+  }
+
+  /** Содержимое панели: одна страница или вкладки. */
+  private content(key: InfoKey): string | InfoTab[] {
+    switch (key) {
+      case 'levels': return this.levelsHtml();
+      case 'sky': return skyHtml(totalStars());
+      case 'journal': return JOURNAL_TABS;
+      case 'changes': return changesHtml();
+      case 'about': return ABOUT;
+    }
+  }
+
+  private renderInfo(): void {
+    const key = this.infoOpen!;
+    const c = this.content(key);
+    this.infoTabs.hidden = typeof c === 'string';
+    if (typeof c === 'string') {
+      this.infoBody.removeAttribute('role');
+      this.infoBody.removeAttribute('aria-labelledby');
+      this.infoBody.innerHTML = c;
+      return;
+    }
+    const cur = c.find((t) => t.id === this.tabOf[key]) ?? c[0];
+    this.tabOf[key] = cur.id;
+    const tab = (t: InfoTab) =>
+      `<button type="button" role="tab" id="info-tab-${t.id}" data-tab="${t.id}" aria-controls="menu-info-body" aria-selected="${t === cur}" tabindex="${t === cur ? 0 : -1}">${t.name}</button>`;
+    this.infoTabs.innerHTML = TAB_HINT('Q', 'LB', 'hint-l') + c.map(tab).join('') + TAB_HINT('E', 'RB', 'hint-r');
+    this.infoBody.setAttribute('role', 'tabpanel');
+    this.infoBody.setAttribute('aria-labelledby', `info-tab-${cur.id}`);
+    this.infoBody.innerHTML = cur.html();
+  }
+
+  /** Вкладки открытой панели; null — панель без вкладок или закрыта. */
+  private tabs(): InfoTab[] | null {
+    const c = this.infoOpen && this.content(this.infoOpen);
+    return Array.isArray(c) ? c : null;
+  }
+
+  /** focus — перевести фокус на выбранную вкладку (выбрали её с клавиатуры или геймпада). */
+  private selectTab(id: string, focus = false): void {
+    if (!this.infoOpen) return;
+    this.tabOf[this.infoOpen] = id;
+    this.renderInfo();
+    this.infoBody.scrollTop = 0;
+    if (focus) byId(`info-tab-${id}`).focus();
+  }
+
+  /** Соседняя вкладка открытой панели по кругу; у панели без вкладок — ничего. */
+  switchTab(delta: number): void {
+    const tabs = this.tabs();
+    if (!tabs) return;
+    const i = tabs.findIndex((t) => t.id === this.tabOf[this.infoOpen!]);
+    this.selectTab(tabs[(i + delta + tabs.length) % tabs.length].id, true);
   }
 
   /** Панель поверх меню, а не рядом с ним — так её раскладывают стили на узком экране. */
@@ -232,6 +291,12 @@ export class MainMenu {
       this.closeInfo(true);
       return true;
     }
+    const onTab = (document.activeElement as HTMLElement | null)?.getAttribute('role') === 'tab';
+    if ((e.code === 'KeyQ' || e.code === 'KeyE' || (onTab && (e.code === 'ArrowLeft' || e.code === 'ArrowRight'))) && this.tabs()) {
+      e.preventDefault();
+      this.switchTab(e.code === 'KeyQ' || e.code === 'ArrowLeft' ? -1 : 1);
+      return true;
+    }
     // Влево-вправо — только по соседним плиткам или ссылкам в одном ряду
     if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
       const row = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>('.menu-tiles, .menu-foot');
@@ -246,7 +311,7 @@ export class MainMenu {
     e.preventDefault();
     const inInfo = this.info.contains(document.activeElement);
     const scope = inInfo ? this.info : this.root.querySelector<HTMLElement>('.menu-col')!;
-    const items = [...scope.querySelectorAll<HTMLElement>('button')].filter((b) => b.getClientRects().length > 0);
+    const items = [...scope.querySelectorAll<HTMLElement>('button')].filter((b) => b.tabIndex >= 0 && b.getClientRects().length > 0);
     const i = items.indexOf(document.activeElement as HTMLElement);
     const step = e.code === 'ArrowDown' ? 1 : -1;
     const next = items[i < 0 ? 0 : (i + step + items.length) % items.length];

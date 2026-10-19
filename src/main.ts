@@ -580,6 +580,9 @@ function handleGamepad(): void {
   if (settingsPanel.isOpen) {
     if (gamepad.pressed(BTN.LB)) settingsPanel.switchTab(-1);
     if (gamepad.pressed(BTN.RB)) settingsPanel.switchTab(1);
+  } else if (state === 'menu') {
+    if (gamepad.pressed(BTN.LB)) menu.switchTab(-1);
+    if (gamepad.pressed(BTN.RB)) menu.switchTab(1);
   }
   if (gamepad.pressed(BTN.A)) {
     // На выборе героя A играет выбранным героем, если фокус не на кнопках внизу

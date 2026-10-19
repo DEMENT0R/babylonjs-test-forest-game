@@ -1,4 +1,4 @@
-// Панель «Дневник» в главном меню: что игрок нашёл в лесу.
+// Панель «Дневник» в главном меню: что игрок нашёл в лесу, по вкладкам.
 
 import { ACHIEVEMENTS, isDone, progressText } from '../achievements';
 import { journal, NOTES, SHADES } from '../journal';
@@ -6,6 +6,7 @@ import { BIOMES, type BiomeId } from '../levels/biomes';
 import { DECOR } from '../levels/decor';
 import { daysPlayed } from '../levels/progress';
 import { plural } from '../utils';
+import type { InfoTab } from './menu';
 
 const rgb = ([r, g, b]: readonly number[]) => `rgb(${r * 255} ${g * 255} ${b * 255})`;
 
@@ -37,7 +38,7 @@ function statsHtml(): string {
   const h = Math.floor(s.time / 3600), m = Math.floor((s.time % 3600) / 60);
   const time = h ? `${h} ч ${m} мин` : `${m} мин`;
   const n = (v: number) => Math.round(v).toLocaleString('ru-RU');
-  return `<h5>В пути</h5><dl>
+  return `<dl>
     <dt>Пройдено</dt><dd>${km}</dd>
     <dt>В лесу</dt><dd>${time}</dd>
     <dt>Прыжков</dt><dd>${n(s.jumps)}</dd>
@@ -69,6 +70,9 @@ function achievementsHtml(): string {
     <ul class="badge-list">${[...done.map((a) => row(a, true)), ...rest.map((a) => row(a, false))].join('')}</ul>`;
 }
 
-export function journalHtml(): string {
-  return statsHtml() + achievementsHtml() + clearingHtml() + shadesHtml() + notesHtml();
-}
+export const JOURNAL_TABS: InfoTab[] = [
+  { id: 'achievements', name: 'Достижения', html: achievementsHtml },
+  { id: 'finds', name: 'Находки', html: () => shadesHtml() + notesHtml() },
+  { id: 'clearing', name: 'Поляна', html: clearingHtml },
+  { id: 'stats', name: 'В пути', html: statsHtml },
+];
