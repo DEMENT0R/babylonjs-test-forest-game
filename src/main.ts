@@ -79,6 +79,10 @@ let levelTime = 0;
 let quest: QuestRun;
 /** Номер редкого кристалла на уровне; -1 — его нет. */
 let rare = -1;
+/** Серия быстрых сборов: сколько кристаллов подряд и когда взят последний (по времени уровня). */
+const COMBO_WINDOW = 3;
+let combo = 0;
+let lastCrystalAt = -Infinity;
 /** Оттенки кристаллов сада на этом уровне, по номерам. */
 let gardenShades: BiomeId[] = [];
 let markers: QuestMarkers | null = null;
@@ -218,6 +222,8 @@ function beginLevel(index: number, dailyDate: string | null = null): void {
   footsteps.reset();
   ripples.clear();
   levelTime = 0;
+  combo = 0;
+  lastCrystalAt = -Infinity;
   setLevelTitle(currentLabel());
   setHintLevel(level);
   updateCrystalsHud();
@@ -620,13 +626,15 @@ world.scene.onBeforeRenderObservable.add(() => {
   if (got.length > 0) {
     journal.stats.crystals += got.length;
     const all = world.collected === world.crystals.length;
-    audio.chime(all);
+    combo = levelTime - lastCrystalAt < COMBO_WINDOW ? combo + got.length : got.length;
+    lastCrystalAt = levelTime;
+    audio.chime(all, combo - 1);
     if (!world.portalOpen && world.collected >= layout.required) {
       world.openPortal();
       audio.portalOpen();
       say(all ? 'Все кристаллы! ★ Портал открыт' : 'Портал открыт — он в каменном круге');
     } else {
-      say(all ? 'Все кристаллы собраны! ★' : '+1 кристалл');
+      say(all ? 'Все кристаллы собраны! ★' : combo > 1 ? `+1 кристалл · серия ×${combo}` : '+1 кристалл');
     }
     if (got.includes(rare)) foundRare();
     updateCrystalsHud();

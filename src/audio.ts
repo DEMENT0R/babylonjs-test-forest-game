@@ -12,6 +12,8 @@ import type { Surface, World } from './world';
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const pick = <T>(xs: readonly T[]): T => xs[(Math.random() * xs.length) | 0];
+/** Полутоны пентатоники — по ним поднимается звон серии кристаллов. */
+const PENTATONIC = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21];
 
 // ---------- Буферы шума и реверберация ----------
 
@@ -434,13 +436,17 @@ export class GameAudio {
     return out;
   }
 
-  /** Звон подобранного кристалла; последний — коротким арпеджио. */
-  chime(last = false): void {
+  /**
+   * Звон подобранного кристалла; последний — коротким арпеджио.
+   * step — номер в серии быстрых сборов: каждый следующий звучит на ступень пентатоники выше.
+   */
+  chime(last = false, step = 0): void {
     if (!this.ac || !settings.sound) return;
     const out = this.sfxOut();
     const t = this.ac.currentTime + 0.01;
+    const k = 2 ** (PENTATONIC[Math.min(step, PENTATONIC.length - 1)] / 12);
     const notes = last ? [1047, 1319, 1568, 2093] : [1319, 1976];
-    notes.forEach((f, i) => this.note(out, t + i * 0.07, f, f, 0.35, 0.5, 'sine'));
+    notes.forEach((f, i) => this.note(out, t + i * 0.07, f * k, f * k, 0.35, 0.5, 'sine'));
   }
 
   /** Портал открылся: восходящий аккорд. */
