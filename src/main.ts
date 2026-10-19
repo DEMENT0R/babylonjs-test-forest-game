@@ -209,6 +209,23 @@ function pickLevel(index: number, dailyDate: string | null = null): void {
   }
 }
 
+/**
+ * «Почти!» на экране итога: рекорд, упущенный на считаные секунды, или сколько звёзд
+ * осталось до следующего героя — то, ради чего хочется сыграть ещё раз.
+ */
+function almost(time: number, best: number | undefined, opened: readonly HeroDef[]): string[] {
+  const out: string[] = [];
+  if (opened.length) out.push(`Открыт новый герой: ${opened.map((h) => h.name).join(', ')}`);
+  const behind = best === undefined ? 0 : Math.floor(time) - Math.floor(best);
+  if (behind > 0 && behind <= 15) out.push(`Почти! До рекорда не хватило ${behind} ${plural(behind, 'секунды', 'секунд', 'секунд')}`);
+  const hero = HEROES.find((h) => starsMissing(h) > 0);
+  if (hero && !daily) {
+    const n = starsMissing(hero);
+    out.push(`Ещё ${n} ★ — и откроется ${hero.name.toLowerCase()}`);
+  }
+  return out;
+}
+
 /** Время на экране итога; рекорд сравнивается по показанным секундам, чтобы «0:42, рекорд 0:42» не звалось новым. */
 function timeText(time: number, best: number | undefined): string {
   if (best === undefined) return formatTime(time);
@@ -223,14 +240,15 @@ function finishLevel(): void {
   const time = levelTime;
   let eyebrow: string;
   let opened: HeroDef[] = [];
+  let best: number | undefined;
   if (daily) {
-    const best = dailyBest(daily);
+    best = dailyBest(daily);
     completeDaily(daily, time);
     eyebrow = `Лес дня пройден · ${timeText(time, best)}`;
   } else {
     const star = world.collected === world.crystals.length;
     const questDone = quest.passed();
-    const best = progress.records[level]?.time;
+    best = progress.records[level]?.time;
     const lockedBefore = HEROES.filter((h) => starsMissing(h) > 0);
     completeLevel(level, star, questDone, time);
     opened = lockedBefore.filter((h) => !starsMissing(h));
@@ -241,6 +259,7 @@ function finishLevel(): void {
   const notes: string[] = [];
   if (streak === 1) notes.push('🔥 Серия началась — загляни в лес и завтра');
   else if (streak) notes.push(`🔥 ${streak} ${plural(streak, 'день', 'дня', 'дней')} подряд!`);
+  notes.push(...almost(time, best, opened));
   audio.portalEnter();
   rig.releaseLock();
   clearInput();
