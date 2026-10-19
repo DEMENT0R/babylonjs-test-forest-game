@@ -247,6 +247,15 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump{display:no
 .level-list .star{color:var(--accent)}
 .level-list .star.off{color:var(--line)}
 .sky-summary b{color:var(--accent)}
+.menu-info .badge-list{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.menu-info .badge{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border:1px solid var(--accent);border-radius:8px;color:var(--ink);overflow:hidden}
+.menu-info .badge::before{display:none}
+.menu-info .badge b{font-weight:600}
+.menu-info .badge span{color:var(--muted);font-size:11px}
+.menu-info .badge.off{border-color:var(--line)}
+.menu-info .badge.off b{color:var(--muted)}
+.menu-info .badge i{height:3px;border-radius:2px;margin-top:4px;background:linear-gradient(90deg,var(--accent) calc(var(--k)*100%),var(--line) 0)}
+@media (max-width:420px){.menu-info .badge-list{grid-template-columns:1fr}}
 .menu-info .shade-list{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .menu-info .shade{display:flex;flex-direction:column;gap:2px;padding:8px 10px 8px 30px;border:1px solid var(--line);border-radius:8px;color:var(--ink)}
 .menu-info .shade::before{display:none}

@@ -46,6 +46,8 @@ export interface Stats {
   levels: number;
   /** Время в лесу, с. */
   time: number;
+  /** Самая длинная серия быстро собранных кристаллов. */
+  bestCombo: number;
 }
 
 /** Сад у каменного круга: кристалл вырастает раз в GARDEN_GROW_MS реального времени, не больше GARDEN_CAP. */
@@ -62,9 +64,11 @@ interface Journal {
   garden: { since: number; ready: number };
   /** Когда игра последний раз сохраняла дневник, мс — по нему видно, долго ли игрока не было. */
   seen?: number;
+  /** Заработанные достижения (id). */
+  badges: string[];
 }
 
-const emptyStats = (): Stats => ({ distance: 0, jumps: 0, crystals: 0, levels: 0, time: 0 });
+const emptyStats = (): Stats => ({ distance: 0, jumps: 0, crystals: 0, levels: 0, time: 0, bestCombo: 0 });
 
 const KEY = 'tihaya-polyana-journal';
 
@@ -78,12 +82,13 @@ function load(): Journal {
         stats: { ...emptyStats(), ...j.stats },
         garden: j.garden ?? { since: Date.now(), ready: 0 },
         seen: j.seen,
+        badges: Array.isArray(j.badges) ? j.badges : [],
       };
     }
   } catch {
     // Повреждённые данные — дневник начинается заново
   }
-  return { shades: {}, notes: 0, stats: emptyStats(), garden: { since: Date.now(), ready: 0 } };
+  return { shades: {}, notes: 0, stats: emptyStats(), garden: { since: Date.now(), ready: 0 }, badges: [] };
 }
 
 export const journal: Journal = load();

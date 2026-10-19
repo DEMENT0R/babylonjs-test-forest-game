@@ -4,6 +4,7 @@
 import { Color3, Engine, Vector3 } from '@babylonjs/core';
 import { Footsteps, GameAudio } from './audio';
 import { Breath } from './breath';
+import { checkAchievements } from './achievements';
 import { CameraRig } from './camera';
 import { skyFor } from './constellations';
 import { BTN, gamepad } from './gamepad';
@@ -401,6 +402,8 @@ function finishLevel(): void {
   if (newCoat) notes.push(`Открыт окрас «${newCoat}» — выбери его на экране героя`);
   notes.push(...almost(time, best, opened));
   if (daily) notes.push('Результатом можно поделиться — кнопка в меню под «Лесом дня»');
+  // Достижения — первыми: это самое редкое, что бывает на экране итога
+  notes.unshift(...checkAchievements().map((a) => `🏅 Достижение: «${a.name}» — ${a.desc[0].toLowerCase()}${a.desc.slice(1)}`));
   audio.portalEnter();
   rig.releaseLock();
   clearInput();
@@ -461,6 +464,9 @@ function openMenu(): void {
   clearInput();
   rig.beginMenuOrbit(gameStarted ? player.pos : new Vector3(layout.spawn.x, world.terrainAt(layout.spawn.x, layout.spawn.z), layout.spawn.z));
   saveJournal();
+  // Достижения за то, что случилось посреди уровня: сад, записки, километры
+  const fresh = checkAchievements();
+  if (fresh.length) say(`🏅 Достижение: «${fresh.map((a) => a.name).join('», «')}»`, 3500);
   setState('menu');
   menu.update(
     gameStarted && player.hero
@@ -628,6 +634,7 @@ world.scene.onBeforeRenderObservable.add(() => {
     const all = world.collected === world.crystals.length;
     combo = levelTime - lastCrystalAt < COMBO_WINDOW ? combo + got.length : got.length;
     lastCrystalAt = levelTime;
+    journal.stats.bestCombo = Math.max(journal.stats.bestCombo, combo);
     audio.chime(all, combo - 1);
     if (!world.portalOpen && world.collected >= layout.required) {
       world.openPortal();

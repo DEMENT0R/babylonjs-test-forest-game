@@ -1,5 +1,6 @@
 // Панель «Дневник» в главном меню: что игрок нашёл в лесу.
 
+import { ACHIEVEMENTS, isDone, progressText } from '../achievements';
 import { journal, NOTES, SHADES } from '../journal';
 import { BIOMES, type BiomeId } from '../levels/biomes';
 import { DECOR } from '../levels/decor';
@@ -53,6 +54,21 @@ function clearingHtml(): string {
     ${next ? '<p>Что будет дальше — увидишь завтра.</p>' : '<p>Поляна расцвела целиком.</p>'}`;
 }
 
+/** Достижения: заработанные сверху, у остальных — прогресс полоской. */
+function achievementsHtml(): string {
+  const done = ACHIEVEMENTS.filter(isDone);
+  const rest = ACHIEVEMENTS.filter((a) => !isDone(a));
+  const row = (a: (typeof ACHIEVEMENTS)[number], got: boolean) => {
+    const [cur, goal] = a.progress();
+    const k = Math.min(1, cur / goal);
+    return `<li class="badge${got ? '' : ' off'}"><b>${got ? '🏅' : '○'} ${a.name}</b><span>${a.desc}${got ? '' : ` · ${progressText(a)}`}</span>${
+      got ? '' : `<i style="--k:${k.toFixed(3)}"></i>`
+    }</li>`;
+  };
+  return `<h5>Достижения · ${done.length} из ${ACHIEVEMENTS.length}</h5>
+    <ul class="badge-list">${[...done.map((a) => row(a, true)), ...rest.map((a) => row(a, false))].join('')}</ul>`;
+}
+
 export function journalHtml(): string {
-  return statsHtml() + clearingHtml() + shadesHtml() + notesHtml();
+  return statsHtml() + achievementsHtml() + clearingHtml() + shadesHtml() + notesHtml();
 }
