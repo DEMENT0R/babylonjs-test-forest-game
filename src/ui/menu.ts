@@ -90,6 +90,10 @@ export class MainMenu {
       byId(OPENERS[key]).addEventListener('click', () => this.toggleInfo(key));
     }
     byId('menu-info-close').addEventListener('click', () => this.closeInfo(true));
+    byId('menu-news').addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-tab]');
+      if (b) this.openTab('journal', b.dataset.tab!);
+    });
     this.infoTabs.addEventListener('click', (e) => {
       const t = (e.target as HTMLElement).closest<HTMLElement>('[data-tab]');
       if (t) this.selectTab(t.dataset.tab!, true);
@@ -129,12 +133,7 @@ export class MainMenu {
     const best = dailyBest(todayKey());
     byId('m-daily-best').textContent = best === undefined ? 'новый' : `рекорд ${formatTime(best)}`;
     byId('m-daily-share').hidden = best === undefined;
-    this.syncStreak();
-    const ready = growGarden();
-    byId('menu-letter').hidden = !welcomeNote;
-    const garden = byId('menu-garden');
-    garden.hidden = ready === 0;
-    garden.textContent = `✦ В саду у каменного круга ${plural(ready, 'вырос', 'выросло', 'выросло')} ${ready} ${plural(ready, 'кристалл', 'кристалла', 'кристаллов')}`;
+    this.syncNews();
   }
 
   /** Копирует результат Леса дня для чата; отклик — на самой кнопке. */
@@ -146,12 +145,30 @@ export class MainMenu {
     setTimeout(() => (btn.textContent = SHARE_LABEL), 2500);
   }
 
-  /** Огонёк серии: сколько дней подряд пройден уровень; если сегодня ещё нет — напоминание. */
-  private syncStreak(): void {
-    const el = byId('menu-streak');
+  /**
+   * Новости в шапке, важное сверху: записка у круга и сад (ведут в «Находки» дневника),
+   * огонёк серии — сколько дней подряд пройден уровень, и напоминание, если сегодня ещё нет.
+   */
+  private syncNews(): void {
+    const items: string[] = [];
+    const link = (tab: string, html: string) => `<li><button type="button" class="link" data-tab="${tab}">${html}</button></li>`;
+    if (welcomeNote) items.push(link('finds', '✉ Пока тебя не было, у каменного круга оставили записку'));
+    const ready = growGarden();
+    if (ready) {
+      items.push(link('finds', `✦ В саду у каменного круга ${plural(ready, 'вырос', 'выросло', 'выросло')} ${ready} ${plural(ready, 'кристалл', 'кристалла', 'кристаллов')}`));
+    }
     const { days, today } = currentStreak();
-    el.hidden = days === 0;
-    el.innerHTML = `🔥 ${days} ${plural(days, 'день', 'дня', 'дней')} подряд${today ? '' : ' <span>· пройди уровень сегодня, чтобы не прервать</span>'}`;
+    if (days) items.push(`<li>🔥 ${days} ${plural(days, 'день', 'дня', 'дней')} подряд${today ? '' : ' <span>· пройди уровень сегодня, чтобы не прервать</span>'}</li>`);
+    const el = byId('menu-news');
+    el.hidden = !items.length;
+    el.innerHTML = items.join('');
+  }
+
+  /** Открыть панель сразу на нужной вкладке (или переключить вкладку уже открытой). */
+  private openTab(key: InfoKey, tab: string): void {
+    this.tabOf[key] = tab;
+    if (this.infoOpen === key) this.selectTab(tab);
+    else this.toggleInfo(key);
   }
 
   /** Число звёзд у пункта «Небо» и точка, если есть звёзды, которых игрок ещё не видел на небе. */
