@@ -5,6 +5,7 @@ import { Color3, Engine, Vector3 } from '@babylonjs/core';
 import { Footsteps, GameAudio } from './audio';
 import { Breath } from './breath';
 import { CameraRig } from './camera';
+import { skyFor } from './constellations';
 import { BTN, gamepad } from './gamepad';
 import { HEROES, loadHero, type HeroDef } from './heroes';
 import { addNote, addShade, journal, NOTE_CHANCE, NOTES, RARE_CHANCE, SHADES } from './journal';
@@ -260,6 +261,10 @@ function almost(time: number, best: number | undefined, opened: readonly HeroDef
     const n = starsMissing(hero);
     out.push(`Ещё ${n} ★ — и откроется ${hero.name.toLowerCase()}`);
   }
+  const next = skyFor(totalStars()).next;
+  if (next && !daily && next.left <= 3 && (!hero || starsMissing(hero) > next.left)) {
+    out.push(`Ещё ${next.left} ★ до созвездия «${next.c.name}»`);
+  }
   return out;
 }
 
@@ -278,6 +283,8 @@ function finishLevel(): void {
   let eyebrow: string;
   let opened: HeroDef[] = [];
   let best: number | undefined;
+  /** Созвездие, которое собралось целиком на этом уровне. */
+  let constellation: string | null = null;
   if (daily) {
     best = dailyBest(daily);
     completeDaily(daily, time);
@@ -287,7 +294,10 @@ function finishLevel(): void {
     const questDone = quest.passed();
     best = progress.records[level]?.time;
     const lockedBefore = HEROES.filter((h) => starsMissing(h) > 0);
+    const skyBefore = skyFor(totalStars()).done;
     completeLevel(level, star, questDone, time);
+    const sky = skyFor(totalStars());
+    if (sky.done > skyBefore) constellation = sky.lit[sky.done - 1].c.name;
     opened = lockedBefore.filter((h) => !starsMissing(h));
     select.refreshLocks();
     eyebrow = `Уровень ${level} пройден · ${timeText(time, best)}${star ? ' · ★ все кристаллы' : ''}${questDone ? ' · ★ задание' : ''}`;
@@ -296,6 +306,7 @@ function finishLevel(): void {
   const notes: string[] = [];
   if (streak === 1) notes.push('🔥 Серия началась — загляни в лес и завтра');
   else if (streak) notes.push(`🔥 ${streak} ${plural(streak, 'день', 'дня', 'дней')} подряд!`);
+  if (constellation) notes.push(`✦ Новое созвездие на небе: «${constellation}»`);
   notes.push(...almost(time, best, opened));
   audio.portalEnter();
   rig.releaseLock();
@@ -313,6 +324,7 @@ function finishLevel(): void {
   ).then(() => {
     canvas.focus();
     if (opened.length) say(`Открыт новый герой: ${opened.map((h) => h.name).join(', ')} — смени его клавишей H`);
+    else if (constellation) say(`✦ Созвездие «${constellation}» — посмотри в меню «Небо»`, 3000);
   });
 }
 
