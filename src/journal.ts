@@ -48,12 +48,18 @@ export interface Stats {
   time: number;
 }
 
+/** Сад у каменного круга: кристалл вырастает раз в GARDEN_GROW_MS реального времени, не больше GARDEN_CAP. */
+export const GARDEN_CAP = 3;
+export const GARDEN_GROW_MS = 3 * 3600_000;
+
 interface Journal {
   /** Сколько редких кристаллов найдено в каждом биоме. */
   shades: Partial<Record<BiomeId, number>>;
   /** Сколько записок найдено — они идут по порядку. */
   notes: number;
   stats: Stats;
+  /** Сад: с какого момента растёт следующий кристалл (мс) и сколько уже выросло. */
+  garden: { since: number; ready: number };
 }
 
 const emptyStats = (): Stats => ({ distance: 0, jumps: 0, crystals: 0, levels: 0, time: 0 });
@@ -64,12 +70,17 @@ function load(): Journal {
   try {
     const j = JSON.parse(localStorage.getItem(KEY) ?? 'null') as Partial<Journal> | null;
     if (j && typeof j === 'object') {
-      return { shades: j.shades ?? {}, notes: Math.min(NOTES.length, j.notes ?? 0), stats: { ...emptyStats(), ...j.stats } };
+      return {
+        shades: j.shades ?? {},
+        notes: Math.min(NOTES.length, j.notes ?? 0),
+        stats: { ...emptyStats(), ...j.stats },
+        garden: j.garden ?? { since: Date.now(), ready: 0 },
+      };
     }
   } catch {
     // Повреждённые данные — дневник начинается заново
   }
-  return { shades: {}, notes: 0, stats: emptyStats() };
+  return { shades: {}, notes: 0, stats: emptyStats(), garden: { since: Date.now(), ready: 0 } };
 }
 
 export const journal: Journal = load();
@@ -81,6 +92,42 @@ export function save(): void {
   } catch {
     // Хранилище недоступно — находки проживут до перезагрузки
   }
+}
+
+/** Досчитать, что выросло в саду с прошлого раза; возвращает, сколько кристаллов ждёт. */
+export function growGarden(): number {
+  const g = journal.garden;
+  const now = Date.now();
+  // Полный сад не растёт: отсчёт следующего кристалла начнётся, когда его соберут
+  if (g.ready >= GARDEN_CAP) {
+    g.since = now;
+    return g.ready;
+  }
+  const grown = Math.floor((now - g.since) / GARDEN_GROW_MS);
+  if (grown > 0) {
+    g.ready = Math.min(GARDEN_CAP, g.ready + grown);
+    g.since = g.ready >= GARDEN_CAP ? now : g.since + grown * GARDEN_GROW_MS;
+    save();
+  }
+  return g.ready;
+}
+
+export function harvestGarden(): void {
+  const g = journal.garden;
+  if (g.ready >= GARDEN_CAP) g.since = Date.now();
+  g.ready = Math.max(0, g.ready - 1);
+  save();
+}
+
+/**
+ * Оттенок для кристалла из сада: чаще — из тех, что ещё не найдены,
+ * чтобы сад помогал собрать коллекцию.
+ */
+export function gardenShade(): BiomeId {
+  const ids = Object.keys(SHADES) as BiomeId[];
+  const missing = ids.filter((id) => !journal.shades[id]);
+  const pool = missing.length && Math.random() < 0.6 ? missing : ids;
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 /** Записка найдена; возвращает её текст. */

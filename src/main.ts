@@ -8,7 +8,20 @@ import { CameraRig } from './camera';
 import { skyFor } from './constellations';
 import { BTN, gamepad } from './gamepad';
 import { applyCoat, coatFor, COATS, HEROES, loadHero, openCoats, type HeroDef } from './heroes';
-import { addNote, addShade, journal, NOTE_CHANCE, NOTES, RARE_CHANCE, save as saveJournal, SHADES } from './journal';
+import {
+  addNote,
+  addShade,
+  gardenShade,
+  growGarden,
+  harvestGarden,
+  journal,
+  NOTE_CHANCE,
+  NOTES,
+  RARE_CHANCE,
+  save as saveJournal,
+  SHADES,
+} from './journal';
+import type { BiomeId } from './levels/biomes';
 import type { LevelLayout } from './levels/generator';
 import { completeDaily, completeLevel, dailyBest, formatTime, markPlayedToday, progress, setCurrentLevel, todayKey, totalStars } from './levels/progress';
 import { QuestMarkers } from './levels/markers';
@@ -63,6 +76,8 @@ let levelTime = 0;
 let quest: QuestRun;
 /** Номер редкого кристалла на уровне; -1 — его нет. */
 let rare = -1;
+/** Оттенки кристаллов сада на этом уровне, по номерам. */
+let gardenShades: BiomeId[] = [];
 let markers: QuestMarkers | null = null;
 
 // Браузер включает звук только после действия пользователя — первый клик или клавиша
@@ -184,6 +199,7 @@ function beginLevel(index: number, dailyDate: string | null = null): void {
   if (rare >= 0) world.markRare(rare, new Color3(...SHADES[layout.biome.id].color));
   const spot = journal.notes < NOTES.length && Math.random() < NOTE_CHANCE ? noteSpot() : null;
   if (spot) world.placeNote(spot.x, spot.z);
+  plantGarden();
   placeMarkers();
   starSky.show(!!layout.biome.starSky, totalStars());
   audio.setAmbience(layout.biome.ambience);
@@ -215,19 +231,57 @@ function foundRare(): void {
  * не в воде и не вплотную к кристаллу. null — подходящего места не нашлось.
  */
 function noteSpot(): { x: number; z: number } | null {
-  const free = (x: number, z: number) =>
-    layout.obstacles.every((o) => Math.hypot(o.x - x, o.z - z) > o.r + 1) &&
-    layout.platforms.every((p) => Math.abs(p.x - x) > p.w / 2 + 1 || Math.abs(p.z - z) > p.d / 2 + 1) &&
-    layout.crystals.every((c) => Math.hypot(c.x - x, c.z - z) > 2) &&
-    (layout.waterLevel === null || world.terrainAt(x, z) > layout.waterLevel + 0.2);
   const side = layout.clearings.slice(1);
   for (let t = 0; t < 60 && side.length; t++) {
     const c = side[Math.floor(Math.random() * side.length)];
     const a = Math.random() * Math.PI * 2, r = Math.random() * c.r * 0.7;
     const x = c.x + Math.cos(a) * r, z = c.z + Math.sin(a) * r;
-    if (free(x, z)) return { x, z };
+    if (freeSpot(x, z)) return { x, z };
   }
   return null;
+}
+
+/** Точка свободна: не в дереве, не на платформе, не в воде и не вплотную к кристаллу. */
+function freeSpot(x: number, z: number): boolean {
+  return (
+    layout.obstacles.every((o) => Math.hypot(o.x - x, o.z - z) > o.r + 1) &&
+    layout.platforms.every((p) => Math.abs(p.x - x) > p.w / 2 + 1 || Math.abs(p.z - z) > p.d / 2 + 1) &&
+    layout.crystals.every((c) => Math.hypot(c.x - x, c.z - z) > 2) &&
+    (layout.waterLevel === null || world.terrainAt(x, z) > layout.waterLevel + 0.2)
+  );
+}
+
+/**
+ * Сад у каменного круга: кристаллы, выросшие, пока игрока не было, висят по бокам
+ * от старта, в поле зрения. Каждый — цвета одного из оттенков и идёт в коллекцию «Дневника».
+ */
+function plantGarden(): void {
+  const n = growGarden();
+  gardenShades = [];
+  const { x: sx, z: sz } = layout.spawn;
+  const p = layout.portal;
+  // Герой на старте смотрит на портал: сад — слева и справа от этого направления, чуть впереди
+  const ahead = Math.atan2(p.z - sz, p.x - sx);
+  for (let k = 0, t = 0; k < n && t < 24; t++) {
+    const a = ahead + (t % 2 ? 1 : -1) * (0.7 + Math.floor(t / 2) * 0.35);
+    const x = sx + Math.cos(a) * 3.5, z = sz + Math.sin(a) * 3.5;
+    if (!freeSpot(x, z)) continue;
+    const shade = gardenShade();
+    world.addGardenCrystal(x, z, new Color3(...SHADES[shade].color));
+    gardenShades.push(shade);
+    k++;
+  }
+}
+
+/** Кристалл из сада собран: оттенок в коллекцию, сад пустеет на один. */
+function harvest(i: number): void {
+  const biome = gardenShades[i];
+  harvestGarden();
+  const n = addShade(biome);
+  journal.stats.crystals++;
+  audio.chime(true);
+  const name = SHADES[biome].name;
+  say(n === 1 ? `Кристалл из сада — новый оттенок «${name}»!` : `Кристалл из сада: «${name}» · ×${n}`, 2500);
 }
 
 function restartLevel(): void {
@@ -552,6 +606,7 @@ world.scene.onBeforeRenderObservable.add(() => {
     if (got.includes(rare)) foundRare();
     updateCrystalsHud();
   }
+  for (const i of world.collectGarden(player.center)) harvest(i);
   if (world.takeNote(player.center)) {
     audio.chime(false);
     say(`Записка путника, ${journal.notes + 1} из ${NOTES.length}: «${addNote()}»`, 6000);
