@@ -8,7 +8,7 @@ import { CameraRig } from './camera';
 import { skyFor } from './constellations';
 import { BTN, gamepad } from './gamepad';
 import { HEROES, loadHero, type HeroDef } from './heroes';
-import { addNote, addShade, journal, NOTE_CHANCE, NOTES, RARE_CHANCE, SHADES } from './journal';
+import { addNote, addShade, journal, NOTE_CHANCE, NOTES, RARE_CHANCE, save as saveJournal, SHADES } from './journal';
 import type { LevelLayout } from './levels/generator';
 import { completeDaily, completeLevel, dailyBest, formatTime, markPlayedToday, progress, setCurrentLevel, todayKey, totalStars } from './levels/progress';
 import { QuestMarkers } from './levels/markers';
@@ -280,6 +280,8 @@ function timeText(time: number, best: number | undefined): string {
  */
 function finishLevel(): void {
   const time = levelTime;
+  journal.stats.levels++;
+  saveJournal();
   let eyebrow: string;
   let opened: HeroDef[] = [];
   let best: number | undefined;
@@ -366,6 +368,7 @@ function openMenu(): void {
   rig.cancelDrag();
   clearInput();
   rig.beginMenuOrbit(gameStarted ? player.pos : new Vector3(layout.spawn.x, world.terrainAt(layout.spawn.x, layout.spawn.z), layout.spawn.z));
+  saveJournal();
   setState('menu');
   menu.update(
     gameStarted && player.hero
@@ -510,7 +513,16 @@ world.scene.onBeforeRenderObservable.add(() => {
 
   const active = !settingsPanel.isOpen && !isTransitioning();
   if (active) levelTime += dt;
+  const px = player.pos.x, pz = player.pos.z;
   player.update(dt, { yaw: rig.yaw, modeId: rig.mode.id }, active);
+  if (active) {
+    const st = journal.stats;
+    st.time += dt;
+    // Скачок больше пары метров за кадр — это рестарт или телепорт, а не шаги
+    const step = Math.hypot(player.pos.x - px, player.pos.z - pz);
+    if (step < 2) st.distance += step;
+    if (player.jumped) st.jumps++;
+  }
   world.followSun(player.pos);
   rig.update(dt, player);
   footsteps.update(dt, player);
@@ -519,6 +531,7 @@ world.scene.onBeforeRenderObservable.add(() => {
 
   const got = world.collectNear(player.center);
   if (got.length > 0) {
+    journal.stats.crystals += got.length;
     const all = world.collected === world.crystals.length;
     audio.chime(all);
     if (!world.portalOpen && world.collected >= layout.required) {
@@ -550,6 +563,8 @@ engine.runRenderLoop(() => {
   tickFps(engine);
 });
 addEventListener('resize', () => engine.resize());
+// Телефон может выгрузить вкладку из фона — счётчики дневника сохраняются при уходе
+addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && saveJournal());
 
 // ---------- Старт ----------
 

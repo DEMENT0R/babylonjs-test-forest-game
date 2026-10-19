@@ -36,28 +36,46 @@ export const NOTES: readonly string[] = [
 /** Вероятность, что на уровне лежит камень с запиской (пока не все найдены). */
 export const NOTE_CHANCE = 0.35;
 
+/** Счётчики за всё время игры. */
+export interface Stats {
+  /** Пройдено, м (по горизонтали). */
+  distance: number;
+  jumps: number;
+  crystals: number;
+  /** Пройдено уровней, вместе с «Лесом дня». */
+  levels: number;
+  /** Время в лесу, с. */
+  time: number;
+}
+
 interface Journal {
   /** Сколько редких кристаллов найдено в каждом биоме. */
   shades: Partial<Record<BiomeId, number>>;
   /** Сколько записок найдено — они идут по порядку. */
   notes: number;
+  stats: Stats;
 }
+
+const emptyStats = (): Stats => ({ distance: 0, jumps: 0, crystals: 0, levels: 0, time: 0 });
 
 const KEY = 'tihaya-polyana-journal';
 
 function load(): Journal {
   try {
     const j = JSON.parse(localStorage.getItem(KEY) ?? 'null') as Partial<Journal> | null;
-    if (j && typeof j === 'object') return { shades: j.shades ?? {}, notes: Math.min(NOTES.length, j.notes ?? 0) };
+    if (j && typeof j === 'object') {
+      return { shades: j.shades ?? {}, notes: Math.min(NOTES.length, j.notes ?? 0), stats: { ...emptyStats(), ...j.stats } };
+    }
   } catch {
     // Повреждённые данные — дневник начинается заново
   }
-  return { shades: {}, notes: 0 };
+  return { shades: {}, notes: 0, stats: emptyStats() };
 }
 
 export const journal: Journal = load();
 
-function save(): void {
+/** Счётчики копятся в памяти каждый кадр, а на диск — по этому вызову (итог уровня, меню). */
+export function save(): void {
   try {
     localStorage.setItem(KEY, JSON.stringify(journal));
   } catch {
