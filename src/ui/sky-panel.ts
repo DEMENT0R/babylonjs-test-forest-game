@@ -2,6 +2,7 @@
 // горизонт по краю). Звёзды, которых игрок ещё не видел, загораются по очереди.
 
 import { BACKGROUND, CONSTELLATIONS, skyFor, type Dir } from '../constellations';
+import { plural } from '../utils';
 
 const KEY = 'tihaya-polyana-sky-seen';
 const C = 100;
@@ -35,10 +36,6 @@ function project([x, y, z]: Dir): [number, number] {
 }
 
 const f = (v: number) => v.toFixed(1);
-const plural = (n: number, one: string, few: string, many: string) => {
-  const d = n % 10, h = n % 100;
-  return d === 1 && h !== 11 ? one : d >= 2 && d <= 4 && (h < 12 || h > 14) ? few : many;
-};
 
 export function skyHtml(total: number): string {
   const sky = skyFor(total);

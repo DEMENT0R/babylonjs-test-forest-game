@@ -104,6 +104,7 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump{display:no
 .fade-card{display:flex;flex-direction:column;gap:10px;align-items:center}
 .fade-card h2{margin:0;font:700 clamp(26px,5vw,46px)/1.1 var(--f-display);text-wrap:balance}
 .fade-card p{margin:0;font:400 13px/1.6 var(--f-mono);color:var(--muted);max-width:46ch}
+.fade-card .fade-note{color:var(--accent);font-weight:600;white-space:pre-line}
 @media (prefers-reduced-motion:reduce){#fade{transition:none}}
 
 /* Hero select */
@@ -184,6 +185,8 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump{display:no
 .menu-sub{margin:0;font:400 13px/1.55 var(--f-mono);color:var(--muted);max-width:34ch}
 .menu-progress{font:600 12px var(--f-mono);color:var(--ink);font-variant-numeric:tabular-nums}
 .menu-progress b{color:var(--accent)}
+.menu-streak{font:600 12px var(--f-mono);color:var(--accent)}
+.menu-streak span{color:var(--muted);font-weight:400}
 .menu-list{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
 .menu-list button{background:none;border:0;padding:7px 0;font:700 clamp(18px,2.4vw,22px)/1.2 var(--f-display);color:var(--ink);cursor:pointer;display:flex;align-items:center;gap:12px;opacity:.82;text-align:left;
   -webkit-tap-highlight-color:transparent;transition:opacity .15s,transform .15s,color .15s,border-color .15s}

@@ -3,9 +3,9 @@
 import { Engine } from '@babylonjs/core';
 import { CHANGELOG, hasUnseenChanges, markChangesSeen } from '../changelog';
 import { BIOMES } from '../levels/biomes';
-import { dailyBest, formatTime, progress as saved, todayKey, totalStars } from '../levels/progress';
+import { currentStreak, dailyBest, formatTime, progress as saved, todayKey, totalStars } from '../levels/progress';
 import { recipeFor } from '../levels/recipes';
-import { byId } from '../utils';
+import { byId, plural } from '../utils';
 import { seenStars, skyHtml } from './sky-panel';
 
 const INFO = {
@@ -109,6 +109,15 @@ export class MainMenu {
     this.syncSky();
     const best = dailyBest(todayKey());
     byId('m-daily-best').textContent = best === undefined ? 'новый' : `рекорд ${formatTime(best)}`;
+    this.syncStreak();
+  }
+
+  /** Огонёк серии: сколько дней подряд пройден уровень; если сегодня ещё нет — напоминание. */
+  private syncStreak(): void {
+    const el = byId('menu-streak');
+    const { days, today } = currentStreak();
+    el.hidden = days === 0;
+    el.innerHTML = `🔥 ${days} ${plural(days, 'день', 'дня', 'дней')} подряд${today ? '' : ' <span>· пройди уровень сегодня, чтобы не прервать</span>'}`;
   }
 
   /** Число звёзд у пункта «Небо» и точка, если есть звёзды, которых игрок ещё не видел на небе. */

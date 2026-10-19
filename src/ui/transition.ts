@@ -7,6 +7,7 @@ const fade = byId('fade');
 const eyebrow = byId('fade-eyebrow');
 const title = byId('fade-title');
 const sub = byId('fade-sub');
+const note = byId('fade-note');
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 /** Дать браузеру отрисовать кадр — иначе тяжёлая сборка уровня «съест» анимацию. */
@@ -16,6 +17,8 @@ export interface TransitionText {
   eyebrow: string;
   title: string;
   sub: string;
+  /** Строка-событие под итогом: серия дней, новое созвездие и тому подобное. */
+  note?: string;
 }
 
 let busy = false;
@@ -25,6 +28,10 @@ export function setTransitionText(text: Partial<TransitionText>): void {
   if (text.eyebrow !== undefined) eyebrow.textContent = text.eyebrow;
   if (text.title !== undefined) title.textContent = text.title;
   if (text.sub !== undefined) sub.textContent = text.sub;
+  if (text.note !== undefined) {
+    note.textContent = text.note;
+    note.hidden = !text.note;
+  }
 }
 
 export function isTransitioning(): boolean {
@@ -38,7 +45,7 @@ export function isTransitioning(): boolean {
 export async function transition(text: TransitionText, work: () => void, holdMs = 1600): Promise<void> {
   if (busy) return;
   busy = true;
-  setTransitionText(text);
+  setTransitionText({ note: '', ...text });
   fade.classList.add('show');
   await wait(650);
   await nextFrame();

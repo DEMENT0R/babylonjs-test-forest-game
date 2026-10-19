@@ -8,7 +8,7 @@ import { CameraRig } from './camera';
 import { BTN, gamepad } from './gamepad';
 import { HEROES, loadHero, type HeroDef } from './heroes';
 import type { LevelLayout } from './levels/generator';
-import { completeDaily, completeLevel, dailyBest, formatTime, progress, setCurrentLevel, todayKey, totalStars } from './levels/progress';
+import { completeDaily, completeLevel, dailyBest, formatTime, markPlayedToday, progress, setCurrentLevel, todayKey, totalStars } from './levels/progress';
 import { QuestMarkers } from './levels/markers';
 import { fitQuest, QuestRun } from './levels/quests';
 import { dailyRecipe, recipeFor } from './levels/recipes';
@@ -23,7 +23,7 @@ import { activate, navigate, sendKey } from './ui/pad-nav';
 import { SelectScreen, starsMissing } from './ui/select';
 import { SettingsPanel } from './ui/settings-panel';
 import { isTransitioning, setTransitionText, transition } from './ui/transition';
-import { byId } from './utils';
+import { byId, plural } from './utils';
 import { wind } from './wind';
 import { World } from './world';
 
@@ -237,12 +237,16 @@ function finishLevel(): void {
     select.refreshLocks();
     eyebrow = `Уровень ${level} пройден · ${timeText(time, best)}${star ? ' · ★ все кристаллы' : ''}${questDone ? ' · ★ задание' : ''}`;
   }
+  const streak = markPlayedToday();
+  const notes: string[] = [];
+  if (streak === 1) notes.push('🔥 Серия началась — загляни в лес и завтра');
+  else if (streak) notes.push(`🔥 ${streak} ${plural(streak, 'день', 'дня', 'дней')} подряд!`);
   audio.portalEnter();
   rig.releaseLock();
   clearInput();
   const next = daily ? level : level + 1;
   void transition(
-    { eyebrow, title: `Уровень ${next}`, sub: '' },
+    { eyebrow, title: `Уровень ${next}`, sub: '', note: notes.join('\n') },
     () => {
       beginLevel(next);
       setTransitionText({

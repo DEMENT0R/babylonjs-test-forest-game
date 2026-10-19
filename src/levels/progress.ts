@@ -17,6 +17,8 @@ export interface Progress {
   records: Record<number, LevelRecord>;
   /** Лучшее время в «Лесе дня» — только за последний день, когда в него играли. */
   daily?: { date: string; time: number };
+  /** Серия: последний день, когда проходили уровень, и сколько дней подряд. */
+  streak?: { last: string; days: number };
 }
 
 const KEY = 'tihaya-polyana-progress';
@@ -25,7 +27,7 @@ function load(): Progress {
   try {
     const p = JSON.parse(localStorage.getItem(KEY) ?? 'null') as Partial<Progress> | null;
     if (p && typeof p === 'object' && Number.isInteger(p.current) && Number.isInteger(p.unlocked)) {
-      return { current: p.current!, unlocked: Math.max(p.unlocked!, p.current!), records: p.records ?? {}, daily: p.daily };
+      return { current: p.current!, unlocked: Math.max(p.unlocked!, p.current!), records: p.records ?? {}, daily: p.daily, streak: p.streak };
     }
   } catch {
     // Повреждённые данные — начинаем сначала
@@ -61,10 +63,28 @@ export function completeLevel(index: number, star: boolean, quest: boolean, time
   save();
 }
 
-/** Дата по местному времени — ключ «Леса дня»: 2026-10-19. */
-export function todayKey(): string {
-  const d = new Date();
+/** Дата по местному времени — ключ «Леса дня» и серии: 2026-10-19; shift — сдвиг в днях. */
+export function todayKey(shift = 0): string {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + shift);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Серия дней подряд с пройденным уровнем; 0 — прервана. today — сегодня уже засчитано. */
+export function currentStreak(): { days: number; today: boolean } {
+  const s = progress.streak;
+  if (!s) return { days: 0, today: false };
+  if (s.last === todayKey()) return { days: s.days, today: true };
+  return { days: s.last === todayKey(-1) ? s.days : 0, today: false };
+}
+
+/** Засчитать сегодняшний день в серию; возвращает новую длину, если день засчитан только что. */
+export function markPlayedToday(): number | null {
+  const { days, today } = currentStreak();
+  if (today) return null;
+  progress.streak = { last: todayKey(), days: days + 1 };
+  save();
+  return days + 1;
 }
 
 /** Лучшее время в «Лесе дня» за эту дату. */
