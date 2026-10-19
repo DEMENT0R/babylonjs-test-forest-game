@@ -23,6 +23,8 @@ let toastTimer: ReturnType<typeof setTimeout> | undefined;
 /** Короткая надпись посреди экрана; ms — сколько она держится. */
 export function say(text: string, ms = 1600): void {
   toastEl.textContent = text;
+  // Длинный текст (записки) — мельче и шире, чтобы читался, а не кричал
+  toastEl.classList.toggle('long', text.length > 70);
   toastEl.style.opacity = '1';
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => (toastEl.style.opacity = '0'), ms);

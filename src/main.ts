@@ -7,7 +7,7 @@ import { Breath } from './breath';
 import { CameraRig } from './camera';
 import { BTN, gamepad } from './gamepad';
 import { HEROES, loadHero, type HeroDef } from './heroes';
-import { addShade, journal, RARE_CHANCE, SHADES } from './journal';
+import { addNote, addShade, journal, NOTE_CHANCE, NOTES, RARE_CHANCE, SHADES } from './journal';
 import type { LevelLayout } from './levels/generator';
 import { completeDaily, completeLevel, dailyBest, formatTime, markPlayedToday, progress, setCurrentLevel, todayKey, totalStars } from './levels/progress';
 import { QuestMarkers } from './levels/markers';
@@ -181,6 +181,8 @@ function beginLevel(index: number, dailyDate: string | null = null): void {
   quest = new QuestRun(fitQuest(recipe.quest, layout), layout);
   rare = Math.random() < RARE_CHANCE ? Math.floor(Math.random() * world.crystals.length) : -1;
   if (rare >= 0) world.markRare(rare, new Color3(...SHADES[layout.biome.id].color));
+  const spot = journal.notes < NOTES.length && Math.random() < NOTE_CHANCE ? noteSpot() : null;
+  if (spot) world.placeNote(spot.x, spot.z);
   placeMarkers();
   starSky.show(!!layout.biome.starSky, totalStars());
   audio.setAmbience(layout.biome.ambience);
@@ -205,6 +207,26 @@ function foundRare(): void {
   const found = Object.values(journal.shades).filter(Boolean).length;
   audio.chime(true);
   say(n === 1 ? `Редкий кристалл! Новый оттенок «${shade.name}» — ${found} из ${Object.keys(SHADES).length}` : `Редкий кристалл «${shade.name}» · ×${n}`, 3000);
+}
+
+/**
+ * Место для камня с запиской: на боковой поляне, не в дереве, не на платформе,
+ * не в воде и не вплотную к кристаллу. null — подходящего места не нашлось.
+ */
+function noteSpot(): { x: number; z: number } | null {
+  const free = (x: number, z: number) =>
+    layout.obstacles.every((o) => Math.hypot(o.x - x, o.z - z) > o.r + 1) &&
+    layout.platforms.every((p) => Math.abs(p.x - x) > p.w / 2 + 1 || Math.abs(p.z - z) > p.d / 2 + 1) &&
+    layout.crystals.every((c) => Math.hypot(c.x - x, c.z - z) > 2) &&
+    (layout.waterLevel === null || world.terrainAt(x, z) > layout.waterLevel + 0.2);
+  const side = layout.clearings.slice(1);
+  for (let t = 0; t < 60 && side.length; t++) {
+    const c = side[Math.floor(Math.random() * side.length)];
+    const a = Math.random() * Math.PI * 2, r = Math.random() * c.r * 0.7;
+    const x = c.x + Math.cos(a) * r, z = c.z + Math.sin(a) * r;
+    if (free(x, z)) return { x, z };
+  }
+  return null;
 }
 
 function restartLevel(): void {
@@ -496,6 +518,10 @@ world.scene.onBeforeRenderObservable.add(() => {
     }
     if (got.includes(rare)) foundRare();
     updateCrystalsHud();
+  }
+  if (world.takeNote(player.center)) {
+    audio.chime(false);
+    say(`Записка путника, ${journal.notes + 1} из ${NOTES.length}: «${addNote()}»`, 6000);
   }
   // После надписи о кристалле — чтобы весть о задании её перекрыла, а не наоборот
   if (active) tickQuest(dt, got);

@@ -292,6 +292,15 @@ export class World {
     return got;
   }
 
+  placeNote(x: number, z: number): void {
+    this.level?.placeNote(x, z);
+  }
+
+  /** Герой дошёл до записки: true один раз, дальше камень гаснет. */
+  takeNote(at: Vector3): boolean {
+    return this.level?.takeNote(at) ?? false;
+  }
+
   /** Кристалл i становится редким, цвета color. */
   markRare(i: number, color: Color3): void {
     this.level?.makeRare(i, color);
@@ -312,6 +321,7 @@ export class World {
     const lvl = this.level;
     if (!lvl) return;
     lvl.spinCrystals(dt);
+    lvl.pulseNote(dt);
     lvl.animatePortal(dt);
     // Траве нужна высота героя над землёй, а не абсолютная
     const rel = bendAt ? new Vector3(bendAt.x, bendAt.y - this.terrainAt(bendAt.x, bendAt.z), bendAt.z) : null;

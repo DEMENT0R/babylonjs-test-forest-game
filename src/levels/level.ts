@@ -154,6 +154,38 @@ export class Level {
     }
   }
 
+  /** Камень с запиской путника; null — на уровне его нет или он уже прочитан. */
+  private note: Mesh | null = null;
+  private noteT = 0;
+
+  /** Положить на землю камень с запиской: плита с голубым светом. */
+  placeNote(x: number, z: number): void {
+    const m = this.track(MeshBuilder.CreateBox('note', { width: 0.7, height: 0.9, depth: 0.16 }, this.scene));
+    m.position.set(x, this.layout.terrain.heightAt(x, z) + 0.4, z);
+    m.rotation.set(-0.25, Math.atan2(-x, -z), 0.08);
+    const mat = this.mat('note', new Color3(0.55, 0.62, 0.7), 0.1);
+    mat.emissiveColor = new Color3(0.15, 0.35, 0.6);
+    m.material = mat;
+    this.solid(m);
+    this.note = m;
+  }
+
+  /** Герой рядом с запиской: камень гаснет, true — её можно читать. */
+  takeNote(at: Vector3, radius = 1.6): boolean {
+    if (!this.note || Vector3.Distance(this.note.position, at) > radius) return false;
+    (this.note.material as StandardMaterial).emissiveColor.set(0, 0, 0);
+    this.note = null;
+    return true;
+  }
+
+  /** Записка мерцает, чтобы её было видно издалека. */
+  pulseNote(dt: number): void {
+    if (!this.note) return;
+    this.noteT += dt;
+    const k = 0.75 + 0.25 * Math.sin(this.noteT * 2.2);
+    (this.note.material as StandardMaterial).emissiveColor.set(0.15 * k, 0.35 * k, 0.6 * k);
+  }
+
   /** Сделать кристалл редким: свой цвет и чуть крупнее. */
   makeRare(i: number, color: Color3): void {
     const k = this.crystals[i];

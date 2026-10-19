@@ -1,6 +1,6 @@
 // Панель «Дневник» в главном меню: что игрок нашёл в лесу.
 
-import { journal, SHADES } from '../journal';
+import { journal, NOTES, SHADES } from '../journal';
 import { BIOMES, type BiomeId } from '../levels/biomes';
 
 const rgb = ([r, g, b]: readonly number[]) => `rgb(${r * 255} ${g * 255} ${b * 255})`;
@@ -20,6 +20,13 @@ function shadesHtml(): string {
     <ul class="shade-list">${rows.join('')}</ul>`;
 }
 
+function notesHtml(): string {
+  const found = NOTES.slice(0, journal.notes).map((t, i) => `<li class="note"><b>${i + 1}.</b> ${t}</li>`);
+  const hint = journal.notes < NOTES.length ? `<p>Ещё ${NOTES.length - journal.notes} — ищи светящиеся камни на полянах.</p>` : '';
+  return `<h5>Записки путника · ${journal.notes} из ${NOTES.length}</h5>
+    ${found.length ? `<ul>${found.join('')}</ul>` : '<p>Кто-то прошёл этот лес раньше и оставил на полянах камни с записками.</p>'}${hint}`;
+}
+
 export function journalHtml(): string {
-  return shadesHtml();
+  return shadesHtml() + notesHtml();
 }

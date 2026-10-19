@@ -46,6 +46,7 @@ h1{margin:0;font:700 15px/1.2 var(--f-display);letter-spacing:.02em}
 .hud-side .btn-row{margin-top:0;justify-content:flex-end}
 .hud-side .small-btn{background:var(--panel);backdrop-filter:blur(6px);color:var(--ink)}
 #toast{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);font:700 22px var(--f-display);color:var(--accent);text-shadow:0 2px 12px rgba(0,0,0,.5);pointer-events:none;opacity:0;transition:opacity .4s;text-align:center;padding:0 16px}
+#toast.long{font:600 15px/1.5 var(--f-mono);width:min(560px,100%);text-wrap:balance;text-shadow:0 1px 8px rgba(0,0,0,.8)}
 #cross{position:fixed;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:var(--ink);box-shadow:0 0 0 2px rgba(0,0,0,.35);pointer-events:none}
 #stick{position:fixed;left:calc(max(16px,env(safe-area-inset-left,0px)) + 8px);bottom:calc(24px + env(safe-area-inset-bottom,0px));width:120px;height:120px;border-radius:50%;border:1px solid var(--line);background:var(--panel);touch-action:none}
 /* Плавающий стик: в покое полупрозрачный на своём месте, при касании — под пальцем */
