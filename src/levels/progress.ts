@@ -19,6 +19,8 @@ export interface Progress {
   daily?: { date: string; time: number };
   /** Серия: последний день, когда проходили уровень, и сколько дней подряд. */
   streak?: { last: string; days: number };
+  /** Сколько всего дней с пройденным уровнем — подряд или нет; от этого обрастает поляна. */
+  daysPlayed?: number;
 }
 
 const KEY = 'tihaya-polyana-progress';
@@ -27,7 +29,7 @@ function load(): Progress {
   try {
     const p = JSON.parse(localStorage.getItem(KEY) ?? 'null') as Partial<Progress> | null;
     if (p && typeof p === 'object' && Number.isInteger(p.current) && Number.isInteger(p.unlocked)) {
-      return { current: p.current!, unlocked: Math.max(p.unlocked!, p.current!), records: p.records ?? {}, daily: p.daily, streak: p.streak };
+      return { current: p.current!, unlocked: Math.max(p.unlocked!, p.current!), records: p.records ?? {}, daily: p.daily, streak: p.streak, daysPlayed: p.daysPlayed };
     }
   } catch {
     // Повреждённые данные — начинаем сначала
@@ -82,9 +84,16 @@ export function currentStreak(): { days: number; today: boolean } {
 export function markPlayedToday(): number | null {
   const { days, today } = currentStreak();
   if (today) return null;
+  // В сохранениях до счётчика дней отсчёт идёт от текущей серии
+  progress.daysPlayed = (progress.daysPlayed ?? days) + 1;
   progress.streak = { last: todayKey(), days: days + 1 };
   save();
   return days + 1;
+}
+
+/** Дней, когда пройден хотя бы один уровень, за всё время. */
+export function daysPlayed(): number {
+  return progress.daysPlayed ?? progress.streak?.days ?? 0;
 }
 
 /** Лучшее время в «Лесе дня» за эту дату. */

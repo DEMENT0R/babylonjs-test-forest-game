@@ -25,7 +25,8 @@ import {
 } from './journal';
 import type { BiomeId } from './levels/biomes';
 import type { LevelLayout } from './levels/generator';
-import { completeDaily, completeLevel, dailyBest, formatTime, markPlayedToday, progress, setCurrentLevel, todayKey, totalStars } from './levels/progress';
+import { ClearingDecor, DECOR } from './levels/decor';
+import { completeDaily, completeLevel, dailyBest, daysPlayed, formatTime, markPlayedToday, progress, setCurrentLevel, todayKey, totalStars } from './levels/progress';
 import { QuestMarkers } from './levels/markers';
 import { fitQuest, QuestRun } from './levels/quests';
 import { dailyRecipe, recipeFor } from './levels/recipes';
@@ -81,6 +82,8 @@ let rare = -1;
 /** Оттенки кристаллов сада на этом уровне, по номерам. */
 let gardenShades: BiomeId[] = [];
 let markers: QuestMarkers | null = null;
+/** Детали на центральной поляне — за дни с пройденным уровнем. */
+let decor: ClearingDecor | null = null;
 
 // Браузер включает звук только после действия пользователя — первый клик или клавиша
 for (const type of ['pointerdown', 'keydown'] as const) addEventListener(type, () => audio.unlock(), { capture: true });
@@ -203,6 +206,8 @@ function beginLevel(index: number, dailyDate: string | null = null): void {
   const spot = welcomeNote ? welcomeSpot() : journal.notes < NOTES.length && Math.random() < NOTE_CHANCE ? noteSpot() : null;
   if (spot) world.placeNote(spot.x, spot.z);
   plantGarden();
+  decor?.dispose();
+  decor = new ClearingDecor(world.scene, layout, daysPlayed());
   placeMarkers();
   starSky.show(!!layout.biome.starSky, totalStars());
   audio.setAmbience(layout.biome.ambience);
@@ -383,6 +388,9 @@ function finishLevel(): void {
   const notes: string[] = [];
   if (streak === 1) notes.push('🔥 Серия началась — загляни в лес и завтра');
   else if (streak) notes.push(`🔥 ${streak} ${plural(streak, 'день', 'дня', 'дней')} подряд!`);
+  // Новый день засчитан — у каменного круга появилась новая деталь
+  const grown = DECOR[daysPlayed() - 1];
+  if (streak && grown) notes.push(`🌼 На поляне у круга появилось новое: ${grown.name}`);
   if (constellation) notes.push(`✦ Новое созвездие на небе: «${constellation}»`);
   if (newCoat) notes.push(`Открыт окрас «${newCoat}» — выбери его на экране героя`);
   notes.push(...almost(time, best, opened));
@@ -577,6 +585,7 @@ world.scene.onBeforeRenderObservable.add(() => {
   const dt = Math.min(engine.getDeltaTime() / 1000, 0.05);
   // Траву приминает герой, стоящий на поляне (в меню — тоже, он там просто стоит)
   world.update(dt, player.hero ? player.pos : null, 0.3 + 0.35 * (player.hero?.def.height ?? 0));
+  decor?.update(dt);
 
   if (state === 'menu' || !player.hero) {
     const center = gameStarted ? player.pos : new Vector3(layout.spawn.x, world.terrainAt(layout.spawn.x, layout.spawn.z), layout.spawn.z);

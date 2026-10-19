@@ -2,6 +2,8 @@
 
 import { journal, NOTES, SHADES } from '../journal';
 import { BIOMES, type BiomeId } from '../levels/biomes';
+import { DECOR } from '../levels/decor';
+import { daysPlayed } from '../levels/progress';
 import { plural } from '../utils';
 
 const rgb = ([r, g, b]: readonly number[]) => `rgb(${r * 255} ${g * 255} ${b * 255})`;
@@ -42,6 +44,15 @@ function statsHtml(): string {
     <dt>Порталов</dt><dd>${n(s.levels)} ${plural(s.levels, 'раз', 'раза', 'раз')}</dd></dl>`;
 }
 
+function clearingHtml(): string {
+  const n = Math.min(daysPlayed(), DECOR.length);
+  const next = DECOR[n];
+  return `<h5>Поляна у круга · ${n} из ${DECOR.length}</h5>
+    <p>За каждый день, когда ты проходишь уровень, на поляне у каменного круга появляется что-то новое. Пропущенный день ничего не отнимает.</p>
+    ${n ? `<ul>${DECOR.slice(0, n).map((d) => `<li>${d.name}</li>`).join('')}</ul>` : ''}
+    ${next ? '<p>Что будет дальше — увидишь завтра.</p>' : '<p>Поляна расцвела целиком.</p>'}`;
+}
+
 export function journalHtml(): string {
-  return statsHtml() + shadesHtml() + notesHtml();
+  return statsHtml() + clearingHtml() + shadesHtml() + notesHtml();
 }
