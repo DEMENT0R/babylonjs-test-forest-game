@@ -20,6 +20,8 @@ import {
   RARE_CHANCE,
   save as saveJournal,
   SHADES,
+  takeWelcome,
+  welcomeNote,
 } from './journal';
 import type { BiomeId } from './levels/biomes';
 import type { LevelLayout } from './levels/generator';
@@ -197,7 +199,8 @@ function beginLevel(index: number, dailyDate: string | null = null): void {
   quest = new QuestRun(fitQuest(recipe.quest, layout), layout);
   rare = Math.random() < RARE_CHANCE ? Math.floor(Math.random() * world.crystals.length) : -1;
   if (rare >= 0) world.markRare(rare, new Color3(...SHADES[layout.biome.id].color));
-  const spot = journal.notes < NOTES.length && Math.random() < NOTE_CHANCE ? noteSpot() : null;
+  // После долгого перерыва записка ждёт у старта; иначе изредка лежит на боковой поляне
+  const spot = welcomeNote ? welcomeSpot() : journal.notes < NOTES.length && Math.random() < NOTE_CHANCE ? noteSpot() : null;
   if (spot) world.placeNote(spot.x, spot.z);
   plantGarden();
   placeMarkers();
@@ -239,6 +242,18 @@ function noteSpot(): { x: number; z: number } | null {
     if (freeSpot(x, z)) return { x, z };
   }
   return null;
+}
+
+/** Место для записки, которая ждала игрока: впереди от старта, по пути к порталу, но в стороне от сада. */
+function welcomeSpot(): { x: number; z: number } | null {
+  const { x: sx, z: sz } = layout.spawn;
+  const ahead = Math.atan2(layout.portal.z - sz, layout.portal.x - sx);
+  for (let t = 0; t < 12; t++) {
+    const a = ahead + (t % 2 ? 1 : -1) * (0.25 + Math.floor(t / 2) * 0.2);
+    const x = sx + Math.cos(a) * 5.5, z = sz + Math.sin(a) * 5.5;
+    if (freeSpot(x, z)) return { x, z };
+  }
+  return noteSpot();
 }
 
 /** Точка свободна: не в дереве, не на платформе, не в воде и не вплотную к кристаллу. */
@@ -609,7 +624,9 @@ world.scene.onBeforeRenderObservable.add(() => {
   for (const i of world.collectGarden(player.center)) harvest(i);
   if (world.takeNote(player.center)) {
     audio.chime(false);
-    say(`Записка путника, ${journal.notes + 1} из ${NOTES.length}: «${addNote()}»`, 6000);
+    const where = welcomeNote ? 'Записка ждала тебя у круга' : 'Записка путника';
+    takeWelcome();
+    say(`${where}, ${journal.notes + 1} из ${NOTES.length}: «${addNote()}»`, 6000);
   }
   // После надписи о кристалле — чтобы весть о задании её перекрыла, а не наоборот
   if (active) tickQuest(dt, got);

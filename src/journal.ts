@@ -60,6 +60,8 @@ interface Journal {
   stats: Stats;
   /** Сад: с какого момента растёт следующий кристалл (мс) и сколько уже выросло. */
   garden: { since: number; ready: number };
+  /** Когда игра последний раз сохраняла дневник, мс — по нему видно, долго ли игрока не было. */
+  seen?: number;
 }
 
 const emptyStats = (): Stats => ({ distance: 0, jumps: 0, crystals: 0, levels: 0, time: 0 });
@@ -75,6 +77,7 @@ function load(): Journal {
         notes: Math.min(NOTES.length, j.notes ?? 0),
         stats: { ...emptyStats(), ...j.stats },
         garden: j.garden ?? { since: Date.now(), ready: 0 },
+        seen: j.seen,
       };
     }
   } catch {
@@ -85,8 +88,23 @@ function load(): Journal {
 
 export const journal: Journal = load();
 
+/** После такого перерыва следующая записка путника ждёт у старта. */
+export const WELCOME_AFTER_MS = 24 * 3600_000;
+
+/**
+ * Игрока не было дольше суток, и записки ещё остались: следующая лежит у каменного
+ * круга, пока её не прочтут. Считается один раз при загрузке, до первого сохранения.
+ */
+export let welcomeNote = journal.seen !== undefined && Date.now() - journal.seen >= WELCOME_AFTER_MS && journal.notes < NOTES.length;
+
+/** Записка у круга прочитана. */
+export function takeWelcome(): void {
+  welcomeNote = false;
+}
+
 /** Счётчики копятся в памяти каждый кадр, а на диск — по этому вызову (итог уровня, меню). */
 export function save(): void {
+  journal.seen = Date.now();
   try {
     localStorage.setItem(KEY, JSON.stringify(journal));
   } catch {

@@ -8,7 +8,7 @@ import { currentStreak, dailyBest, formatTime, progress as saved, todayKey, tota
 import { recipeFor } from '../levels/recipes';
 import { byId, plural } from '../utils';
 import { journal, NOTES } from '../journal';
-import { growGarden } from '../journal';
+import { growGarden, welcomeNote } from '../journal';
 import { journalHtml } from './journal-panel';
 import { seenStars, skyHtml } from './sky-panel';
 
@@ -112,6 +112,7 @@ export class MainMenu {
     byId('m-daily-best').textContent = best === undefined ? 'новый' : `рекорд ${formatTime(best)}`;
     this.syncStreak();
     const ready = growGarden();
+    byId('menu-letter').hidden = !welcomeNote;
     const garden = byId('menu-garden');
     garden.hidden = ready === 0;
     garden.textContent = `✦ В саду у каменного круга ${plural(ready, 'вырос', 'выросло', 'выросло')} ${ready} ${plural(ready, 'кристалл', 'кристалла', 'кристаллов')}`;
