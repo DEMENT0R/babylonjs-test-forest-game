@@ -18,7 +18,7 @@ import {
   type PBRMaterial,
 } from '@babylonjs/core';
 import { GrassField, MEADOW_GROUND, MEADOW_TIP } from '../grass';
-import { HEROES, loadHero, type Hero, type HeroDef } from '../heroes';
+import { applyCoat, chooseCoat, coatFor, COATS, HEROES, loadHero, openCoats, type Hero, type HeroDef } from '../heroes';
 import { totalStars } from '../levels/progress';
 import { addShadowCaster, createLightingContext, type LightingContext } from '../settings';
 import { byId, damp, now, wrapAngle } from '../utils';
@@ -67,6 +67,7 @@ export class SelectScreen {
   private readonly ringOff: StandardMaterial;
   private readonly cardsEl = byId('cards');
   private readonly playBtn = byId<HTMLButtonElement>('play');
+  private readonly coatBtn = byId<HTMLButtonElement>('coat');
   private index = 0;
   private busy = false;
   private camX = 0;
@@ -146,6 +147,7 @@ export class SelectScreen {
 
     this.buildCards();
     this.playBtn.addEventListener('click', () => this.confirm());
+    this.coatBtn.addEventListener('click', () => this.nextCoat());
     byId('sel-back').addEventListener('click', actions.onBack);
     byId('sel-settings').addEventListener('click', actions.onSettings);
 
@@ -205,15 +207,35 @@ export class SelectScreen {
     this.syncPlay();
   }
 
-  /** Силуэт закрытого героя: альбедо в чёрный, исходный цвет хранится в metadata материала. */
+  /** Силуэт закрытого героя: альбедо в чёрный; открытый — в своём окрасе. */
   private shade(hero: Hero | null, locked: boolean): void {
-    for (const m of hero?.meshes ?? []) {
+    if (!hero) return;
+    applyCoat(hero, coatFor(hero.def));
+    if (!locked) return;
+    for (const m of hero.meshes) {
       const mat = m.material as PBRMaterial | null;
-      if (!mat?.albedoColor) continue;
-      const meta = (mat.metadata ??= {}) as { albedo?: Color3 };
-      meta.albedo ??= mat.albedoColor.clone();
-      mat.albedoColor.copyFrom(locked ? SILHOUETTE : meta.albedo);
+      mat?.albedoColor?.copyFrom(SILHOUETTE);
     }
+  }
+
+  /** Следующий открытый окрас выбранного героя. */
+  private nextCoat(): void {
+    const coats = openCoats();
+    const hero = this.slots[this.index].hero;
+    if (coats.length < 2 || !hero || starsMissing(this.selected)) return;
+    const i = coats.indexOf(coatFor(this.selected));
+    chooseCoat(this.selected, coats[(i + 1) % coats.length]);
+    applyCoat(hero, coatFor(this.selected));
+    this.syncCoat();
+  }
+
+  /** Кнопка окраса: текущий окрас и, если есть закрытые, когда откроется следующий. */
+  private syncCoat(): void {
+    const locked = starsMissing(this.selected) > 0;
+    const next = COATS.find((c) => !openCoats().includes(c));
+    this.coatBtn.hidden = locked;
+    this.coatBtn.textContent = `Окрас: ${coatFor(this.selected).name}${next ? ` · новый за ★ ${next.stars}` : ''}`;
+    this.coatBtn.disabled = openCoats().length < 2;
   }
 
   private syncPlay(): void {
@@ -221,6 +243,7 @@ export class SelectScreen {
     const missing = starsMissing(this.selected);
     this.playBtn.disabled = this.busy || missing > 0;
     this.playBtn.textContent = missing > 0 ? `Откроется за ★ ${this.selected.stars}` : 'Играть';
+    this.syncCoat();
   }
 
   choose(i: number): void {
@@ -242,9 +265,10 @@ export class SelectScreen {
     this.choose(HEROES.indexOf(def));
   }
 
-  /** ← → / A D, цифры 1–3, Enter или Space — играть. */
+  /** ← → / A D, цифры 1–3, C — окрас, Enter или Space — играть. */
   handleKey(e: KeyboardEvent): void {
-    if (e.code === 'ArrowLeft' || e.code === 'KeyA') this.choose(this.index - 1);
+    if (e.code === 'KeyC' && !e.repeat) this.nextCoat();
+    else if (e.code === 'ArrowLeft' || e.code === 'KeyA') this.choose(this.index - 1);
     else if (e.code === 'ArrowRight' || e.code === 'KeyD') this.choose(this.index + 1);
     else if (/^Digit[1-9]$/.test(e.code)) {
       const n = +e.code.slice(5) - 1;

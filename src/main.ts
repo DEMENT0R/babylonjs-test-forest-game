@@ -7,7 +7,7 @@ import { Breath } from './breath';
 import { CameraRig } from './camera';
 import { skyFor } from './constellations';
 import { BTN, gamepad } from './gamepad';
-import { HEROES, loadHero, type HeroDef } from './heroes';
+import { applyCoat, coatFor, COATS, HEROES, loadHero, openCoats, type HeroDef } from './heroes';
 import { addNote, addShade, journal, NOTE_CHANCE, NOTES, RARE_CHANCE, save as saveJournal, SHADES } from './journal';
 import type { LevelLayout } from './levels/generator';
 import { completeDaily, completeLevel, dailyBest, formatTime, markPlayedToday, progress, setCurrentLevel, todayKey, totalStars } from './levels/progress';
@@ -261,6 +261,8 @@ function almost(time: number, best: number | undefined, opened: readonly HeroDef
     const n = starsMissing(hero);
     out.push(`Ещё ${n} ★ — и откроется ${hero.name.toLowerCase()}`);
   }
+  const coat = COATS.find((c) => c.stars > totalStars());
+  if (!hero && coat && !daily) out.push(`Ещё ${coat.stars - totalStars()} ★ до окраса «${coat.name}»`);
   const next = skyFor(totalStars()).next;
   if (next && !daily && next.left <= 3 && (!hero || starsMissing(hero) > next.left)) {
     out.push(`Ещё ${next.left} ★ до созвездия «${next.c.name}»`);
@@ -287,6 +289,8 @@ function finishLevel(): void {
   let best: number | undefined;
   /** Созвездие, которое собралось целиком на этом уровне. */
   let constellation: string | null = null;
+  /** Окрас, открытый звёздами этого уровня. */
+  let newCoat: string | null = null;
   if (daily) {
     best = dailyBest(daily);
     completeDaily(daily, time);
@@ -296,11 +300,13 @@ function finishLevel(): void {
     const questDone = quest.passed();
     best = progress.records[level]?.time;
     const lockedBefore = HEROES.filter((h) => starsMissing(h) > 0);
+    const coatsBefore = openCoats().length;
     const skyBefore = skyFor(totalStars()).done;
     completeLevel(level, star, questDone, time);
     const sky = skyFor(totalStars());
     if (sky.done > skyBefore) constellation = sky.lit[sky.done - 1].c.name;
     opened = lockedBefore.filter((h) => !starsMissing(h));
+    newCoat = openCoats().length > coatsBefore ? openCoats().at(-1)!.name : null;
     select.refreshLocks();
     eyebrow = `Уровень ${level} пройден · ${timeText(time, best)}${star ? ' · ★ все кристаллы' : ''}${questDone ? ' · ★ задание' : ''}`;
   }
@@ -309,6 +315,7 @@ function finishLevel(): void {
   if (streak === 1) notes.push('🔥 Серия началась — загляни в лес и завтра');
   else if (streak) notes.push(`🔥 ${streak} ${plural(streak, 'день', 'дня', 'дней')} подряд!`);
   if (constellation) notes.push(`✦ Новое созвездие на небе: «${constellation}»`);
+  if (newCoat) notes.push(`Открыт окрас «${newCoat}» — выбери его на экране героя`);
   notes.push(...almost(time, best, opened));
   audio.portalEnter();
   rig.releaseLock();
@@ -346,6 +353,7 @@ async function startGame(def: HeroDef): Promise<void> {
     loadingHero = false;
     select.setBusy(false);
   }
+  applyCoat(player.hero!, coatFor(def));
   clearInput();
   footsteps.reset();
   setState('play');

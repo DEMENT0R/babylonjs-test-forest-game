@@ -1,7 +1,8 @@
 // Герои: описания, загрузка GLB-моделей из public/models и смешивание анимаций.
 
-import { ImportMeshAsync, TransformNode, Vector3, type AbstractMesh, type AnimationGroup, type PBRMaterial, type Skeleton } from '@babylonjs/core';
+import { Color3, ImportMeshAsync, TransformNode, Vector3, type AbstractMesh, type AnimationGroup, type PBRMaterial, type Skeleton } from '@babylonjs/core';
 import '@babylonjs/loaders/glTF';
+import { totalStars } from './levels/progress';
 import { addShadowCaster, type LightingContext } from './settings';
 import { clamp, damp } from './utils';
 
@@ -65,6 +66,64 @@ export const HEROES: readonly HeroDef[] = [
     stars: 15,
   },
 ];
+
+/** Окрас героя: множитель к цвету шкуры; открывается за звёзды, общий список для всех героев. */
+export interface Coat { id: string; name: string; stars: number; tint: readonly [r: number, g: number, b: number] | null }
+
+export const COATS: readonly Coat[] = [
+  { id: 'native', name: 'Родной', stars: 0, tint: null },
+  { id: 'ember', name: 'Огненный', stars: 10, tint: [1.15, 0.62, 0.42] },
+  { id: 'ash', name: 'Пепельный', stars: 20, tint: [0.78, 0.82, 0.9] },
+  { id: 'gold', name: 'Золотой', stars: 30, tint: [1.3, 1.08, 0.55] },
+  { id: 'night', name: 'Ночной', stars: 40, tint: [0.42, 0.44, 0.62] },
+];
+
+const COATS_KEY = 'tihaya-polyana-coats';
+
+function loadCoats(): Record<string, string> {
+  try {
+    const c = JSON.parse(localStorage.getItem(COATS_KEY) ?? 'null') as Record<string, string> | null;
+    return c && typeof c === 'object' ? c : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Выбранный окрас каждого героя: id героя → id окраса. */
+const chosenCoats = loadCoats();
+
+/** Окрасы, открытые сейчас по числу звёзд. */
+export const openCoats = (): Coat[] => COATS.filter((c) => c.stars <= totalStars());
+
+/** Окрас героя; если звёзд на выбранный уже не хватает (сброс прогресса) — родной. */
+export function coatFor(def: HeroDef): Coat {
+  const c = COATS.find((k) => k.id === chosenCoats[def.id]);
+  return c && c.stars <= totalStars() ? c : COATS[0];
+}
+
+export function chooseCoat(def: HeroDef, coat: Coat): void {
+  chosenCoats[def.id] = coat.id;
+  try {
+    localStorage.setItem(COATS_KEY, JSON.stringify(chosenCoats));
+  } catch {
+    // Хранилище недоступно — окрас проживёт до перезагрузки
+  }
+}
+
+/**
+ * Красит шкуру: альбедо модели умножается на оттенок окраса. Исходный цвет хранится
+ * в metadata материала — по нему же экран выбора возвращает цвет закрытому герою.
+ */
+export function applyCoat(hero: Hero, coat: Coat): void {
+  const tint = coat.tint ? new Color3(...coat.tint) : null;
+  for (const m of hero.meshes) {
+    const mat = m.material as PBRMaterial | null;
+    if (!mat?.albedoColor) continue;
+    const meta = (mat.metadata ??= {}) as { albedo?: Color3 };
+    meta.albedo ??= mat.albedoColor.clone();
+    mat.albedoColor.copyFrom(tint ? meta.albedo.multiply(tint) : meta.albedo);
+  }
+}
 
 /** Анимации, которые смешиваются по весам (hello управляется отдельно — на экране выбора). */
 type BlendKey = 'idle' | 'walk' | 'run' | 'jump';

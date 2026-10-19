@@ -138,6 +138,7 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump{display:no
 #select:has(.hero.locked[aria-pressed="true"]) #play:disabled{cursor:not-allowed}
 .ghost{pointer-events:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px 16px;font:600 12px var(--f-mono);cursor:pointer}
 .ghost:hover{border-color:var(--accent)}
+.ghost:disabled{opacity:.6;cursor:default;border-color:var(--line)}
 .sel-hint{font:400 12px var(--f-mono);opacity:.75}
 .credits{font:400 10px/1.5 var(--f-mono);opacity:.55;text-align:center;max-width:72ch}
 @media (max-width:600px){
@@ -151,7 +152,7 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump{display:no
 @media (max-width:600px),(max-height:520px){.credits{display:none}}
 @media (max-width:600px) and (orientation:portrait){
   .sel-foot{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%}
-  #play{grid-column:1/-1;min-height:52px}
+  #play,#coat{grid-column:1/-1;min-height:52px}
   .sel-foot .ghost{min-height:44px}
 }
 /* Телефон в ландшафте: заголовок в строку, карточки без описаний, кнопки сбоку от них */
