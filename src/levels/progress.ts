@@ -16,7 +16,7 @@ export interface Progress {
   unlocked: number;
   records: Record<number, LevelRecord>;
   /** Лучшее время в «Лесе дня» — только за последний день, когда в него играли. */
-  daily?: { date: string; time: number };
+  daily?: { date: string; time: number; quest?: boolean };
   /** Серия: последний день, когда проходили уровень, и сколько дней подряд. */
   streak?: { last: string; days: number };
   /** Сколько всего дней с пройденным уровнем — подряд или нет; от этого обрастает поляна. */
@@ -101,9 +101,10 @@ export function dailyBest(date: string): number | undefined {
   return progress.daily?.date === date ? progress.daily.time : undefined;
 }
 
-export function completeDaily(date: string, time: number): void {
+export function completeDaily(date: string, time: number, quest: boolean): void {
   const best = dailyBest(date);
-  progress.daily = { date, time: best === undefined ? time : Math.min(best, time) };
+  const prevQuest = progress.daily?.date === date && !!progress.daily.quest;
+  progress.daily = { date, time: best === undefined ? time : Math.min(best, time), quest: quest || prevQuest };
   save();
 }
 

@@ -367,7 +367,7 @@ function finishLevel(): void {
   let newCoat: string | null = null;
   if (daily) {
     best = dailyBest(daily);
-    completeDaily(daily, time);
+    completeDaily(daily, time, quest.passed());
     eyebrow = `Лес дня пройден · ${timeText(time, best)}`;
   } else {
     const star = world.collected === world.crystals.length;
@@ -394,6 +394,7 @@ function finishLevel(): void {
   if (constellation) notes.push(`✦ Новое созвездие на небе: «${constellation}»`);
   if (newCoat) notes.push(`Открыт окрас «${newCoat}» — выбери его на экране героя`);
   notes.push(...almost(time, best, opened));
+  if (daily) notes.push('Результатом можно поделиться — кнопка в меню под «Лесом дня»');
   audio.portalEnter();
   rig.releaseLock();
   clearInput();

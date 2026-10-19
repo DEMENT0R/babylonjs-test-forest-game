@@ -9,6 +9,7 @@ import { recipeFor } from '../levels/recipes';
 import { byId, plural } from '../utils';
 import { journal, NOTES } from '../journal';
 import { growGarden, welcomeNote } from '../journal';
+import { copyText, dailyShareText } from '../share';
 import { journalHtml } from './journal-panel';
 import { seenStars, skyHtml } from './sky-panel';
 
@@ -24,6 +25,8 @@ type InfoKey = 'levels' | 'sky' | 'journal' | 'changes' | 'about';
 const TITLES: Record<InfoKey, string> = { levels: 'Уровни', sky: 'Звёздное небо', journal: 'Дневник', changes: 'Что нового', about: 'Авторы' };
 /** Пункт меню, который открывает панель, — на него возвращается фокус при закрытии. */
 const OPENERS: Record<InfoKey, string> = { levels: 'm-levels', sky: 'm-sky', journal: 'm-journal', changes: 'm-changes', about: 'm-about' };
+
+const SHARE_LABEL = 'Поделиться результатом дня ⧉';
 
 const dateFmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 const changesHtml = (): string =>
@@ -68,6 +71,7 @@ export class MainMenu {
       actions.onChangeHero();
     });
     this.btnSettings.addEventListener('click', actions.onSettings);
+    byId('m-daily-share').addEventListener('click', () => void this.shareDaily());
     byId('m-daily').addEventListener('click', () => {
       this.closeInfo();
       actions.onDaily();
@@ -110,12 +114,22 @@ export class MainMenu {
     this.syncSky();
     const best = dailyBest(todayKey());
     byId('m-daily-best').textContent = best === undefined ? 'новый' : `рекорд ${formatTime(best)}`;
+    byId('m-daily-share').hidden = best === undefined;
     this.syncStreak();
     const ready = growGarden();
     byId('menu-letter').hidden = !welcomeNote;
     const garden = byId('menu-garden');
     garden.hidden = ready === 0;
     garden.textContent = `✦ В саду у каменного круга ${plural(ready, 'вырос', 'выросло', 'выросло')} ${ready} ${plural(ready, 'кристалл', 'кристалла', 'кристаллов')}`;
+  }
+
+  /** Копирует результат Леса дня для чата; отклик — на самой кнопке. */
+  private async shareDaily(): Promise<void> {
+    const text = dailyShareText(todayKey());
+    if (!text) return;
+    const btn = byId('m-daily-share');
+    btn.textContent = (await copyText(text)) ? 'Скопировано ✓ — вставь в чат' : 'Не удалось скопировать';
+    setTimeout(() => (btn.textContent = SHARE_LABEL), 2500);
   }
 
   /** Огонёк серии: сколько дней подряд пройден уровень; если сегодня ещё нет — напоминание. */
