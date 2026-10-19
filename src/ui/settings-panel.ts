@@ -26,7 +26,19 @@ interface Tab {
   /** Строки вкладки входят в пресет графики: их изменение переводит его в «Своё». */
   preset?: true;
   rows: readonly (Section | Row)[];
+  /** Справка под строками вкладки. */
+  info?: { title: string; html: string };
 }
+
+const KEYS_HELP = `<dl class="help">
+    <dt>WASD / стрелки</dt><dd>движение</dd><dt>Shift</dt><dd>бег</dd><dt>Space</dt><dd>прыжок</dd>
+    <dt>Мышь</dt><dd>повернуть камеру; в режиме «из-за плеча» клик захватывает курсор</dd>
+    <dt>Колесо</dt><dd>приблизить или отдалить камеру</dd><dt>C</dt><dd>режим камеры: из-за плеча, за спиной, свободная</dd>
+    <dt>H</dt><dd>сменить героя</dd><dt>O</dt><dd>настройки</dd><dt>M</dt><dd>включить или выключить звук</dd><dt>F</dt><dd>во весь экран и обратно</dd><dt>Esc</dt><dd>пауза и главное меню</dd>
+    <dt>Телефон</dt><dd>стик слева (плавающий — под пальцем, или фиксированный, см. выше), кнопка прыжка справа, свайп поворачивает камеру; с геймпадом экранные кнопки прячутся</dd>
+    <dt>Геймпад</dt><dd>левый стик — ходьба (до упора или с LB — бег), правый — камера, A — прыжок,
+      Y — режим камеры, крестовина ↑↓ — зум, View — настройки, Start — пауза;
+      в меню крестовина или стик выбирают пункт, A — нажать, B — назад, LB/RB — вкладки настроек</dd></dl>`;
 
 const TABS: readonly Tab[] = [
   {
@@ -70,6 +82,7 @@ const TABS: readonly Tab[] = [
       { sec: 'Геймпад' },
       { key: 'padSens', label: 'Чувствительность стика', hint: 'Правый стик поворачивает камеру', range: [0.3, 3, 0.1], fmt: (v) => `${v.toFixed(1)}×` },
     ],
+    info: { title: 'Клавиши и кнопки', html: KEYS_HELP },
   },
   {
     id: 'sound',
@@ -232,6 +245,14 @@ export class SettingsPanel {
         continue;
       }
       this.body.appendChild(this.renderRow(it));
+    }
+    const { info } = TABS[this.tab];
+    if (info) {
+      const d = document.createElement('div');
+      d.className = 'sec';
+      d.textContent = info.title;
+      this.body.appendChild(d);
+      this.body.insertAdjacentHTML('beforeend', info.html);
     }
     const note = document.createElement('p');
     note.className = 'note';

@@ -1,4 +1,5 @@
-// Главное меню: пункты, прогресс текущей игры, уровни, справка, история изменений и авторы.
+// Главное меню в три яруса: игра (продолжить, играть, лес дня), прогресс (плитки «Уровни»,
+// «Небо», «Дневник»), служебное (настройки, в подвале — «Что нового» и «Авторы»).
 
 import { Engine } from '@babylonjs/core';
 import { CHANGELOG, hasUnseenChanges, markChangesSeen } from '../changelog';
@@ -6,32 +7,22 @@ import { BIOMES } from '../levels/biomes';
 import { currentStreak, dailyBest, formatTime, progress as saved, todayKey, totalStars } from '../levels/progress';
 import { recipeFor } from '../levels/recipes';
 import { byId, plural } from '../utils';
+import { journal, NOTES } from '../journal';
 import { journalHtml } from './journal-panel';
 import { seenStars, skyHtml } from './sky-panel';
 
-const INFO = {
-  help: `<dl>
-    <dt>WASD / стрелки</dt><dd>движение</dd><dt>Shift</dt><dd>бег</dd><dt>Space</dt><dd>прыжок</dd>
-    <dt>Мышь</dt><dd>повернуть камеру; в режиме «из-за плеча» клик захватывает курсор</dd>
-    <dt>Колесо</dt><dd>приблизить или отдалить камеру</dd><dt>C</dt><dd>режим камеры: из-за плеча, за спиной, свободная</dd>
-    <dt>H</dt><dd>сменить героя</dd><dt>O</dt><dd>настройки</dd><dt>M</dt><dd>включить или выключить звук</dd><dt>F</dt><dd>во весь экран и обратно</dd><dt>Esc</dt><dd>пауза и главное меню</dd>
-    <dt>Телефон</dt><dd>стик слева (плавающий — под пальцем, или фиксированный, см. настройки), кнопка прыжка справа, свайп поворачивает камеру; с геймпадом экранные кнопки прячутся</dd>
-    <dt>Геймпад</dt><dd>левый стик — ходьба (до упора или с LB — бег), правый — камера, A — прыжок,
-      Y — режим камеры, крестовина ↑↓ — зум, View — настройки, Start — пауза;
-      в меню крестовина или стик выбирают пункт, A — нажать, B — назад, LB/RB — вкладки настроек</dd></dl>`,
-  about: `
+const ABOUT = `
     <p>Разработка — <a href="https://github.com/DEMENT0R" target="_blank" rel="noopener">Максим Безрукавников</a>, при участии Claude (Anthropic).</p>
     <p>Движок — Babylon.js ${Engine.Version}.</p>
     <p>Волк и олень — Quaternius, Ultimate Animated Animals (CC0).</p>
     <p>Лиса — PixelMannen (CC0), риг и анимация @tomkranis (CC BY 4.0), из Khronos glTF Sample Assets.</p>
     <p>Звуки ветра, птиц и шагов синтезируются в браузере (Web Audio API).</p>
-    <p>Шрифты — Unbounded и JetBrains Mono.</p>`,
-} as const;
-type InfoKey = keyof typeof INFO | 'levels' | 'sky' | 'journal' | 'changes';
+    <p>Шрифты — Unbounded и JetBrains Mono.</p>`;
+type InfoKey = 'levels' | 'sky' | 'journal' | 'changes' | 'about';
 
-const TITLES: Record<InfoKey, string> = { levels: 'Уровни', sky: 'Звёздное небо', journal: 'Дневник', help: 'Управление', changes: 'Что нового', about: 'Авторы' };
+const TITLES: Record<InfoKey, string> = { levels: 'Уровни', sky: 'Звёздное небо', journal: 'Дневник', changes: 'Что нового', about: 'Авторы' };
 /** Пункт меню, который открывает панель, — на него возвращается фокус при закрытии. */
-const OPENERS: Record<InfoKey, string> = { levels: 'm-levels', sky: 'm-sky', journal: 'm-journal', help: 'm-help', changes: 'm-changes', about: 'm-about' };
+const OPENERS: Record<InfoKey, string> = { levels: 'm-levels', sky: 'm-sky', journal: 'm-journal', changes: 'm-changes', about: 'm-about' };
 
 const dateFmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 const changesHtml = (): string =>
@@ -100,12 +91,20 @@ export class MainMenu {
   update(progress: MenuProgress | null): void {
     const started = progress !== null;
     this.btnContinue.hidden = !started;
-    this.btnHero.hidden = !started;
+    // Во время игры главное — «Продолжить», перезапуск уходит во второй ряд
     this.btnNew.textContent = started ? 'Начать уровень заново' : `Играть · уровень ${saved.current}`;
+    this.btnNew.classList.toggle('minor', started);
     this.progressEl.hidden = !started;
     if (progress) {
-      this.progressEl.innerHTML = `${progress.place} · ${progress.heroName} · кристаллы <b>${progress.got}</b> / ${progress.total}`;
+      byId('menu-place').textContent = progress.place;
+      this.btnHero.textContent = `${progress.heroName} ↺`;
+      byId('menu-got').textContent = String(progress.got);
+      byId('menu-total').textContent = String(progress.total);
     }
+    // Описание игры нужно только тому, кто ещё не играл
+    byId('menu-sub').hidden = started || Object.keys(saved.records).length > 0;
+    byId('m-levels-count').textContent = `открыто ${saved.unlocked}`;
+    byId('m-journal-count').textContent = `записки ${journal.notes}/${NOTES.length}`;
     if (this.infoOpen === 'levels') this.infoBody.innerHTML = this.levelsHtml();
     this.syncSky();
     const best = dailyBest(todayKey());
@@ -166,7 +165,7 @@ export class MainMenu {
             ? journalHtml()
             : key === 'changes'
               ? changesHtml()
-              : INFO[key];
+              : ABOUT;
     this.infoBody.scrollTop = 0;
     if (key === 'sky') this.syncSky();
     if (key === 'changes') {
@@ -205,7 +204,7 @@ export class MainMenu {
 
   /**
    * Клавиши меню: Esc закрывает открытую панель, стрелки вверх/вниз ходят по пунктам
-   * (или по уровням в открытом списке). Возвращает true, если клавиша обработана.
+   * (или по уровням в открытом списке), влево/вправо — по плиткам и ссылкам подвала. Возвращает true, если клавиша обработана.
    */
   handleKey(e: KeyboardEvent): boolean {
     if (e.code === 'Escape' && this.infoOpen) {
@@ -213,11 +212,21 @@ export class MainMenu {
       this.closeInfo(true);
       return true;
     }
+    // Влево-вправо — только по соседним плиткам или ссылкам в одном ряду
+    if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+      const row = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>('.menu-tiles, .menu-foot');
+      if (!row) return false;
+      e.preventDefault();
+      const items = [...row.querySelectorAll<HTMLElement>('button')];
+      const i = items.indexOf(document.activeElement as HTMLElement);
+      items[(i + (e.code === 'ArrowRight' ? 1 : -1) + items.length) % items.length].focus();
+      return true;
+    }
     if (e.code !== 'ArrowDown' && e.code !== 'ArrowUp') return false;
     e.preventDefault();
     const inInfo = this.info.contains(document.activeElement);
-    const scope = inInfo ? this.info : this.root.querySelector<HTMLElement>('.menu-list')!;
-    const items = [...scope.querySelectorAll<HTMLElement>('button:not([hidden])')];
+    const scope = inInfo ? this.info : this.root.querySelector<HTMLElement>('.menu-col')!;
+    const items = [...scope.querySelectorAll<HTMLElement>('button')].filter((b) => b.getClientRects().length > 0);
     const i = items.indexOf(document.activeElement as HTMLElement);
     const step = e.code === 'ArrowDown' ? 1 : -1;
     const next = items[i < 0 ? 0 : (i + step + items.length) % items.length];

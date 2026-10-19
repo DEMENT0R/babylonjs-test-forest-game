@@ -202,16 +202,34 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump{display:no
 }
 .menu-list button span{font:600 11px var(--f-mono);color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 5px}
 .menu-list button.primary,.menu-list:has(#m-continue[hidden]) #m-new{color:var(--accent);opacity:1}
-.menu-list .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px rgba(255,207,90,.2)}
+.menu-list .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px rgba(255,207,90,.2);flex:none}
+/* Во время игры «Начать заново» — второстепенный пункт */
+.menu-list button.minor{font:600 13px var(--f-mono);color:var(--muted);padding-block:2px 8px}
+/* Прогресс: три плитки в ряд */
+.menu-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;width:100%;margin-block:8px}
+.menu-list button.tile{position:relative;flex-direction:column;align-items:flex-start;gap:4px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;
+  background:var(--panel);backdrop-filter:blur(6px);font-size:15px;opacity:1;min-width:0}
+.menu-list button.tile::before{display:none}
+.menu-list button.tile:is(:hover,:focus-visible),.menu-list button.tile[aria-expanded="true"]{transform:none;border-color:var(--accent)}
+.menu-list .tile small{font:400 11px var(--f-mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.menu-list .tile .dot{position:absolute;top:10px;right:10px}
+/* Служебные ссылки: в подвале меню и имя героя в строке прогресса */
+#menu button.link{background:none;border:0;padding:0;font:600 12px var(--f-mono);color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;gap:6px;
+  opacity:1;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+#menu button.link::before{display:none}
+#menu button.link:is(:hover,:focus-visible),#menu button.link[aria-expanded="true"]{color:var(--ink);text-decoration-color:var(--accent);transform:none;outline:none}
+.menu-progress button.link{font:inherit;color:var(--ink)}
+.menu-foot{display:flex;gap:18px;margin-top:14px}
 @media (hover:none){#menu .key-only{display:none}}
 
 .menu-info{width:420px;max-width:100%;max-height:100%;min-width:0;display:flex;flex-direction:column;background:var(--panel-hi);border:1px solid var(--line);border-radius:12px;backdrop-filter:blur(8px);overflow:hidden}
 .info-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px 10px;border-bottom:1px solid var(--line)}
 .info-head h4{margin:0;font:700 15px var(--f-display)}
 .info-body{padding:12px 18px 16px;overflow:auto;overscroll-behavior:contain}
-.menu-info dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;font:400 12px/1.5 var(--f-mono)}
-.menu-info dt{color:var(--ink);font-weight:600;white-space:nowrap}
-.menu-info dd{margin:0;color:var(--muted)}
+/* Списки «название — значение»: дневник и справка по клавишам во вкладке «Управление» */
+.menu-info dl,.help{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0;font:400 12px/1.5 var(--f-mono)}
+.menu-info dt,.help dt{color:var(--ink);font-weight:600;white-space:nowrap}
+.menu-info dd,.help dd{margin:0;color:var(--muted)}
 .menu-info p{margin:0 0 8px;font:400 12px/1.6 var(--f-mono);color:var(--muted)}
 .menu-info a{color:var(--ink);text-decoration:underline;text-underline-offset:2px}
 .menu-info h5{margin:16px 0 6px;font:600 11px var(--f-mono);letter-spacing:.16em;text-transform:uppercase;color:var(--accent)}
@@ -266,7 +284,14 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump{display:no
   .menu-list button::before{display:none}
   .menu-list button:focus-visible{transform:none;border-color:var(--accent)}
   .menu-list .primary,.menu-list #m-new,.menu-list #m-daily{grid-column:1/-1;font-size:17px}
-  .menu-list:has(#m-hero[hidden]) #m-about{grid-column:1/-1}
+  /* В игре «Начать заново» и «Настройки» — парой в последнем ряду */
+  .menu-list #m-new.minor{grid-column:auto;order:1;font:600 13px var(--f-mono);color:var(--ink)}
+  .menu-list #m-settings{order:1}
+  .menu-list:has(#m-continue[hidden]) #m-settings{grid-column:1/-1}
+  .menu-tiles,.menu-foot{grid-column:1/-1;margin:0}
+  .menu-tiles{order:0}
+  .menu-foot{order:2;justify-content:center;padding-top:4px}
+  .menu-list button.tile{align-items:center;font-size:14px;padding:8px 6px}
   .menu-list button.primary,.menu-list:has(#m-continue[hidden]) #m-new{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);min-height:54px;font-size:18px}
   .menu-list button.primary span{color:var(--accent-ink);border-color:rgba(29,22,6,.3)}
   .menu-list button.primary:focus-visible,.menu-list #m-new:focus-visible{box-shadow:0 0 0 2px var(--ink)}
