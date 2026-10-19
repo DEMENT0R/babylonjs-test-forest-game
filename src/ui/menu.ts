@@ -3,7 +3,7 @@
 import { Engine } from '@babylonjs/core';
 import { CHANGELOG, hasUnseenChanges, markChangesSeen } from '../changelog';
 import { BIOMES } from '../levels/biomes';
-import { formatTime, progress as saved, totalStars } from '../levels/progress';
+import { dailyBest, formatTime, progress as saved, todayKey, totalStars } from '../levels/progress';
 import { recipeFor } from '../levels/recipes';
 import { byId } from '../utils';
 import { seenStars, skyHtml } from './sky-panel';
@@ -44,10 +44,11 @@ export interface MenuActions {
   onChangeHero: () => void;
   onSettings: () => void;
   onPickLevel: (index: number) => void;
+  onDaily: () => void;
 }
 
 /** Прогресс текущей игры; null — игра ещё не начата. */
-export interface MenuProgress { heroName: string; level: number; got: number; total: number }
+export interface MenuProgress { heroName: string; place: string; got: number; total: number }
 
 const levelName = (i: number) => BIOMES[recipeFor(i).biome].name;
 const starHtml = (got: boolean, what: string) =>
@@ -74,6 +75,10 @@ export class MainMenu {
       actions.onChangeHero();
     });
     this.btnSettings.addEventListener('click', actions.onSettings);
+    byId('m-daily').addEventListener('click', () => {
+      this.closeInfo();
+      actions.onDaily();
+    });
     for (const key of Object.keys(OPENERS) as InfoKey[]) {
       byId(OPENERS[key]).addEventListener('click', () => this.toggleInfo(key));
     }
@@ -98,10 +103,12 @@ export class MainMenu {
     this.btnNew.textContent = started ? 'Начать уровень заново' : `Играть · уровень ${saved.current}`;
     this.progressEl.hidden = !started;
     if (progress) {
-      this.progressEl.innerHTML = `Уровень ${progress.level} · ${progress.heroName} · кристаллы <b>${progress.got}</b> / ${progress.total}`;
+      this.progressEl.innerHTML = `${progress.place} · ${progress.heroName} · кристаллы <b>${progress.got}</b> / ${progress.total}`;
     }
     if (this.infoOpen === 'levels') this.infoBody.innerHTML = this.levelsHtml();
     this.syncSky();
+    const best = dailyBest(todayKey());
+    byId('m-daily-best').textContent = best === undefined ? 'новый' : `рекорд ${formatTime(best)}`;
   }
 
   /** Число звёзд у пункта «Небо» и точка, если есть звёзды, которых игрок ещё не видел на небе. */

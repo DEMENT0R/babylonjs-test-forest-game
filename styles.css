@@ -253,7 +253,7 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump{display:no
     border:1px solid var(--line);border-radius:12px;background:var(--panel);backdrop-filter:blur(6px)}
   .menu-list button::before{display:none}
   .menu-list button:focus-visible{transform:none;border-color:var(--accent)}
-  .menu-list .primary,.menu-list #m-new{grid-column:1/-1;font-size:17px}
+  .menu-list .primary,.menu-list #m-new,.menu-list #m-daily{grid-column:1/-1;font-size:17px}
   .menu-list:not(:has(#m-hero[hidden])) #m-about{grid-column:1/-1}
   .menu-list button.primary,.menu-list:has(#m-continue[hidden]) #m-new{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);min-height:54px;font-size:18px}
   .menu-list button.primary span{color:var(--accent-ink);border-color:rgba(29,22,6,.3)}

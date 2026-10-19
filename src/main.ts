@@ -8,10 +8,10 @@ import { CameraRig } from './camera';
 import { BTN, gamepad } from './gamepad';
 import { HEROES, loadHero, type HeroDef } from './heroes';
 import type { LevelLayout } from './levels/generator';
-import { completeLevel, formatTime, progress, setCurrentLevel, totalStars } from './levels/progress';
+import { completeDaily, completeLevel, dailyBest, formatTime, progress, setCurrentLevel, todayKey, totalStars } from './levels/progress';
 import { QuestMarkers } from './levels/markers';
 import { fitQuest, QuestRun } from './levels/quests';
-import { recipeFor } from './levels/recipes';
+import { dailyRecipe, recipeFor } from './levels/recipes';
 import { clearInput, keys, Player, setupTouchControls } from './player';
 import { Ripples } from './ripples';
 import { applySettings, settings } from './settings';
@@ -52,8 +52,10 @@ const ripples = new Ripples(world.scene);
 const breath = new Breath(world.scene);
 const starSky = new StarSky(world.scene, world.camera, world.lighting.glow);
 
-/** Текущий уровень и время, проведённое в нём (только в игре, без пауз). */
+/** Текущий уровень кампании и время, проведённое в нём (только в игре, без пауз). */
 let level = progress.current;
+/** Дата «Леса дня», если сейчас идёт он, а не уровень кампании. */
+let daily: string | null = null;
 let layout: LevelLayout;
 let levelTime = 0;
 let quest: QuestRun;
@@ -99,6 +101,7 @@ const menu = new MainMenu({
   onChangeHero: () => backToSelect(),
   onSettings: () => settingsPanel.open(),
   onPickLevel: (i) => pickLevel(i),
+  onDaily: () => pickLevel(level, todayKey()),
 });
 
 setupHud({
@@ -116,6 +119,7 @@ setupFullscreen();
 // ---------- Уровни ----------
 
 const levelLabel = (i: number, l: LevelLayout) => `Уровень ${i} · ${l.biome.name}`;
+const currentLabel = () => (daily ? `Лес дня · ${layout.biome.name}` : levelLabel(level, layout));
 
 function updateCrystalsHud(): void {
   setCrystals(world.collected, world.crystals.length, layout.required, world.portalOpen);
@@ -158,15 +162,18 @@ function tickQuest(dt: number, got: number[]): void {
   // Ночью садиться нечему
   if (quest.quest.kind === 'time' && !layout.biome.crystalLights) world.setDusk(quest.timeShare);
   if (quest.failed && !was.failed) say('Задание провалено — но уровень можно пройти');
-  else if (quest.complete && !was.complete) say('Задание выполнено ★ — осталось дойти до портала');
+  else if (quest.complete && !was.complete) say(`Задание выполнено${daily ? '' : ' ★'} — осталось дойти до портала`);
   updateQuestHud();
 }
 
-/** Построить уровень и поставить героя на старт. */
-function beginLevel(index: number): void {
-  level = index;
-  setCurrentLevel(index);
-  const recipe = recipeFor(index);
+/** Построить уровень (или «Лес дня» на дату dailyDate) и поставить героя на старт. */
+function beginLevel(index: number, dailyDate: string | null = null): void {
+  daily = dailyDate;
+  if (!daily) {
+    level = index;
+    setCurrentLevel(index);
+  }
+  const recipe = daily ? dailyRecipe(daily) : recipeFor(index);
   layout = world.loadLevel(recipe);
   quest = new QuestRun(fitQuest(recipe.quest, layout), layout);
   placeMarkers();
@@ -179,56 +186,63 @@ function beginLevel(index: number): void {
   footsteps.reset();
   ripples.clear();
   levelTime = 0;
-  setLevelTitle(levelLabel(index, layout));
-  setHintLevel(index);
+  setLevelTitle(currentLabel());
+  setHintLevel(level);
   updateCrystalsHud();
   updateQuestHud();
 }
 
 function restartLevel(): void {
-  beginLevel(level);
+  beginLevel(level, daily);
   resumeGame();
 }
 
-/** Выбор уровня в меню: строим его и сразу играем (или сначала выбираем героя). */
-function pickLevel(index: number): void {
-  beginLevel(index);
+/** Выбор уровня или «Леса дня» в меню: строим его и сразу играем (или сначала выбираем героя). */
+function pickLevel(index: number, dailyDate: string | null = null): void {
+  beginLevel(index, dailyDate);
   if (player.hero) {
     gameStarted = true;
     resumeGame();
-    say(levelLabel(index, layout));
+    say(currentLabel());
   } else {
     backToSelect();
   }
 }
 
-/** Герой зашёл в открытый портал: запись результата и переход на следующий уровень. */
+/** Время на экране итога; рекорд сравнивается по показанным секундам, чтобы «0:42, рекорд 0:42» не звалось новым. */
+function timeText(time: number, best: number | undefined): string {
+  if (best === undefined) return formatTime(time);
+  return Math.floor(time) < Math.floor(best) ? `${formatTime(time)} · новый рекорд!` : `${formatTime(time)} (рекорд ${formatTime(best)})`;
+}
+
+/**
+ * Герой зашёл в открытый портал: запись результата и переход на следующий уровень.
+ * После «Леса дня» игра возвращается к текущему уровню кампании.
+ */
 function finishLevel(): void {
-  const star = world.collected === world.crystals.length;
   const time = levelTime;
-  const questDone = quest.passed();
-  const best = progress.records[level]?.time;
-  const lockedBefore = HEROES.filter((h) => starsMissing(h) > 0);
-  completeLevel(level, star, questDone, time);
-  const opened = lockedBefore.filter((h) => !starsMissing(h));
-  select.refreshLocks();
-  // Рекорд сравнивается по показанным секундам, чтобы «0:42, рекорд 0:42» не звалось новым
-  const timeText =
-    best === undefined
-      ? formatTime(time)
-      : Math.floor(time) < Math.floor(best)
-        ? `${formatTime(time)} · новый рекорд!`
-        : `${formatTime(time)} (рекорд ${formatTime(best)})`;
+  let eyebrow: string;
+  let opened: HeroDef[] = [];
+  if (daily) {
+    const best = dailyBest(daily);
+    completeDaily(daily, time);
+    eyebrow = `Лес дня пройден · ${timeText(time, best)}`;
+  } else {
+    const star = world.collected === world.crystals.length;
+    const questDone = quest.passed();
+    const best = progress.records[level]?.time;
+    const lockedBefore = HEROES.filter((h) => starsMissing(h) > 0);
+    completeLevel(level, star, questDone, time);
+    opened = lockedBefore.filter((h) => !starsMissing(h));
+    select.refreshLocks();
+    eyebrow = `Уровень ${level} пройден · ${timeText(time, best)}${star ? ' · ★ все кристаллы' : ''}${questDone ? ' · ★ задание' : ''}`;
+  }
   audio.portalEnter();
   rig.releaseLock();
   clearInput();
-  const next = level + 1;
+  const next = daily ? level : level + 1;
   void transition(
-    {
-      eyebrow: `Уровень ${level} пройден · ${timeText}${star ? ' · ★ все кристаллы' : ''}${questDone ? ' · ★ задание' : ''}`,
-      title: `Уровень ${next}`,
-      sub: '',
-    },
+    { eyebrow, title: `Уровень ${next}`, sub: '' },
     () => {
       beginLevel(next);
       setTransitionText({
@@ -262,7 +276,7 @@ async function startGame(def: HeroDef): Promise<void> {
   footsteps.reset();
   setState('play');
   canvas.focus();
-  say(gameStarted ? def.name : `${levelLabel(level, layout)} — собери кристаллы`);
+  say(gameStarted ? def.name : `${currentLabel()} — собери кристаллы`);
   gameStarted = true;
 }
 
@@ -283,7 +297,7 @@ function openMenu(): void {
   setState('menu');
   menu.update(
     gameStarted && player.hero
-      ? { heroName: player.hero.def.name, level, got: world.collected, total: world.crystals.length }
+      ? { heroName: player.hero.def.name, place: daily ? 'Лес дня' : `Уровень ${level}`, got: world.collected, total: world.crystals.length }
       : null,
   );
   menu.focusFirst();

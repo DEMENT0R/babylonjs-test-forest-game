@@ -15,6 +15,8 @@ export interface Progress {
   /** Самый дальний открытый уровень. */
   unlocked: number;
   records: Record<number, LevelRecord>;
+  /** Лучшее время в «Лесе дня» — только за последний день, когда в него играли. */
+  daily?: { date: string; time: number };
 }
 
 const KEY = 'tihaya-polyana-progress';
@@ -23,7 +25,7 @@ function load(): Progress {
   try {
     const p = JSON.parse(localStorage.getItem(KEY) ?? 'null') as Partial<Progress> | null;
     if (p && typeof p === 'object' && Number.isInteger(p.current) && Number.isInteger(p.unlocked)) {
-      return { current: p.current!, unlocked: Math.max(p.unlocked!, p.current!), records: p.records ?? {} };
+      return { current: p.current!, unlocked: Math.max(p.unlocked!, p.current!), records: p.records ?? {}, daily: p.daily };
     }
   } catch {
     // Повреждённые данные — начинаем сначала
@@ -56,6 +58,23 @@ export function completeLevel(index: number, star: boolean, quest: boolean, time
   };
   progress.unlocked = Math.max(progress.unlocked, index + 1);
   progress.current = index + 1;
+  save();
+}
+
+/** Дата по местному времени — ключ «Леса дня»: 2026-10-19. */
+export function todayKey(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Лучшее время в «Лесе дня» за эту дату. */
+export function dailyBest(date: string): number | undefined {
+  return progress.daily?.date === date ? progress.daily.time : undefined;
+}
+
+export function completeDaily(date: string, time: number): void {
+  const best = dailyBest(date);
+  progress.daily = { date, time: best === undefined ? time : Math.min(best, time) };
   save();
 }
 

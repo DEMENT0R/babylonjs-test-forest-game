@@ -6,7 +6,7 @@ import { BIOMES, type BiomeId } from './biomes';
 import type { Quest } from './quests';
 
 export interface LevelRecipe {
-  /** Номер уровня, с 1. */
+  /** Номер уровня, с 1; 0 — «Лес дня». */
   index: number;
   seed: number;
   biome: BiomeId;
@@ -75,6 +75,30 @@ export function recipeFor(index: number): LevelRecipe {
     hidden: Math.min(0.6, 0.4 + extra * 0.02),
     clearings: Math.min(8, 5 + Math.floor(extra / 2)),
     relief: Math.min(1.5, 1.2 + extra * 0.03),
+    quest: rng.pick(endlessQuests(biome)),
+  };
+}
+
+/**
+ * «Лес дня»: сид из даты, поэтому в один день у всех одна и та же раскладка.
+ * Размер и сложность — как в начале бесконечного режима.
+ */
+export function dailyRecipe(date: string): LevelRecipe {
+  let seed = 0;
+  for (let i = 0; i < date.length; i++) seed = (Math.imul(seed, 31) + date.charCodeAt(i)) >>> 0;
+  const rng = Rng.stream(seed, 'daily');
+  const biome = rng.pick(BIOME_IDS);
+  return {
+    index: 0,
+    seed,
+    biome,
+    half: 68 + rng.int(0, 10),
+    crystals: 16,
+    chains: 3,
+    steps: [3, 4],
+    hidden: 0.4,
+    clearings: 5,
+    relief: 1.1,
     quest: rng.pick(endlessQuests(biome)),
   };
 }
