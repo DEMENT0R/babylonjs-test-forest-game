@@ -221,7 +221,8 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump{display:no
 #menu button.link::before{display:none}
 #menu button.link:is(:hover,:focus-visible),#menu button.link[aria-expanded="true"]{color:var(--ink);text-decoration-color:var(--accent);transform:none;outline:none}
 .menu-progress button.link{font:inherit;color:var(--ink)}
-.menu-foot{display:flex;gap:18px;margin-top:14px}
+.menu-foot{display:flex;align-items:center;gap:18px;margin-top:14px}
+.menu-version{font:400 11px var(--f-mono);color:var(--muted);opacity:.7}
 #menu #m-daily-share{margin:-2px 0 4px}
 @media (hover:none){#menu .key-only{display:none}}
 

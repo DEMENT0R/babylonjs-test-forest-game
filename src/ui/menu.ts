@@ -4,7 +4,7 @@
 
 import { Engine } from '@babylonjs/core';
 import { ACHIEVEMENTS, isDone } from '../achievements';
-import { CHANGELOG, hasUnseenChanges, markChangesSeen } from '../changelog';
+import { CHANGELOG, GAME_VERSION, hasUnseenChanges, markChangesSeen, versionOf } from '../changelog';
 import { BIOMES } from '../levels/biomes';
 import { currentStreak, dailyBest, formatTime, progress as saved, todayKey, totalStars } from '../levels/progress';
 import { recipeFor } from '../levels/recipes';
@@ -48,7 +48,7 @@ const SHARE_LABEL = 'Поделиться результатом дня ⧉';
 const dateFmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
 const changesHtml = (): string =>
   CHANGELOG.map(
-    (d) => `<h5><time datetime="${d.date}">${dateFmt.format(new Date(`${d.date}T12:00:00`)).replace(/\s?г\.$/, '')}</time></h5><ul>${d.items.map((i) => `<li>${i}</li>`).join('')}</ul>`,
+    (d, i) => `<h5>${versionOf(i)} · <time datetime="${d.date}">${dateFmt.format(new Date(`${d.date}T12:00:00`)).replace(/\s?г\.$/, '')}</time></h5><ul>${d.items.map((i) => `<li>${i}</li>`).join('')}</ul>`,
   ).join('');
 
 export interface MenuActions {
@@ -84,6 +84,7 @@ export class MainMenu {
   private readonly tabOf: Partial<Record<InfoKey, string>> = {};
 
   constructor(actions: MenuActions) {
+    byId('m-version').textContent = `v${GAME_VERSION}`;
     this.btnContinue.addEventListener('click', actions.onContinue);
     this.btnNew.addEventListener('click', actions.onNewGame);
     this.btnHero.addEventListener('click', () => {

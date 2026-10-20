@@ -85,6 +85,10 @@ export const CHANGELOG: ChangeDay[] = [
   },
 ];
 
+/** Версия — номер дня в истории: самый ранний день — 0.1, каждый следующий +1. */
+export const versionOf = (index: number): string => `0.${CHANGELOG.length - index}`;
+export const GAME_VERSION = versionOf(0);
+
 const SEEN_KEY = 'tihaya-polyana-changelog-seen';
 
 /** Есть записи новее тех, что игрок уже открывал. */
