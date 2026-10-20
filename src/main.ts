@@ -1,7 +1,7 @@
 // Точка входа: движок, сцены и переключение состояний меню → выбор героя → игра,
 // а внутри игры — смена уровней через портал.
 
-import { Color3, Engine, Vector3 } from '@babylonjs/core';
+import { Color3, Vector3 } from '@babylonjs/core';
 import { Footsteps, GameAudio } from './audio';
 import { Breath } from './breath';
 import { checkAchievements } from './achievements';
@@ -33,7 +33,9 @@ import { fitQuest, QuestRun } from './levels/quests';
 import { dailyRecipe, recipeFor } from './levels/recipes';
 import { clearInput, keys, Player, setupTouchControls } from './player';
 import { Ripples } from './ripples';
-import { applySettings, settings } from './settings';
+import { isMobile } from './device';
+import { AutoScale, GameEngine } from './perf';
+import { applySettings, pickPresetForDevice, settings } from './settings';
 import { StarSky } from './starsky';
 import { say, setCrystals, setHintLevel, setLevelTitle, setQuest, setupHud, showCameraMode, tickFps } from './ui/hud';
 import { setupFullscreen, toggleFullscreen } from './ui/fullscreen';
@@ -49,7 +51,14 @@ import { World } from './world';
 type GameState = 'menu' | 'select' | 'play';
 
 const canvas = byId<HTMLCanvasElement>('c');
-const engine = new Engine(canvas, true, { stencil: true });
+// Кадр всё равно идёт через пост-обработку, и сглаживание самого холста на телефоне
+// только тратит память и время видеочипа
+const engine = new GameEngine(canvas, !isMobile, { stencil: true });
+const autoScale = new AutoScale(engine);
+const PRESET_NAMES = { low: 'низкая', medium: 'средняя', high: 'высокая', ultra: 'ультра' } as const;
+const picked = pickPresetForDevice(engine);
+/** Весть о подобранной графике — покажется, когда игра начнётся. */
+let presetNote = picked && `Графика подобрана под устройство: ${PRESET_NAMES[picked]} — можно поменять в настройках`;
 
 let state: GameState = 'menu';
 /** Игра уже начиналась — в меню доступно «Продолжить». */
@@ -229,6 +238,7 @@ function beginLevel(index: number, dailyDate: string | null = null): void {
   setHintLevel(level);
   updateCrystalsHud();
   updateQuestHud();
+  autoScale.hold(3);
 }
 
 /** Редкий кристалл: в коллекцию оттенков дневника. */
@@ -446,6 +456,11 @@ async function startGame(def: HeroDef): Promise<void> {
   setState('play');
   canvas.focus();
   say(gameStarted ? def.name : `${currentLabel()} — собери кристаллы`);
+  if (presetNote) {
+    const note = presetNote;
+    presetNote = null;
+    setTimeout(() => say(note, 4500), 2200);
+  }
   gameStarted = true;
 }
 
@@ -669,6 +684,7 @@ engine.runRenderLoop(() => {
   wind.update(Math.min(engine.getDeltaTime() / 1000, 0.1));
   (state === 'select' ? select.scene : world.scene).render();
   tickFps(engine);
+  autoScale.update(engine.getDeltaTime() / 1000, state === 'play' && !settingsPanel.isOpen && !isTransitioning());
 });
 addEventListener('resize', () => engine.resize());
 // Телефон может выгрузить вкладку из фона — счётчики дневника сохраняются при уходе

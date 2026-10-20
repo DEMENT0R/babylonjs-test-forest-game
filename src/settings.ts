@@ -14,6 +14,7 @@ import {
   type Engine,
   type GlowLayer,
 } from '@babylonjs/core';
+import { deviceTier, isMobile } from './device';
 
 export type ShadowMode = 'off' | 'hard' | 'soft' | 'pcf';
 export type AntiAliasing = 'off' | 'fxaa' | 'msaa';
@@ -56,6 +57,10 @@ export interface Settings extends GraphicsSettings {
   /** Сенсорный стик: на своём месте или появляется под пальцем в левой части экрана. */
   stick: 'float' | 'fixed';
   fps: boolean;
+  /** Предел кадров в секунду; 0 — сколько успевает экран. */
+  fpsCap: 0 | 30 | 60;
+  /** Снижать разрешение рендера, когда кадров не хватает. */
+  autoScale: boolean;
   /** Памятка по кнопкам: раскрыта на первом уровне, всегда или всегда свёрнута. */
   keyHint: 'first' | 'open' | 'closed';
   /** Звук включён (клавиша M). */
@@ -78,11 +83,16 @@ export const PRESETS: Record<PresetId, GraphicsSettings> = {
             grass: 'dense',  grassDist: 70, grassWind: true,  grassBend: true,  particles: true },
 };
 
+// На телефоне предел в 60 кадров бережёт батарею на экранах 90–120 Гц
 const DEFAULTS: Settings = {
   preset: 'high', ...PRESETS.high, fov: 60, sens: 1, padSens: 1, invertY: false, stick: 'float', fps: false, keyHint: 'first',
+  fpsCap: isMobile ? 60 : 0, autoScale: isMobile,
   sound: true, volume: 0.8, stepsVolume: 0.8, natureVolume: 0.6, musicVolume: 0.5,
 };
 const STORAGE_KEY = 'tihaya-polyana-settings';
+
+/** Сохранённых настроек нет — первый запуск в этом браузере. */
+let firstRun = false;
 
 /** Текущие настройки. Объект живёт всё время работы игры, меняется на месте. */
 export const settings: Settings = loadSettings();
@@ -94,6 +104,7 @@ function loadSettings(): Settings {
   } catch {
     // Повреждённые данные или запрещённое хранилище — просто берём значения по умолчанию
   }
+  firstRun = true;
   return { ...DEFAULTS };
 }
 
@@ -107,6 +118,26 @@ function saveSettings(): void {
 
 export function applyPreset(id: PresetId): void {
   Object.assign(settings, PRESETS[id], { preset: id });
+}
+
+/**
+ * При первом запуске подбирает пресет под устройство; потом настройки уже сохранены и не трогаются.
+ * @returns выбранный пресет или null, если подбирать не пришлось
+ */
+export function pickPresetForDevice(engine: Engine): PresetId | null {
+  if (!firstRun) return null;
+  firstRun = false;
+  const tier = deviceTier(engine.getGlInfo().renderer);
+  const id: PresetId = tier === 'strong' ? 'high' : tier === 'mid' ? 'medium' : 'low';
+  applyPreset(id);
+  // Слабому телефону ровные 30 кадров лучше рваных 40 — и он меньше греется
+  if (isMobile && tier === 'weak') settings.fpsCap = 30;
+  return id;
+}
+
+/** Доля пикселей экрана из настроек, без поправки авто-разрешения. */
+export function renderScale(): number {
+  return settings.scale === 'dpr' ? Math.min(window.devicePixelRatio || 1, 2.5) : settings.scale;
 }
 
 // ---------- Освещение сцен ----------
@@ -278,9 +309,6 @@ const GRAPHICS_KEYS = (Object.keys(PRESETS.high) as (keyof GraphicsSettings)[]).
  * громкость, FOV и прочее применяются мгновенно.
  */
 export function applySettings(engine: Engine): void {
-  const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
-  const scale = settings.scale === 'dpr' ? dpr : settings.scale;
-  engine.setHardwareScalingLevel(1 / scale);
   const graphics = JSON.stringify(GRAPHICS_KEYS.map((k) => settings[k]));
   for (const ctx of contexts) {
     if (ctx.builtFor === graphics) continue;

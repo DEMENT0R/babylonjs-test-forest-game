@@ -12,6 +12,8 @@ interface RowBase {
   key: Key;
   label: string;
   hint?: string;
+  /** Строка на вкладке графики, но не из пресета: её изменение не переводит его в «Своё». */
+  free?: true;
 }
 interface SegRow extends RowBase { seg: readonly (readonly [SegValue, string])[]; preset?: boolean }
 interface ToggleRow extends RowBase { toggle: true }
@@ -48,6 +50,8 @@ const TABS: readonly Tab[] = [
     rows: [
       { key: 'preset', label: 'Пресет', preset: true, seg: [['low', 'Низкое'], ['medium', 'Среднее'], ['high', 'Высокое'], ['ultra', 'Ультра'], ['custom', 'Своё']] },
       { key: 'scale', label: 'Разрешение рендера', hint: 'Доля пикселей экрана', seg: [[0.5, '50%'], [0.75, '75%'], [1, '100%'], ['dpr', 'Retina']] },
+      { key: 'autoScale', label: 'Авто-разрешение', hint: 'Снижает разрешение, когда кадров не хватает', toggle: true, free: true },
+      { key: 'fpsCap', label: 'Предел кадров', hint: '30 — меньше греет телефон и бережёт батарею', seg: [[0, 'Нет'], [60, '60'], [30, '30']], free: true },
       { key: 'aa', label: 'Сглаживание', seg: [['off', 'Выкл'], ['fxaa', 'FXAA'], ['msaa', 'MSAA 4×']] },
       { key: 'view', label: 'Дальность прорисовки', range: [50, 250, 10], fmt: (v) => `${v} м` },
       { key: 'fog', label: 'Туман', toggle: true },
@@ -284,7 +288,7 @@ export class SettingsPanel {
     // Изменение графики переводит пресет в «Своё»
     const inPreset = !!TABS[this.tab].preset;
     const touched = () => {
-      if (inPreset) settings.preset = 'custom';
+      if (inPreset && !it.free) settings.preset = 'custom';
     };
 
     if ('seg' in it) {
