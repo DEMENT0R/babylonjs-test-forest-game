@@ -107,7 +107,9 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump{display:no
 .fade-card h2{margin:0;font:700 clamp(26px,5vw,46px)/1.1 var(--f-display);text-wrap:balance}
 .fade-card p{margin:0;font:400 13px/1.6 var(--f-mono);color:var(--muted);max-width:46ch}
 .fade-card .fade-note{color:var(--accent);font-weight:600;white-space:pre-line}
-@media (prefers-reduced-motion:reduce){#fade{transition:none}}
+.fade-card .fade-hint{margin-top:14px;font-size:12px;animation:fade-hint 1.8s ease-in-out infinite alternate}
+@keyframes fade-hint{from{opacity:.35}to{opacity:.9}}
+@media (prefers-reduced-motion:reduce){#fade{transition:none}.fade-card .fade-hint{animation:none;opacity:.7}}
 
 /* Hero select */
 #select{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:space-between;pointer-events:none;

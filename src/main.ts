@@ -43,7 +43,7 @@ import { activate, navigate, sendKey } from './ui/pad-nav';
 import { DenScreen } from './ui/den';
 import { SelectScreen, starsMissing } from './ui/select';
 import { SettingsPanel } from './ui/settings-panel';
-import { isTransitioning, setTransitionText, transition } from './ui/transition';
+import { continueTransition, isTransitioning, setTransitionText, transition } from './ui/transition';
 import { byId, plural } from './utils';
 import { wind } from './wind';
 import { World } from './world';
@@ -583,7 +583,11 @@ function padScreen(): HTMLElement | null {
  * View/Back — настройки; в меню крестовина или стик водят фокус, A — выбрать, B — назад.
  */
 function handleGamepad(): void {
-  if (!gamepad.connected || isTransitioning()) return;
+  if (!gamepad.connected) return;
+  if (isTransitioning()) {
+    if (gamepad.pressed(BTN.A) || gamepad.pressed(BTN.B) || gamepad.pressed(BTN.START)) continueTransition();
+    return;
+  }
   if (gamepad.pressed(BTN.BACK)) {
     if (settingsPanel.isOpen) settingsPanel.close();
     else settingsPanel.open();
