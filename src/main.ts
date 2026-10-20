@@ -33,7 +33,7 @@ import { fitQuest, QuestRun } from './levels/quests';
 import { dailyRecipe, recipeFor } from './levels/recipes';
 import { clearInput, keys, Player, setupTouchControls } from './player';
 import { Ripples } from './ripples';
-import { isMobile } from './device';
+import { deviceTier, isMobile } from './device';
 import { AutoScale, GameEngine } from './perf';
 import { applySettings, pickPresetForDevice, settings } from './settings';
 import { StarSky } from './starsky';
@@ -74,7 +74,8 @@ function setState(s: GameState): void {
 
 const world = new World(engine);
 const player = new Player(world);
-const audio = new GameAudio();
+// Телефону и программному рендеру — облегчённый звук: иначе аудиопоток не успевает и трещит
+const audio = new GameAudio(isMobile || deviceTier(engine.getGlInfo().renderer) === 'weak');
 const footsteps = new Footsteps(audio, world);
 const ripples = new Ripples(world.scene);
 const breath = new Breath(world.scene);

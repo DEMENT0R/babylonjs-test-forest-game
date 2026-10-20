@@ -112,7 +112,11 @@ export class GameAudio {
   /** Голоса текущего биома. */
   private ambience: Ambience = { birds: 1, cuckoo: true, crickets: 0, frogs: 0, owls: 0, wind: 1 };
 
-  constructor() {
+  /**
+   * @param lite облегчённый звук для слабых устройств: крупный буфер вывода, вдвое меньшая
+   * частота дискретизации, короткие ревербераторы и меньше «зёрен» в шагах
+   */
+  constructor(private readonly lite = false) {
     onSettingsApplied((s) => this.applyVolumes(s));
     document.addEventListener('visibilitychange', () => {
       if (!this.ac) return;
@@ -132,7 +136,7 @@ export class GameAudio {
     }
     const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!Ctor) return;
-    const ac = (this.ac = new Ctor());
+    const ac = (this.ac = this.createContext(Ctor));
 
     this.master = ac.createGain();
     // Мягкий лимитер, чтобы наложение звуков не клиппило
@@ -155,7 +159,7 @@ export class GameAudio {
     this.sfxBus.connect(this.master);
 
     this.reverb = ac.createConvolver();
-    this.reverb.buffer = forestImpulse(ac);
+    this.reverb.buffer = forestImpulse(ac, this.lite ? 0.8 : 1.6);
     const wet = ac.createGain();
     wet.gain.value = 0.35;
     this.reverb.connect(wet).connect(this.natureBus);
@@ -168,7 +172,7 @@ export class GameAudio {
     this.musicBus = ac.createGain();
     this.musicBus.connect(this.master);
     const musicVerb = ac.createConvolver();
-    musicVerb.buffer = forestImpulse(ac, 3);
+    musicVerb.buffer = forestImpulse(ac, this.lite ? 1.4 : 3);
     const musicWet = ac.createGain();
     musicWet.gain.value = 0.5;
     musicVerb.connect(musicWet).connect(this.musicBus);
@@ -182,6 +186,22 @@ export class GameAudio {
     this.scheduleVoice('crickets', 0.6, 2.2, () => this.cricket());
     this.scheduleVoice('owls', 9, 22, () => this.owl());
     this.scheduleVoice('frogs', 1.5, 5, () => this.frog());
+  }
+
+  /**
+   * Контекст звука. Облегчённому — буфер побольше (заминка процессора не рвёт звук,
+   * шаги запаздывают на доли секунды) и 22 кГц: всё считается вдвое дешевле,
+   * а выше 11 кГц у нас почти ничего не звучит.
+   */
+  private createContext(Ctor: typeof AudioContext): AudioContext {
+    if (this.lite) {
+      try {
+        return new Ctor({ latencyHint: 'playback', sampleRate: 22050 });
+      } catch {
+        // Старый браузер не принимает параметры — берём как есть
+      }
+    }
+    return new Ctor();
   }
 
   /** Звуковая атмосфера уровня: какие голоса и как часто звучат. */
@@ -500,7 +520,7 @@ export class GameAudio {
 
     // Шорох/хруст — полоса шума; снег хрустит серией коротких «зёрен».
     // Плавная атака, чтобы шаг не щёлкал; зёрнам — короче, иначе они сольются
-    const grains = sp.grains ?? 1;
+    const grains = Math.min(sp.grains ?? 1, this.lite ? 2 : Infinity);
     const attack = grains > 1 ? 0.008 : 0.018;
     let gt = t;
     for (let i = 0; i < grains; i++) {
