@@ -49,7 +49,7 @@ const TABS: readonly Tab[] = [
     preset: true,
     rows: [
       { key: 'preset', label: 'Пресет', preset: true, seg: [['low', 'Низкое'], ['medium', 'Среднее'], ['high', 'Высокое'], ['ultra', 'Ультра'], ['custom', 'Своё']] },
-      { key: 'scale', label: 'Разрешение рендера', hint: 'Доля пикселей экрана', seg: [[0.5, '50%'], [0.75, '75%'], [0.8, '80%'], [1, '100%'], ['dpr', 'Retina']] },
+      { key: 'scale', label: 'Разрешение рендера', hint: 'Доля пикселей экрана', seg: [[0.5, '50%'], [0.6, '60%'], [0.8, '80%'], [1, '100%'], ['dpr', 'Retina']] },
       { key: 'autoScale', label: 'Авто-разрешение', hint: 'Снижает разрешение, когда кадров не хватает', toggle: true, free: true },
       { key: 'fpsCap', label: 'Предел кадров', hint: '30 — меньше греет телефон и бережёт батарею', seg: [[0, 'Нет'], [60, '60'], [30, '30']], free: true },
       { key: 'aa', label: 'Сглаживание', seg: [['off', 'Выкл'], ['fxaa', 'FXAA'], ['msaa', 'MSAA 4×']] },
