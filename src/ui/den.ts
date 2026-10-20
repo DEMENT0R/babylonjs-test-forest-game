@@ -19,9 +19,9 @@ import {
   type Mesh,
   type Node,
 } from '@babylonjs/core';
-import { costText, itemById, itemsFor, materialById, MATERIALS, SLOTS, type ItemDef, type SlotDef } from '../den/catalog';
-import { buy, canAfford, clearSlot, crystals, den, matCount, shortOf } from '../den/state';
-import { DenKit, MOUND, type Built } from '../den/build';
+import { costText, itemById, itemsFor, materialById, MATERIALS, slotById, SLOTS, TIERS, type Cost, type ItemDef, type SlotDef } from '../den/catalog';
+import { buy, canAfford, clearSlot, crystals, den, matCount, nextTier, shortOf, slotOpen, upgrade } from '../den/state';
+import { ANNEX, DenKit, MOUND, type Built } from '../den/build';
 import { ClearingDecor } from '../den/decor';
 import { addShade, gardenShade, growGarden, harvestGarden, journal, SHADES } from '../journal';
 import { GrassField } from '../grass';
@@ -72,7 +72,8 @@ export class DenScreen {
   private decorCount = -1;
   private garden: GardenCrystal[] = [];
   private readonly harvestBtn = byId<HTMLButtonElement>('den-harvest');
-  private slot: SlotDef = SLOTS[0];
+  /** Выбранное место; null — сама нора: карточка улучшения. */
+  private sel: SlotDef | null = null;
   private active = false;
   private t = 0;
   /** Свободная полоса экрана между шапкой и панелью — туда камера ставит двор. */
@@ -142,8 +143,7 @@ export class DenScreen {
       this.rings.set(s.id, ring);
     }
 
-    this.shell = this.kit.shell();
-    this.cast(this.shell);
+    this.shell = this.buildShell();
     const trees = clearingTrees();
     this.forest = new Forest(scene, this.lighting, { trees, biome: b, terrain: FLAT_TERRAIN });
     this.grass = new GrassField(scene, {
@@ -151,8 +151,9 @@ export class DenScreen {
         minX: -16, maxX: 16, minZ: -8, maxZ: 16,
         circles: [
           { x: MOUND.x, z: MOUND.z, r: MOUND.r + 0.1 },
+          { x: ANNEX.x, z: ANNEX.z, r: ANNEX.r + 0.1 },
           { x: GARDEN.x, z: GARDEN.z, r: 1.1 },
-          ...SLOTS.map((s) => ({ x: s.x, z: s.z, r: 0.9 })),
+          ...SLOTS.map((s) => ({ x: s.x, z: s.z, r: 1 })),
           ...trees.filter((t) => Math.abs(t.x) < 17 && t.z < 17).map((t) => ({ x: t.x, z: t.z, r: 0.45 * t.s })),
         ],
         coverage: (x, z) => clamp((Math.hypot(x / YARD.rx, (z - YARD.z) / YARD.rz) - 1.05) * 3, 0.1, 1),
@@ -178,8 +179,8 @@ export class DenScreen {
       let n: Node | null = picked ?? null;
       while (n && (n.metadata as { slot?: string } | null)?.slot === undefined) n = n.parent;
       const id = (n?.metadata as { slot?: string } | null)?.slot;
-      const s = SLOTS.find((x) => x.id === id);
-      if (s) this.choose(s);
+      if (id === 'home') this.choose(null);
+      else if (id) this.choose(slotById(id) ?? null);
     });
     scene.onBeforeRenderObservable.add(() => this.animate(Math.min(engine.getDeltaTime() / 1000, 0.05)));
     window.addEventListener('resize', () => (this.bandDirty = true));
@@ -190,16 +191,16 @@ export class DenScreen {
     });
     this.slotsEl.addEventListener('click', (e) => {
       const b = (e.target as HTMLElement).closest<HTMLElement>('[data-slot]');
-      const s = b && SLOTS.find((x) => x.id === b.dataset.slot);
-      if (s) this.choose(s);
+      if (b) this.choose(slotById(b.dataset.slot!) ?? null);
     });
     this.cardEl.addEventListener('click', (e) => {
       const b = (e.target as HTMLElement).closest<HTMLElement>('button');
       if (!b) return;
       if (b.dataset.item) this.take(itemById(b.dataset.item)!);
-      else if (b.dataset.clear) {
-        clearSlot(this.slot.id);
-        this.rebuild(this.slot);
+      else if (b.dataset.upgrade !== undefined) this.upgrade();
+      else if (b.dataset.clear && this.sel) {
+        clearSlot(this.sel.id);
+        this.rebuild(this.sel);
         this.render(b.dataset.clear);
       }
     });
@@ -230,15 +231,51 @@ export class DenScreen {
     }
   }
 
+  /** Соседняя остановка по кругу: нора, потом открытые места. */
   cycle(delta: number): void {
-    const i = SLOTS.indexOf(this.slot);
-    this.choose(SLOTS[(i + delta + SLOTS.length) % SLOTS.length], true);
+    const list = [null, ...SLOTS.filter((s) => slotOpen(s.id))];
+    const i = list.indexOf(this.sel);
+    this.choose(list[(i + delta + list.length) % list.length], true);
   }
 
-  private choose(s: SlotDef, focus = false): void {
-    this.slot = s;
+  private choose(s: SlotDef | null, focus = false): void {
+    this.sel = s && slotOpen(s.id) ? s : null;
     this.render();
-    if (focus) this.slotsEl.querySelector<HTMLElement>(`[data-slot="${s.id}"]`)?.focus();
+    if (focus) this.slotsEl.querySelector<HTMLElement>(`[data-slot="${this.sel?.id ?? 'home'}"]`)?.focus();
+  }
+
+  private buildShell(): Built {
+    const b = this.kit.shell(den.tier);
+    for (const m of b.meshes) m.metadata = { slot: 'home' };
+    this.cast(b);
+    return b;
+  }
+
+  /** Нора дорастает до следующего уровня: новый вид и новые места во дворе. */
+  private upgrade(): void {
+    const next = nextTier();
+    if (!next) return;
+    if (!upgrade()) {
+      this.lacking(next.cost);
+      return;
+    }
+    this.shell.root.dispose();
+    this.shell = this.buildShell();
+    this.actions.chime();
+    const opened = SLOTS.filter((s) => s.tier === den.tier).map((s) => `«${s.name}»`);
+    say(`${next.name}!${opened.length ? ` Во дворе открылось: ${opened.join(', ')}` : ''}`, 3500);
+    this.render();
+    this.slotsEl.querySelector<HTMLElement>('[data-slot="home"]')?.focus();
+  }
+
+  /** Подсказка, чего не хватает и где это искать: материалы лежат на уровнях своего биома. */
+  private lacking(cost: Cost): void {
+    const lack = shortOf(cost);
+    const where = Object.entries(cost.mats ?? {})
+      .map(([id, n]) => ({ m: materialById(id)!, n }))
+      .filter(({ m, n }) => matCount(m.id) < n)
+      .map(({ m }) => `${m.name} лежат в биоме «${BIOMES[m.biome].name}»`);
+    say(`Не хватает: ${lack.join(', ')}${where.length ? `. ${where.join('. ')}` : ''}`, 3500);
   }
 
   /**
@@ -262,7 +299,8 @@ export class DenScreen {
     return (
       Math.hypot(x - MOUND.x, z - MOUND.z) > MOUND.r + 0.3 &&
       Math.hypot(x - GARDEN.x, z - GARDEN.z) > 1.4 &&
-      SLOTS.every((s) => Math.hypot(x - s.x, z - s.z) > 1.1)
+      Math.hypot(x - ANNEX.x, z - ANNEX.z) > ANNEX.r + 0.3 &&
+      SLOTS.every((s) => Math.hypot(x - s.x, z - s.z) > 1.3)
     );
   }
 
@@ -305,16 +343,10 @@ export class DenScreen {
   private take(item: ItemDef): void {
     const owned = den.owned.includes(item.id);
     if (!buy(item)) {
-      const lack = shortOf(item.cost);
-      // Где искать недостающее: материалы лежат на уровнях своего биома
-      const where = Object.entries(item.cost.mats ?? {})
-        .map(([id, n]) => ({ m: materialById(id)!, n }))
-        .filter(({ m, n }) => matCount(m.id) < n)
-        .map(({ m }) => `${m.name} лежат в биоме «${BIOMES[m.biome].name}»`);
-      say(`Не хватает: ${lack.join(', ')}${where.length ? `. ${where.join('. ')}` : ''}`, 3500);
+      this.lacking(item.cost);
       return;
     }
-    this.rebuild(this.slot);
+    this.rebuild(slotById(item.slot)!);
     if (!owned) {
       this.actions.chime();
       say(`${item.name} — теперь у норы`);
@@ -349,14 +381,30 @@ export class DenScreen {
         const [r, g, b] = m.color.map((v) => Math.round(v * 255));
         return `<span class="den-chip${n ? '' : ' zero'}" title="${m.name} — в биоме «${BIOMES[m.biome].name}»"><i style="--c:rgb(${r} ${g} ${b})"></i>${m.name} <b>${n}</b></span>`;
       }).join('');
-    this.slotsEl.innerHTML = SLOTS.map((s) => {
-      const item = den.slots[s.id] && itemById(den.slots[s.id]!);
-      return `<button type="button" data-slot="${s.id}" aria-pressed="${s === this.slot}"><b>${s.name}</b><small>${item ? item.name : 'пусто'}</small></button>`;
-    }).join('');
-    for (const [id, ring] of this.rings) ring.material = id === this.slot.id ? this.ringOn : this.ringOff;
+    byId('den-title').textContent = TIERS[den.tier].name;
+    const next = nextTier();
+    const open = SLOTS.filter((s) => slotOpen(s.id));
+    this.slotsEl.innerHTML =
+      `<button type="button" data-slot="home" aria-pressed="${this.sel === null}"><b>Нора</b><small>${next ? 'улучшить' : 'самая большая'}</small></button>` +
+      open
+        .map((s) => {
+          const item = den.slots[s.id] && itemById(den.slots[s.id]!);
+          return `<button type="button" data-slot="${s.id}" aria-pressed="${s === this.sel}"><b>${s.name}</b><small>${item ? item.name : 'пусто'}</small></button>`;
+        })
+        .join('');
+    for (const [id, ring] of this.rings) {
+      ring.setEnabled(slotOpen(id as SlotDef['id']));
+      ring.material = id === this.sel?.id ? this.ringOn : this.ringOff;
+    }
+    if (!this.sel) {
+      this.renderHome();
+      if (focusId) this.root.querySelector<HTMLElement>('[data-upgrade]')?.focus();
+      this.bandDirty = true;
+      return;
+    }
 
-    const placed = den.slots[this.slot.id];
-    const rows = itemsFor(this.slot.id).map((item) => {
+    const placed = den.slots[this.sel.id];
+    const rows = itemsFor(this.sel.id).map((item) => {
       const owned = den.owned.includes(item.id);
       const here = placed === item.id;
       const state = here ? 'стоит' : owned ? 'поставить' : costText(item.cost);
@@ -364,11 +412,26 @@ export class DenScreen {
       return `<button type="button" class="den-item${here ? ' on' : ''}${off ? ' off' : ''}" data-item="${item.id}" aria-pressed="${here}">
         <span><b>${item.name}</b><small>${item.desc}</small></span><em>${state}</em></button>`;
     });
-    this.cardEl.innerHTML = `<div class="den-card-head"><h3>${this.slot.name}</h3>${
-      placed ? `<button type="button" class="link" data-clear="${this.slot.id}">убрать</button>` : ''
+    this.cardEl.innerHTML = `<div class="den-card-head"><h3>${this.sel.name}</h3>${
+      placed ? `<button type="button" class="link" data-clear="${this.sel.id}">убрать</button>` : ''
     }</div><div class="den-items">${rows.join('')}</div>`;
     if (focusId) this.root.querySelector<HTMLElement>(`[data-item="${focusId}"], [data-clear]`)?.focus();
     this.bandDirty = true;
+  }
+
+  /** Карточка самой норы: каким будет следующий уровень и что он стоит. */
+  private renderHome(): void {
+    const next = nextTier();
+    const cur = TIERS[den.tier];
+    if (!next) {
+      this.cardEl.innerHTML = `<div class="den-card-head"><h3>${cur.name}</h3></div><p>${cur.desc}. Нора выросла целиком — осталось обставить двор.</p>`;
+      return;
+    }
+    const opens = SLOTS.filter((s) => s.tier === den.tier + 1).map((s) => s.name.toLowerCase());
+    const off = !canAfford(next.cost);
+    this.cardEl.innerHTML = `<div class="den-card-head"><h3>Нора · ${den.tier + 1} из ${TIERS.length}</h3></div>
+      <div class="den-items"><button type="button" class="den-item${off ? ' off' : ''}" data-upgrade>
+        <span><b>${next.name}</b><small>${next.desc}${opens.length ? ` · новые места: ${opens.join(', ')}` : ''}</small></span><em>${costText(next.cost)}</em></button></div>`;
   }
 
   private measureBand(): void {
@@ -395,7 +458,8 @@ export class DenScreen {
     const byHeight = 4.2 / (tanHalf * Math.max(0.25, this.band.size));
     const dist = clamp(Math.max(byWidth, byHeight), 11, 34);
     cam.radius += (dist - cam.radius) * damp(4, dt);
-    const tx = this.slot.x * 0.3, tz = 1.8 + (this.slot.z - 1.8) * 0.25;
+    const focus = this.sel ?? { x: 0, z: 3.5 };
+    const tx = focus.x * 0.3, tz = 1.8 + (focus.z - 1.8) * 0.25;
     cam.target.x += (tx - cam.target.x) * damp(3, dt);
     cam.target.z += (tz - cam.target.z) * damp(3, dt);
     // Середина двора — в середине свободной полосы

@@ -3,11 +3,14 @@
 // поэтому старым сохранениям не нужен перенос.
 
 import { journal } from '../journal';
-import { amount, itemById, materialById, MATERIALS, slotById, type Cost, type ItemDef, type ItemId, type MaterialId, type SlotId } from './catalog';
+import { clamp } from '../utils';
+import { amount, itemById, materialById, MATERIALS, slotById, TIERS, type Cost, type ItemDef, type ItemId, type MaterialId, type SlotId } from './catalog';
 
 export interface DenState {
   /** Версия формата — на неё смотрит и чтение чужой норы. */
   v: 1;
+  /** Уровень норы — номер в TIERS. */
+  tier: number;
   owned: ItemId[];
   slots: Partial<Record<SlotId, ItemId>>;
   /** Потрачено кристаллов. */
@@ -22,23 +25,24 @@ function load(): DenState {
   try {
     const d = JSON.parse(localStorage.getItem(KEY) ?? 'null') as Partial<DenState> | null;
     if (d && typeof d === 'object') {
+      const tier = clamp(Math.floor(Number(d.tier) || 0), 0, TIERS.length - 1);
       const owned = (Array.isArray(d.owned) ? d.owned : []).filter((id) => itemById(id));
       const slots: DenState['slots'] = {};
       for (const [slot, id] of Object.entries(d.slots ?? {})) {
         const item = itemById(id);
-        if (item && item.slot === slot && owned.includes(item.id)) slots[slot as SlotId] = item.id;
+        if (item && item.slot === slot && owned.includes(item.id) && slotById(slot)!.tier <= tier) slots[slot as SlotId] = item.id;
       }
       const mats: DenState['mats'] = {};
       for (const m of MATERIALS) {
         const n = Math.floor(Number(d.mats?.[m.id]) || 0);
         if (n > 0) mats[m.id] = n;
       }
-      return { v: 1, owned, slots, spent: Math.max(0, Number(d.spent) || 0), mats };
+      return { v: 1, tier, owned, slots, spent: Math.max(0, Number(d.spent) || 0), mats };
     }
   } catch {
     // Повреждённые данные — нора начинается с пустого двора
   }
-  return { v: 1, owned: [], slots: {}, spent: 0, mats: {} };
+  return { v: 1, tier: 0, owned: [], slots: {}, spent: 0, mats: {} };
 }
 
 export const den: DenState = load();
@@ -87,8 +91,24 @@ export function addMaterial(id: MaterialId): number {
   return den.mats[id]!;
 }
 
-/** Купить вещь и сразу поставить её на место; false — не хватило. */
+/** Место открыто на нынешнем уровне норы. */
+export const slotOpen = (slot: SlotId): boolean => (slotById(slot)?.tier ?? Infinity) <= den.tier;
+
+/** Следующий уровень норы; null — нора уже самая большая. */
+export const nextTier = (): (typeof TIERS)[number] | null => TIERS[den.tier + 1] ?? null;
+
+/** Перейти на следующий уровень норы; false — не хватило или расти некуда. */
+export function upgrade(): boolean {
+  const next = nextTier();
+  if (!next || !pay(next.cost)) return false;
+  den.tier++;
+  save();
+  return true;
+}
+
+/** Купить вещь и сразу поставить её на место; false — не хватило или место закрыто. */
 export function buy(item: ItemDef): boolean {
+  if (!slotOpen(item.slot)) return false;
   if (den.owned.includes(item.id)) {
     place(item);
     return true;
@@ -102,7 +122,7 @@ export function buy(item: ItemDef): boolean {
 
 /** Поставить купленную вещь на её место (прежняя уходит в кладовку). */
 export function place(item: ItemDef): void {
-  if (!den.owned.includes(item.id)) return;
+  if (!den.owned.includes(item.id) || !slotOpen(item.slot)) return;
   den.slots[item.slot] = item.id;
   save();
 }
