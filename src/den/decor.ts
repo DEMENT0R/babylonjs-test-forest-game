@@ -1,9 +1,8 @@
-// Поляна у каменного круга обрастает: за каждый день, когда игрок прошёл уровень,
-// на центральной поляне появляется ещё одна деталь — цветы, грибы, камешки, светлячки.
-// Места и порядок одни и те же на любом уровне: это «своя» поляна игрока.
+// Поляна у норы обрастает: за каждый день, когда игрок прошёл уровень,
+// во дворе появляется ещё одна деталь — цветы, грибы, камешки, светлячки.
+// Места и порядок всегда одни и те же — по «подсолнуху» вокруг двора.
 
 import { Color3, Mesh, MeshBuilder, StandardMaterial, type Scene } from '@babylonjs/core';
-import type { LevelLayout } from './generator';
 
 type Kind = 'flowers' | 'mushroom' | 'pebbles' | 'firefly' | 'stump' | 'berries';
 
@@ -53,6 +52,14 @@ export const DECOR: readonly DecorItem[] = [
 
 const GOLDEN = Math.PI * (3 - Math.sqrt(5));
 
+/** Где расти деталям: кольцо вокруг (x, z) от радиуса r; free — свободна ли точка. Земля ровная. */
+export interface DecorGround {
+  x: number;
+  z: number;
+  r: number;
+  free: (x: number, z: number) => boolean;
+}
+
 interface Firefly { mesh: Mesh; baseY: number; phase: number }
 
 export class ClearingDecor {
@@ -62,7 +69,7 @@ export class ClearingDecor {
   private t = 0;
 
   /** count — сколько деталей уже заработано (дней с пройденным уровнем). */
-  constructor(private readonly scene: Scene, private readonly layout: LevelLayout, count: number) {
+  constructor(private readonly scene: Scene, private readonly ground: DecorGround, count: number) {
     const n = Math.min(count, DECOR.length);
     for (let i = 0; i < n; i++) {
       const spot = this.spot(i);
@@ -71,21 +78,16 @@ export class ClearingDecor {
   }
 
   /**
-   * Место детали i: по «подсолнуху» на утоптанной тропе между каменным кругом и травой. Если там
-   * дерево, камень или вода — сдвигается дальше по радиусу, а не пропадает.
+   * Место детали i: по «подсолнуху» на кольце вокруг центра. Если там что-то стоит —
+   * сдвигается дальше по радиусу, а не пропадает.
    */
   private spot(i: number): { x: number; z: number } | null {
     const a = i * GOLDEN;
-    const { obstacles, platforms, crystals, waterLevel, terrain } = this.layout;
+    const { x: cx, z: cz, r: r0, free } = this.ground;
     for (let k = 0; k < 4; k++) {
-      const r = 6 + ((i * 0.37) % 0.8) + k * 0.35;
-      const x = Math.cos(a) * r, z = Math.sin(a) * r;
-      const free =
-        obstacles.every((o) => Math.hypot(o.x - x, o.z - z) > o.r + 0.4) &&
-        platforms.every((p) => Math.abs(p.x - x) > p.w / 2 + 0.4 || Math.abs(p.z - z) > p.d / 2 + 0.4) &&
-        crystals.every((c) => Math.hypot(c.x - x, c.z - z) > 1.2) &&
-        (waterLevel === null || terrain.heightAt(x, z) > waterLevel + 0.1);
-      if (free) return { x, z };
+      const r = r0 + ((i * 0.37) % 0.8) + k * 0.35;
+      const x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
+      if (free(x, z)) return { x, z };
     }
     return null;
   }
@@ -104,10 +106,9 @@ export class ClearingDecor {
   }
 
   private build(item: DecorItem, x: number, z: number, i: number): void {
-    const y = this.layout.terrain.heightAt(x, z);
     const parts: Mesh[] = [];
     const add = (m: Mesh, color: readonly number[], px: number, py: number, pz: number) => {
-      m.position.set(x + px, y + py, z + pz);
+      m.position.set(x + px, py, z + pz);
       m.material = this.mat(color);
       parts.push(m);
       return m;
@@ -154,11 +155,11 @@ export class ClearingDecor {
         for (let k = 0; k < count; k++) {
           const m = MeshBuilder.CreateSphere('decor-fly', { diameter: 0.07, segments: 4 }, s);
           const a = k * 1.26;
-          m.position.set(x + Math.cos(a) * 0.4 * Math.min(1, k), y + 0.7, z + Math.sin(a) * 0.4 * Math.min(1, k));
+          m.position.set(x + Math.cos(a) * 0.4 * Math.min(1, k), 0.7, z + Math.sin(a) * 0.4 * Math.min(1, k));
           m.material = this.mat(item.color, true);
           m.isPickable = false;
           this.meshes.push(m);
-          this.flies.push({ mesh: m, baseY: y + 0.7 + (k % 3) * 0.15, phase: i + k * 1.7 });
+          this.flies.push({ mesh: m, baseY: 0.7 + (k % 3) * 0.15, phase: i + k * 1.7 });
         }
         return;
       }

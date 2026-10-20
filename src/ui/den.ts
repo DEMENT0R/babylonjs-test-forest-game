@@ -21,15 +21,18 @@ import {
 } from '@babylonjs/core';
 import { itemById, itemsFor, SLOTS, type ItemDef, type SlotDef } from '../den/catalog';
 import { buy, canAfford, clearSlot, crystals, den, shortOf } from '../den/state';
-import { DenKit, type Built } from '../den/build';
+import { DenKit, MOUND, type Built } from '../den/build';
+import { ClearingDecor } from '../den/decor';
+import { addShade, gardenShade, growGarden, harvestGarden, journal, SHADES } from '../journal';
 import { GrassField } from '../grass';
-import { BIOMES } from '../levels/biomes';
+import { BIOMES, type BiomeId } from '../levels/biomes';
 import { Forest } from '../levels/forest';
 import type { TreeSpot } from '../levels/generator';
+import { daysPlayed } from '../levels/progress';
 import { FLAT_TERRAIN } from '../levels/terrain';
 import { Rng } from '../rng';
 import { addShadowCaster, createLightingContext, type LightingContext } from '../settings';
-import { byId, clamp, damp } from '../utils';
+import { byId, clamp, damp, plural } from '../utils';
 import { say } from './hud';
 
 /** Поляна у норы, свободная от деревьев. */
@@ -37,6 +40,12 @@ const CLEARING_R = 13;
 /** Нора: центр холма; большая сосна над ним. */
 const HOME_TREE = { x: 0.4, z: 8.6 };
 const BASE_ALPHA = -Math.PI / 2;
+/** Сад кристаллов: каменное кольцо слева от норы. */
+const GARDEN = { x: -3.6, z: 4.2 };
+/** Двор — утоптанный эллипс; деталям поляны — кольцо по его краю. */
+const YARD = { z: 0.6, rx: 5.2, rz: 4.6 };
+
+interface GardenCrystal { mesh: Mesh; baseY: number; phase: number; shade: BiomeId }
 
 export interface DenActions {
   onBack: () => void;
@@ -59,6 +68,10 @@ export class DenScreen {
   private readonly cardEl = byId('den-card');
   private readonly slotsEl = byId('den-slots');
   private shell: Built;
+  private decor: ClearingDecor | null = null;
+  private decorCount = -1;
+  private garden: GardenCrystal[] = [];
+  private readonly harvestBtn = byId<HTMLButtonElement>('den-harvest');
   private slot: SlotDef = SLOTS[0];
   private active = false;
   private t = 0;
@@ -111,8 +124,8 @@ export class DenScreen {
     ground.isPickable = false;
     const yard = MeshBuilder.CreateDisc('dg-yard', { radius: 1, tessellation: 48 }, scene);
     yard.rotation.x = Math.PI / 2;
-    yard.scaling.set(5.2, 4.6, 1);
-    yard.position.set(0, 0.02, 0.6);
+    yard.scaling.set(YARD.rx, YARD.rz, 1);
+    yard.position.set(0, 0.02, YARD.z);
     yard.material = mat('dg-pm', b.path.clone());
     yard.receiveShadows = true;
     yard.isPickable = false;
@@ -137,11 +150,12 @@ export class DenScreen {
       area: {
         minX: -16, maxX: 16, minZ: -8, maxZ: 16,
         circles: [
-          { x: 0, z: 5.6, r: 2.8 },
+          { x: MOUND.x, z: MOUND.z, r: MOUND.r + 0.1 },
+          { x: GARDEN.x, z: GARDEN.z, r: 1.1 },
           ...SLOTS.map((s) => ({ x: s.x, z: s.z, r: 0.9 })),
           ...trees.filter((t) => Math.abs(t.x) < 17 && t.z < 17).map((t) => ({ x: t.x, z: t.z, r: 0.45 * t.s })),
         ],
-        coverage: (x, z) => clamp((Math.hypot(x / 5.2, (z - 0.6) / 4.6) - 0.85) * 3, 0.1, 1),
+        coverage: (x, z) => clamp((Math.hypot(x / YARD.rx, (z - YARD.z) / YARD.rz) - 1.05) * 3, 0.1, 1),
       },
       baseColor: b.grass.root,
       tipColor: b.grass.tip,
@@ -151,10 +165,17 @@ export class DenScreen {
       seed: 4242,
     });
     for (const s of SLOTS) this.rebuild(s);
+    this.cast(this.kit.gardenBed(GARDEN.x, GARDEN.z));
 
     scene.onPointerObservable.add((pi) => {
       if (pi.type !== PointerEventTypes.POINTERTAP || !this.active) return;
-      let n: Node | null = pi.pickInfo?.pickedMesh ?? null;
+      const picked = pi.pickInfo?.pickedMesh;
+      const g = this.garden.findIndex((c) => c.mesh === picked);
+      if (g >= 0) {
+        this.harvest(g);
+        return;
+      }
+      let n: Node | null = picked ?? null;
       while (n && (n.metadata as { slot?: string } | null)?.slot === undefined) n = n.parent;
       const id = (n?.metadata as { slot?: string } | null)?.slot;
       const s = SLOTS.find((x) => x.id === id);
@@ -164,6 +185,9 @@ export class DenScreen {
     window.addEventListener('resize', () => (this.bandDirty = true));
 
     byId('den-back').addEventListener('click', () => actions.onBack());
+    this.harvestBtn.addEventListener('click', () => {
+      if (this.garden.length) this.harvest(0);
+    });
     this.slotsEl.addEventListener('click', (e) => {
       const b = (e.target as HTMLElement).closest<HTMLElement>('[data-slot]');
       const s = b && SLOTS.find((x) => x.id === b.dataset.slot);
@@ -186,6 +210,7 @@ export class DenScreen {
     this.active = true;
     this.bandDirty = true;
     this.camera.attachControl(true);
+    this.grow();
     this.render();
     this.slotsEl.querySelector<HTMLElement>('[aria-pressed="true"]')?.focus();
   }
@@ -214,6 +239,66 @@ export class DenScreen {
     this.slot = s;
     this.render();
     if (focus) this.slotsEl.querySelector<HTMLElement>(`[data-slot="${s.id}"]`)?.focus();
+  }
+
+  /**
+   * Поляна и сад догоняют время: детали за новые дни с пройденным уровнем,
+   * кристаллы, выросшие, пока игрока не было.
+   */
+  private grow(): void {
+    const days = daysPlayed();
+    if (days !== this.decorCount) {
+      this.decor?.dispose();
+      this.decor = new ClearingDecor(this.scene, { x: 0, z: YARD.z, r: 4.8, free: (x, z) => this.free(x, z) }, days);
+      this.decorCount = days;
+    }
+    const ready = growGarden();
+    while (this.garden.length < ready) this.plant();
+    this.syncHarvest();
+  }
+
+  /** Деталь поляны не встаёт на нору, сад и места вещей. */
+  private free(x: number, z: number): boolean {
+    return (
+      Math.hypot(x - MOUND.x, z - MOUND.z) > MOUND.r + 0.3 &&
+      Math.hypot(x - GARDEN.x, z - GARDEN.z) > 1.4 &&
+      SLOTS.every((s) => Math.hypot(x - s.x, z - s.z) > 1.1)
+    );
+  }
+
+  /** Новый кристалл в саду: оттенок — чаще из ещё не найденных. */
+  private plant(): void {
+    const k = this.garden.length;
+    const shade = gardenShade();
+    const color = new Color3(...SHADES[shade].color);
+    const m = MeshBuilder.CreatePolyhedron('den-garden', { type: 1, size: 0.26 }, this.scene);
+    m.scaling.set(1.15, 1.9, 1.15);
+    const a = 0.6 + k * ((Math.PI * 2) / 3);
+    const y = 0.85;
+    m.position.set(GARDEN.x + Math.cos(a) * 0.42, y, GARDEN.z + Math.sin(a) * 0.42);
+    m.material = this.kit.mat([color.r, color.g, color.b], 0.75);
+    addShadowCaster(this.lighting, m);
+    this.garden.push({ mesh: m, baseY: y, phase: k * 2.1, shade });
+  }
+
+  /** Кристалл из сада собран: оттенок в коллекцию «Дневника», сад пустеет на один. */
+  private harvest(i: number): void {
+    const [c] = this.garden.splice(i, 1);
+    c.mesh.dispose();
+    harvestGarden();
+    const n = addShade(c.shade);
+    journal.stats.crystals++;
+    this.actions.chime();
+    const name = SHADES[c.shade].name;
+    say(n === 1 ? `Кристалл из сада — новый оттенок «${name}»!` : `Кристалл из сада: «${name}» · ×${n}`, 2500);
+    this.syncHarvest();
+    this.render();
+  }
+
+  private syncHarvest(): void {
+    const n = this.garden.length;
+    this.harvestBtn.hidden = n === 0;
+    this.harvestBtn.textContent = `Собрать сад · ${n} ${plural(n, 'кристалл', 'кристалла', 'кристаллов')}`;
   }
 
   /** Купить или поставить вещь в выбранное место. */
@@ -307,6 +392,12 @@ export class DenScreen {
     this.forest.update(dt);
     this.grass.update(cam.position, null, 0);
     for (const b of this.built.values()) b.tick?.(this.t);
+    this.decor?.update(dt);
+    for (const c of this.garden) {
+      c.phase += dt;
+      c.mesh.rotation.y += dt * 1.5;
+      c.mesh.position.y = c.baseY + Math.sin(c.phase * 2) * 0.1;
+    }
   }
 }
 

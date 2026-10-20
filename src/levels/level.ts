@@ -28,8 +28,6 @@ const PORTAL_Y = 1.6;
 
 export class Level {
   readonly crystals: Crystal[] = [];
-  /** Кристаллы из сада у круга — вне счёта уровня, не влияют на портал и звёзды. */
-  readonly garden: Crystal[] = [];
   readonly grass: GrassField;
   /** Деревья: качаются на ветру и вздрагивают от героя. */
   readonly forest: Forest;
@@ -191,19 +189,6 @@ export class Level {
     (this.note.material as StandardMaterial).emissiveColor.set(0.15 * k, 0.35 * k, 0.6 * k);
   }
 
-  /** Кристалл из сада: цвета оттенка, висит над землёй, как обычный. */
-  addGardenCrystal(x: number, z: number, color: Color3): void {
-    const m = this.track(MeshBuilder.CreatePolyhedron('garden-crystal', { type: 1, size: 0.35 }, this.scene));
-    m.scaling.set(1.15, 1.9, 1.15);
-    const y = this.layout.terrain.heightAt(x, z) + 1;
-    m.position.set(x, y, z);
-    const mat = this.mat('garden-crystal', color);
-    mat.emissiveColor = color.scale(0.75);
-    m.material = mat;
-    addShadowCaster(this.lighting, m);
-    this.garden.push({ mesh: m, baseY: y, phase: this.garden.length * 2.1 });
-  }
-
   /** Сделать кристалл редким: свой цвет и чуть крупнее. */
   makeRare(i: number, color: Color3): void {
     const k = this.crystals[i];
@@ -315,7 +300,7 @@ export class Level {
   // ---------- Каждый кадр ----------
 
   spinCrystals(dt: number): void {
-    for (const k of [...this.crystals, ...this.garden]) {
+    for (const k of this.crystals) {
       if (!k.mesh.isEnabled()) continue;
       k.phase += dt;
       k.mesh.rotation.y += dt * 1.5;

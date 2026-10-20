@@ -209,6 +209,7 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump{display:no
 .den-slots button:is(:hover,:focus-visible){border-color:var(--accent)}
 .den-slots button[aria-pressed="true"]{border-color:var(--accent);background:var(--panel-hi)}
 .den-slots button.locked{opacity:.55}
+.den-foot .primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .den-foot{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center}
 @media (hover:none){#den .sel-hint{display:none}}
 @media (max-width:600px){.den-items{grid-template-columns:1fr}.den-card{max-height:34vh}}

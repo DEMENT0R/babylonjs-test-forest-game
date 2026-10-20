@@ -1,4 +1,4 @@
-// Нора и вещи во дворе из примитивов Babylon — как декор у каменного круга.
+// Нора и вещи во дворе из примитивов Babylon — как детали поляны в decor.ts.
 // Вещь строится вокруг своего начала координат; DenScreen ставит её в слот и поворачивает.
 
 import { Color3, Mesh, MeshBuilder, StandardMaterial, TransformNode, Vector3, type Scene } from '@babylonjs/core';
@@ -104,6 +104,22 @@ export class DenKit {
       }
       add(MeshBuilder.CreateTube('den-root', { path, radius: 0.08 + Math.abs(az) * 0.01, tessellation: 6, cap: Mesh.CAP_ALL }, s), ROOT, 0, 0, 0);
     }
+    return { root, meshes };
+  }
+
+  /** Сад кристаллов: кольцо камешков и мох. */
+  gardenBed(x: number, z: number): Built {
+    const s = this.scene;
+    const { root, meshes, add } = this.start('den-garden-bed');
+    root.position.set(x, 0, z);
+    add(MeshBuilder.CreateDisc('bed-moss', { radius: 0.75, tessellation: 20 }, s), MOSS, 0, 0.03, 0).rotation.x = Math.PI / 2;
+    for (let k = 0; k < 9; k++) {
+      const a = (k / 9) * Math.PI * 2, size = 0.13 + (k % 3) * 0.03;
+      const m = add(MeshBuilder.CreatePolyhedron('bed-stone', { type: 2, size }, s), [0.62, 0.6, 0.56], Math.cos(a) * 0.85, size * 0.4, Math.sin(a) * 0.85);
+      m.scaling.y = 0.6;
+      m.rotation.y = k;
+    }
+    for (const m of meshes) m.isPickable = false;
     return { root, meshes };
   }
 

@@ -293,22 +293,6 @@ export class World {
     return got;
   }
 
-  addGardenCrystal(x: number, z: number, color: Color3): void {
-    this.level?.addGardenCrystal(x, z, color);
-  }
-
-  /** Собирает кристаллы сада рядом с точкой; возвращает их номера. */
-  collectGarden(center: Vector3, radius = 1.2): number[] {
-    const got: number[] = [];
-    this.level?.garden.forEach((k, i) => {
-      if (k.mesh.isEnabled() && Vector3.Distance(k.mesh.position, center) < radius) {
-        k.mesh.setEnabled(false);
-        got.push(i);
-      }
-    });
-    return got;
-  }
-
   placeNote(x: number, z: number): void {
     this.level?.placeNote(x, z);
   }

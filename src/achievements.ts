@@ -5,7 +5,7 @@ import { skyFor } from './constellations';
 import { den } from './den/state';
 import { HEROES } from './heroes';
 import { journal, NOTES, save, SHADES } from './journal';
-import { DECOR } from './levels/decor';
+import { DECOR } from './den/decor';
 import { currentStreak, daysPlayed, progress, totalStars } from './levels/progress';
 import { CAMPAIGN_LENGTH } from './levels/recipes';
 
@@ -47,7 +47,7 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   { id: 'notes', name: 'Летописец', desc: 'Прочти все записки путника', progress: () => [journal.notes, NOTES.length] },
   { id: 'week', name: 'Неделя в лесу', desc: 'Проходи уровень 7 дней подряд', progress: () => [currentStreak().days, 7] },
   { id: 'home', name: 'Новоселье', desc: 'Поставь у норы первую вещь', progress: () => [den.owned.length, 1] },
-  { id: 'bloom', name: 'Поляна в цвету', desc: 'Вырасти на поляне всё', progress: () => [daysPlayed(), DECOR.length] },
+  { id: 'bloom', name: 'Поляна в цвету', desc: 'Вырасти на поляне у норы всё', progress: () => [daysPlayed(), DECOR.length] },
 ];
 
 export const isDone = (a: Achievement): boolean => journal.badges.includes(a.id) || a.progress()[0] >= a.progress()[1];

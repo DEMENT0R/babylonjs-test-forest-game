@@ -12,9 +12,6 @@ import { applyCoat, coatFor, COATS, HEROES, loadHero, openCoats, type HeroDef } 
 import {
   addNote,
   addShade,
-  gardenShade,
-  growGarden,
-  harvestGarden,
   journal,
   NOTE_CHANCE,
   NOTES,
@@ -24,9 +21,8 @@ import {
   takeWelcome,
   welcomeNote,
 } from './journal';
-import type { BiomeId } from './levels/biomes';
 import type { LevelLayout } from './levels/generator';
-import { ClearingDecor, DECOR } from './levels/decor';
+import { DECOR } from './den/decor';
 import { completeDaily, completeLevel, dailyBest, daysPlayed, formatTime, markPlayedToday, progress, setCurrentLevel, todayKey, totalStars } from './levels/progress';
 import { QuestMarkers } from './levels/markers';
 import { fitQuest, QuestRun } from './levels/quests';
@@ -95,11 +91,7 @@ let rare = -1;
 const COMBO_WINDOW = 3;
 let combo = 0;
 let lastCrystalAt = -Infinity;
-/** Оттенки кристаллов сада на этом уровне, по номерам. */
-let gardenShades: BiomeId[] = [];
 let markers: QuestMarkers | null = null;
-/** Детали на центральной поляне — за дни с пройденным уровнем. */
-let decor: ClearingDecor | null = null;
 
 // Браузер включает звук только после действия пользователя — первый клик или клавиша
 for (const type of ['pointerdown', 'keydown'] as const) addEventListener(type, () => audio.unlock(), { capture: true });
@@ -227,9 +219,6 @@ function beginLevel(index: number, dailyDate: string | null = null): void {
   // После долгого перерыва записка ждёт у старта; иначе изредка лежит на боковой поляне
   const spot = welcomeNote ? welcomeSpot() : journal.notes < NOTES.length && Math.random() < NOTE_CHANCE ? noteSpot() : null;
   if (spot) world.placeNote(spot.x, spot.z);
-  plantGarden();
-  decor?.dispose();
-  decor = new ClearingDecor(world.scene, layout, daysPlayed());
   placeMarkers();
   starSky.show(!!layout.biome.starSky, totalStars());
   audio.setAmbience(layout.biome.ambience);
@@ -274,7 +263,7 @@ function noteSpot(): { x: number; z: number } | null {
   return null;
 }
 
-/** Место для записки, которая ждала игрока: впереди от старта, по пути к порталу, но в стороне от сада. */
+/** Место для записки, которая ждала игрока: впереди от старта, по пути к порталу. */
 function welcomeSpot(): { x: number; z: number } | null {
   const { x: sx, z: sz } = layout.spawn;
   const ahead = Math.atan2(layout.portal.z - sz, layout.portal.x - sx);
@@ -294,39 +283,6 @@ function freeSpot(x: number, z: number): boolean {
     layout.crystals.every((c) => Math.hypot(c.x - x, c.z - z) > 2) &&
     (layout.waterLevel === null || world.terrainAt(x, z) > layout.waterLevel + 0.2)
   );
-}
-
-/**
- * Сад у каменного круга: кристаллы, выросшие, пока игрока не было, висят по бокам
- * от старта, в поле зрения. Каждый — цвета одного из оттенков и идёт в коллекцию «Дневника».
- */
-function plantGarden(): void {
-  const n = growGarden();
-  gardenShades = [];
-  const { x: sx, z: sz } = layout.spawn;
-  const p = layout.portal;
-  // Герой на старте смотрит на портал: сад — слева и справа от этого направления, чуть впереди
-  const ahead = Math.atan2(p.z - sz, p.x - sx);
-  for (let k = 0, t = 0; k < n && t < 24; t++) {
-    const a = ahead + (t % 2 ? 1 : -1) * (0.7 + Math.floor(t / 2) * 0.35);
-    const x = sx + Math.cos(a) * 3.5, z = sz + Math.sin(a) * 3.5;
-    if (!freeSpot(x, z)) continue;
-    const shade = gardenShade();
-    world.addGardenCrystal(x, z, new Color3(...SHADES[shade].color));
-    gardenShades.push(shade);
-    k++;
-  }
-}
-
-/** Кристалл из сада собран: оттенок в коллекцию, сад пустеет на один. */
-function harvest(i: number): void {
-  const biome = gardenShades[i];
-  harvestGarden();
-  const n = addShade(biome);
-  journal.stats.crystals++;
-  audio.chime(true);
-  const name = SHADES[biome].name;
-  say(n === 1 ? `Кристалл из сада — новый оттенок «${name}»!` : `Кристалл из сада: «${name}» · ×${n}`, 2500);
 }
 
 function restartLevel(): void {
@@ -413,9 +369,9 @@ function finishLevel(): void {
   const notes: string[] = [];
   if (streak === 1) notes.push('🔥 Серия началась — загляни в лес и завтра');
   else if (streak) notes.push(`🔥 ${streak} ${plural(streak, 'день', 'дня', 'дней')} подряд!`);
-  // Новый день засчитан — у каменного круга появилась новая деталь
+  // Новый день засчитан — у норы появилась новая деталь
   const grown = DECOR[daysPlayed() - 1];
-  if (streak && grown) notes.push(`🌼 На поляне у круга появилось новое: ${grown.name}`);
+  if (streak && grown) notes.push(`🌼 У норы появилось новое: ${grown.name}`);
   if (constellation) notes.push(`✦ Новое созвездие на небе: «${constellation}»`);
   if (newCoat) notes.push(`Открыт окрас «${newCoat}» — выбери его на экране героя`);
   notes.push(...almost(time, best, opened));
@@ -497,7 +453,7 @@ function openMenu(): void {
   clearInput();
   rig.beginMenuOrbit(gameStarted ? player.pos : new Vector3(layout.spawn.x, world.terrainAt(layout.spawn.x, layout.spawn.z), layout.spawn.z));
   saveJournal();
-  // Достижения за то, что случилось посреди уровня: сад, записки, километры
+  // Достижения за то, что случилось посреди уровня или в норе: сад, записки, километры
   const fresh = checkAchievements();
   if (fresh.length) say(`🏅 Достижение: «${fresh.map((a) => a.name).join('», «')}»`, 3500);
   setState('menu');
@@ -641,7 +597,6 @@ world.scene.onBeforeRenderObservable.add(() => {
   const dt = Math.min(engine.getDeltaTime() / 1000, 0.05);
   // Траву приминает герой, стоящий на поляне (в меню — тоже, он там просто стоит)
   world.update(dt, player.hero ? player.pos : null, 0.3 + 0.35 * (player.hero?.def.height ?? 0));
-  decor?.update(dt);
 
   if (state === 'menu' || !player.hero) {
     const center = gameStarted ? player.pos : new Vector3(layout.spawn.x, world.terrainAt(layout.spawn.x, layout.spawn.z), layout.spawn.z);
@@ -700,7 +655,6 @@ world.scene.onBeforeRenderObservable.add(() => {
     if (got.includes(rare)) foundRare();
     updateCrystalsHud();
   }
-  for (const i of world.collectGarden(player.center)) harvest(i);
   if (world.takeNote(player.center)) {
     audio.chime(false);
     const where = welcomeNote ? 'Записка ждала тебя у круга' : 'Записка путника';

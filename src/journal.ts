@@ -50,7 +50,7 @@ export interface Stats {
   bestCombo: number;
 }
 
-/** Сад у каменного круга: кристалл вырастает раз в GARDEN_GROW_MS реального времени, не больше GARDEN_CAP. */
+/** Сад у норы: кристалл вырастает раз в GARDEN_GROW_MS реального времени, не больше GARDEN_CAP. */
 export const GARDEN_CAP = 3;
 export const GARDEN_GROW_MS = 3 * 3600_000;
 

@@ -3,7 +3,7 @@
 import { ACHIEVEMENTS, isDone, progressText } from '../achievements';
 import { journal, NOTES, SHADES } from '../journal';
 import { BIOMES, type BiomeId } from '../levels/biomes';
-import { DECOR } from '../levels/decor';
+import { DECOR } from '../den/decor';
 import { daysPlayed } from '../levels/progress';
 import { plural } from '../utils';
 import type { InfoTab } from './menu';
@@ -21,7 +21,7 @@ function shadesHtml(): string {
       : `<li class="shade off"><i></i>???<span>${BIOMES[id].name}</span></li>`;
   });
   return `<h5>Оттенки кристаллов · ${found} из ${ids.length}</h5>
-    <p>Иногда среди золотых кристаллов попадается редкий — у каждого биома свой цвет. А пока тебя нет, такие кристаллы растут в саду у каменного круга.</p>
+    <p>Иногда среди золотых кристаллов попадается редкий — у каждого биома свой цвет. А пока тебя нет, такие кристаллы растут в саду у норы.</p>
     <ul class="shade-list">${rows.join('')}</ul>`;
 }
 
@@ -49,8 +49,8 @@ function statsHtml(): string {
 function clearingHtml(): string {
   const n = Math.min(daysPlayed(), DECOR.length);
   const next = DECOR[n];
-  return `<h5>Поляна у круга · ${n} из ${DECOR.length}</h5>
-    <p>За каждый день, когда ты проходишь уровень, на поляне у каменного круга появляется что-то новое. Пропущенный день ничего не отнимает.</p>
+  return `<h5>Поляна у норы · ${n} из ${DECOR.length}</h5>
+    <p>За каждый день, когда ты проходишь уровень, на поляне у норы появляется что-то новое. Пропущенный день ничего не отнимает.</p>
     ${n ? `<ul>${DECOR.slice(0, n).map((d) => `<li>${d.name}</li>`).join('')}</ul>` : ''}
     ${next ? '<p>Что будет дальше — увидишь завтра.</p>' : '<p>Поляна расцвела целиком.</p>'}`;
 }

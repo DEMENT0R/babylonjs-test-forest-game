@@ -30,9 +30,9 @@ const howtoHtml = (): string => `
     <h5>Лес дня</h5>
     <p>Одна раскладка на день, у всех одинаковая. Лучшее время за день видно в меню, результатом можно поделиться.</p>
     <h5>Нора</h5>
-    <p>Свой двор под большой сосной. Собранные кристаллы — это и счёт норы: за них во дворе появляются вещи. Их можно менять местами и убирать — купленное не пропадает.</p>
+    <p>Свой двор под большой сосной. Собранные кристаллы — это и счёт норы: за них во дворе появляются вещи. Их можно менять местами и убирать — купленное не пропадает. Пока тебя нет, в саду у норы растут редкие кристаллы, а за каждый день с пройденным уровнем поляна вокруг обрастает цветами и грибами.</p>
     <h5>Дневник</h5>
-    <p>Достижения, редкие кристаллы, записки путника и поляна у круга, которая растёт день за днём.</p>
+    <p>Достижения, редкие кристаллы, записки путника и поляна у норы, которая растёт день за днём.</p>
     <p>Клавиши и геймпад — в настройках, во вкладке «Управление».</p>`;
 /** Вкладка панели: разметка строится заново при каждом показе. */
 export interface InfoTab { id: string; name: string; html: () => string }
@@ -110,8 +110,9 @@ export class MainMenu {
     }
     byId('menu-info-close').addEventListener('click', () => this.closeInfo(true));
     byId('menu-news').addEventListener('click', (e) => {
-      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-tab]');
-      if (b) this.openTab('journal', b.dataset.tab!);
+      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-tab], [data-den]');
+      if (b?.dataset.den !== undefined) actions.onDen();
+      else if (b) this.openTab('journal', b.dataset.tab!);
     });
     this.infoTabs.addEventListener('click', (e) => {
       const t = (e.target as HTMLElement).closest<HTMLElement>('[data-tab]');
@@ -166,7 +167,7 @@ export class MainMenu {
   }
 
   /**
-   * Новости в шапке, важное сверху: записка у круга и сад (ведут в «Находки» дневника),
+   * Новости в шапке, важное сверху: записка у круга (ведёт в «Находки» дневника), сад (в нору),
    * огонёк серии — сколько дней подряд пройден уровень, и напоминание, если сегодня ещё нет.
    */
   private syncNews(): void {
@@ -175,7 +176,9 @@ export class MainMenu {
     if (welcomeNote) items.push(link('finds', '✉ Пока тебя не было, у каменного круга оставили записку'));
     const ready = growGarden();
     if (ready) {
-      items.push(link('finds', `✦ В саду у каменного круга ${plural(ready, 'вырос', 'выросло', 'выросло')} ${ready} ${plural(ready, 'кристалл', 'кристалла', 'кристаллов')}`));
+      items.push(
+        `<li><button type="button" class="link" data-den>✦ В саду у норы ${plural(ready, 'вырос', 'выросло', 'выросло')} ${ready} ${plural(ready, 'кристалл', 'кристалла', 'кристаллов')}</button></li>`,
+      );
     }
     const { days, today } = currentStreak();
     if (days) items.push(`<li>🔥 ${days} ${plural(days, 'день', 'дня', 'дней')} подряд${today ? '' : ' <span>· пройди уровень сегодня, чтобы не прервать</span>'}</li>`);
