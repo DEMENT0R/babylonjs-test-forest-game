@@ -19,6 +19,7 @@ import { GrassField } from '../grass';
 import { AirParticles } from '../particles';
 import { addShadowCaster, type LightingContext } from '../settings';
 import { clamp } from '../utils';
+import { Forest } from './forest';
 import { PATH_R, type LevelLayout } from './generator';
 
 export interface Crystal { mesh: Mesh; baseY: number; phase: number }
@@ -30,6 +31,8 @@ export class Level {
   /** Кристаллы из сада у круга — вне счёта уровня, не влияют на портал и звёзды. */
   readonly garden: Crystal[] = [];
   readonly grass: GrassField;
+  /** Деревья: качаются на ветру и вздрагивают от героя. */
+  readonly forest: Forest;
   /** Снег или светлячки, если они есть в биоме. */
   readonly particles: AirParticles | null;
   /** Ночью — свет от ближайших кристаллов. */
@@ -49,7 +52,7 @@ export class Level {
     const stone = this.mat('stone', b.stone, 0.05);
 
     this.buildGround();
-    this.buildTrees();
+    this.forest = new Forest(scene, lighting, layout);
     this.buildRocks();
 
     const ground = (x: number, z: number) => layout.terrain.heightAt(x, z);
@@ -290,59 +293,6 @@ export class Level {
     this.track(base);
   }
 
-  private buildTrees(): void {
-    const { trees, biome, terrain } = this.layout;
-    const scene = this.scene;
-    const pine = biome.trees.kind === 'pine';
-    const trunkM = this.mat('trunk', biome.trees.trunk);
-    const leafM = this.mat('leaves', new Color3(1, 1, 1));
-    const m = new Matrix();
-    const q = new Quaternion();
-    const s = new Vector3();
-    const p = new Vector3();
-    const put = (buf: Float32Array, i: number, sx: number, sy: number, sz: number, yaw: number, x: number, y: number, z: number) => {
-      s.set(sx, sy, sz);
-      Quaternion.RotationYawPitchRollToRef(yaw, 0, 0, q);
-      p.set(x, y, z);
-      Matrix.ComposeToRef(s, q, p, m);
-      m.copyToArray(buf, i * 16);
-    };
-
-    const trunks = new Float32Array(trees.length * 16);
-    const crownsPerTree = pine ? 3 : 2;
-    const crowns = new Float32Array(trees.length * crownsPerTree * 16);
-    const crownColors = new Float32Array(trees.length * crownsPerTree * 4);
-    trees.forEach((t, i) => {
-      // Ствол чуть утоплен в землю — на склоне не видно зазора под ним
-      const g = terrain.heightAt(t.x, t.z) - 0.25;
-      if (pine) {
-        put(trunks, i, t.s, t.s, t.s, t.yaw, t.x, g + t.s, t.z);
-        for (let k = 0; k < 3; k++) {
-          const d = (3 - k * 0.7) * t.s;
-          put(crowns, i * 3 + k, d, t.s, d, t.yaw + k * 1.3, t.x, g + (2 + k * 1.1) * t.s, t.z);
-        }
-      } else {
-        // Берёза: тонкий высокий ствол и две круглые кроны
-        put(trunks, i, 0.6 * t.s, 1.7 * t.s, 0.6 * t.s, t.yaw, t.x, g + 1.7 * t.s, t.z);
-        put(crowns, i * 2, 1.5 * t.s, 1.3 * t.s, 1.5 * t.s, t.yaw, t.x, g + 3.9 * t.s, t.z);
-        const ox = Math.cos(t.yaw) * 0.6 * t.s, oz = Math.sin(t.yaw) * 0.6 * t.s;
-        put(crowns, i * 2 + 1, 1.1 * t.s, 1 * t.s, 1.1 * t.s, t.yaw + 1, t.x + ox, g + 5 * t.s, t.z + oz);
-      }
-      const c = biome.trees.leaves[t.tint];
-      for (let k = 0; k < crownsPerTree; k++) {
-        const v = 0.92 + ((i * 7 + k * 13) % 10) / 60;
-        crownColors.set([c.r * v, c.g * v, c.b * v, 1], (i * crownsPerTree + k) * 4);
-      }
-    });
-
-    const trunk = MeshBuilder.CreateCylinder('trunks', { height: 2, diameterTop: 0.3, diameterBottom: 0.5, tessellation: 6 }, scene);
-    this.instanced(trunk, trunkM, trunks);
-    const crown = pine
-      ? MeshBuilder.CreateCylinder('crowns', { height: 1.8, diameterTop: 0, diameterBottom: 1, tessellation: 7 }, scene)
-      : MeshBuilder.CreateIcoSphere('crowns', { radius: 1, subdivisions: 1, flat: true }, scene);
-    this.instanced(crown, leafM, crowns, crownColors);
-  }
-
   private buildRocks(): void {
     const { rocks, biome, terrain } = this.layout;
     if (rocks.length === 0) return;
@@ -395,6 +345,7 @@ export class Level {
   dispose(): void {
     this.lighting.glow?.removeExcludedMesh(this.portalCore);
     this.grass.dispose();
+    this.forest.dispose();
     this.particles?.dispose();
     for (const l of this.crystalLights) l.dispose();
     for (const m of this.meshes) m.dispose();

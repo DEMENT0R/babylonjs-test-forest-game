@@ -501,6 +501,46 @@ export class GameAudio {
     this.note(out, t, 220, 880, 1.1, 0.35, 'sine');
   }
 
+  // ---------- Деревья ----------
+
+  /**
+   * Тряхнули дерево: шелест кроны — серия коротких всплесков высокого шума;
+   * с заснеженной ели вместо этого глухо ссыпается снег.
+   * @param strength 0…1 — сила толчка
+   */
+  rustle(strength: number, snowy: boolean, pan = 0): void {
+    if (!this.running) return;
+    const ac = this.ac!;
+    const t = ac.currentTime;
+    const out = ac.createStereoPanner();
+    out.pan.value = clamp(pan, -0.8, 0.8);
+    out.connect(this.natureBus);
+    const grains = snowy ? 2 : this.lite ? 3 : 6;
+    const len = snowy ? 0.5 : 0.7;
+    let end = t;
+    for (let i = 0; i < grains; i++) {
+      const at = t + (i / grains) * len * rand(0.6, 1);
+      const src = ac.createBufferSource();
+      src.buffer = this.stepNoise;
+      src.playbackRate.value = rand(0.8, 1.2);
+      const f = ac.createBiquadFilter();
+      f.type = snowy ? 'lowpass' : 'bandpass';
+      f.frequency.value = snowy ? rand(500, 900) : rand(2800, 5200);
+      f.Q.value = snowy ? 0.7 : 0.6;
+      const g = ac.createGain();
+      const dur = snowy ? rand(0.25, 0.4) : rand(0.12, 0.26);
+      // Шелест стихает вместе с колебаниями дерева
+      const peak = (snowy ? 0.35 : 0.12) * strength * (1 - i / (grains + 1));
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(peak, at + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.001, at + 0.03 + dur);
+      src.connect(f).connect(g).connect(out);
+      src.start(at, rand(0, 0.6), dur + 0.08);
+      end = Math.max(end, at + dur + 0.1);
+    }
+    setTimeout(() => out.disconnect(), (end - t + 0.2) * 1000);
+  }
+
   // ---------- Шаги ----------
 
   /**

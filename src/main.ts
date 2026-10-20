@@ -632,7 +632,18 @@ world.scene.onBeforeRenderObservable.add(() => {
   const active = !settingsPanel.isOpen && !isTransitioning();
   if (active) levelTime += dt;
   const px = player.pos.x, pz = player.pos.z;
+  const wasAir = !player.onGround, fallSpeed = -player.vel.y;
   player.update(dt, { yaw: rig.yaw, modeId: rig.mode.id }, active);
+  if (active) {
+    // Врезался в ствол или приземлился рядом — дерево вздрагивает и шелестит
+    const landing = wasAir && player.onGround ? fallSpeed : 0;
+    const heroR = 0.25 + 0.2 * player.hero.def.height;
+    for (const h of world.touchTrees(player.pos, heroR, player.vel, landing)) {
+      const dx = h.x - player.pos.x, dz = h.z - player.pos.z;
+      const pan = (dx * Math.cos(rig.yaw) - dz * Math.sin(rig.yaw)) / Math.max(Math.hypot(dx, dz), 0.1);
+      audio.rustle(h.strength, !!layout.biome.frost, pan);
+    }
+  }
   if (active) {
     const st = journal.stats;
     st.time += dt;

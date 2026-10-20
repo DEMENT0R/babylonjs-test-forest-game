@@ -13,6 +13,7 @@ import {
   type Engine,
 } from '@babylonjs/core';
 import { generateLevel, PATH_R, type LevelLayout, type Obstacle, type Platform } from './levels/generator';
+import type { TreeHit } from './levels/forest';
 import { Level, type Crystal } from './levels/level';
 import type { LevelRecipe } from './levels/recipes';
 import { slopeAt } from './levels/terrain';
@@ -342,8 +343,14 @@ export class World {
     // Траве нужна высота героя над землёй, а не абсолютная
     const rel = bendAt ? new Vector3(bendAt.x, bendAt.y - this.terrainAt(bendAt.x, bendAt.z), bendAt.z) : null;
     lvl.grass.update(this.camera.position, rel, bendRadius);
+    lvl.forest.update(dt);
     lvl.particles?.follow(this.camera.position);
     lvl.updateCrystalLights(bendAt ?? this.camera.position, dt);
+  }
+
+  /** Герой задел деревья (врезался на бегу или приземлился рядом) — они вздрагивают. */
+  touchTrees(at: Vector3, heroRadius: number, vel: Vector3, landing: number): TreeHit[] {
+    return this.level?.forest.touch(at, heroRadius, vel.x, vel.z, landing) ?? [];
   }
 
   /** Сдвигает солнце вслед за точкой — область теней остаётся возле камеры. */
