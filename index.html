@@ -36,6 +36,7 @@
         <button type="button" id="m-new">Играть</button>
         <button type="button" id="m-daily" title="Одна раскладка на день — у всех одинаковая">Лес дня <span id="m-daily-best">новый</span></button>
         <button type="button" class="link" id="m-daily-share" hidden>Поделиться результатом дня ⧉</button>
+        <button type="button" id="m-den">Нора <span id="m-den-info">✦ 0</span></button>
         <div class="menu-tiles" role="group" aria-label="Прогресс">
           <button type="button" class="tile" id="m-levels" aria-expanded="false">Уровни <small id="m-levels-count"></small></button>
           <button type="button" class="tile" id="m-sky" aria-expanded="false">Небо <small id="m-sky-count">★ 0</small><i class="dot" id="m-sky-dot" hidden aria-label="новые звёзды"></i></button>
@@ -71,6 +72,23 @@
         <span class="sel-hint">← → или 1–3 · C — окрас · Enter — играть · Esc — меню</span>
       </div>
       <div class="credits">Волк и олень — Quaternius, Ultimate Animated Animals (CC0) · Лиса — PixelMannen (CC0), риг и анимация @tomkranis (CC BY 4.0), Khronos glTF Sample Assets</div>
+    </div>
+  </div>
+
+  <!-- Нора: шапка с кристаллами сверху; снизу — что стоит в выбранном месте и все места двора -->
+  <div id="den">
+    <header class="den-head">
+      <div class="eyebrow" id="den-eyebrow">Нора</div>
+      <h2 id="den-title">Нора под сосной</h2>
+      <div class="den-wallet" id="den-wallet"></div>
+    </header>
+    <div class="den-bottom">
+      <section class="den-card" id="den-card" aria-live="polite"></section>
+      <div class="den-slots" id="den-slots" role="group" aria-label="Места во дворе"></div>
+      <div class="den-foot">
+        <button class="ghost" id="den-back" type="button">В меню</button>
+        <span class="sel-hint">Q / E — место · мышь — повернуть двор · Esc — меню</span>
+      </div>
     </div>
   </div>
 

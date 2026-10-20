@@ -17,6 +17,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 body:not([data-state="play"]) .play-ui{display:none!important}
 body:not([data-state="select"]) #select{display:none}
 body:not([data-state="menu"]) #menu{display:none}
+body:not([data-state="den"]) #den{display:none}
 [hidden]{display:none!important}
 /* Подсказки под последнее устройство ввода: клавиатура и мышь или геймпад */
 body[data-input="pad"] .key-only,body:not([data-input="pad"]) .pad-only{display:none!important}
@@ -172,6 +173,55 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump{display:no
   .sel-foot .ghost{padding:8px 12px}
 }
 
+/* Den: шапка с кристаллами сверху, снизу — карточка места, ряд мест и кнопки */
+#den{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:space-between;pointer-events:none;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:calc(18px + env(safe-area-inset-top,0px)) calc(16px + env(safe-area-inset-bottom,0px))}
+#den button{pointer-events:auto}
+.den-head{text-align:center;text-shadow:0 2px 14px rgba(0,0,0,.35);display:flex;flex-direction:column;align-items:center;gap:8px}
+.den-head h2{margin:0;font:700 clamp(22px,4.5vw,36px)/1.1 var(--f-display);text-wrap:balance}
+.den-wallet{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;pointer-events:auto}
+.den-chip{display:inline-flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:3px 10px;font:600 12px var(--f-mono);font-variant-numeric:tabular-nums;backdrop-filter:blur(6px);text-shadow:none}
+.den-chip:first-child{color:var(--accent)}
+.den-chip i{width:9px;height:9px;border-radius:50%;background:var(--c)}
+.den-chip.zero{opacity:.55}
+.den-bottom{display:flex;flex-direction:column;gap:10px;align-items:center;width:100%;max-width:720px;margin:0 auto}
+.den-card{width:100%;background:var(--panel-hi);border:1px solid var(--line);border-radius:12px;padding:12px 14px;backdrop-filter:blur(8px);pointer-events:auto;max-height:38vh;overflow:auto;overscroll-behavior:contain}
+.den-card-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:8px}
+.den-card h3{margin:0;font:700 15px var(--f-display)}
+.den-card p{margin:0 0 8px;font:400 12px/1.55 var(--f-mono);color:var(--muted)}
+.den-card button.link{background:none;border:0;padding:0;font:600 12px var(--f-mono);color:var(--muted);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.den-card button.link:is(:hover,:focus-visible){color:var(--ink)}
+.den-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px}
+.den-item{display:flex;justify-content:space-between;align-items:center;gap:10px;text-align:left;background:transparent;border:1px solid var(--line);border-radius:8px;padding:8px 10px;cursor:pointer;font:400 12px var(--f-mono)}
+.den-item span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.den-item b{font-weight:600;color:var(--ink)}
+.den-item small{color:var(--muted);font-size:11px}
+.den-item em{font-style:normal;font-weight:600;color:var(--accent);white-space:nowrap;text-align:right}
+.den-item:is(:hover,:focus-visible){border-color:var(--accent)}
+.den-item.on{border-color:var(--accent);background:rgba(255,207,90,.1)}
+.den-item.on em{color:var(--ink)}
+.den-item.off em{color:var(--muted)}
+.den-slots{display:flex;gap:6px;width:100%;overflow-x:auto;scrollbar-width:none;padding:2px}
+.den-slots button{flex:1 0 auto;min-width:96px;display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px;cursor:pointer;backdrop-filter:blur(6px);text-align:left}
+.den-slots b{font:700 13px var(--f-display)}
+.den-slots small{font:400 11px var(--f-mono);color:var(--muted);white-space:nowrap}
+.den-slots button:is(:hover,:focus-visible){border-color:var(--accent)}
+.den-slots button[aria-pressed="true"]{border-color:var(--accent);background:var(--panel-hi)}
+.den-slots button.locked{opacity:.55}
+.den-foot{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center}
+@media (hover:none){#den .sel-hint{display:none}}
+@media (max-width:600px){.den-items{grid-template-columns:1fr}.den-card{max-height:34vh}}
+@media (max-height:520px) and (orientation:landscape){
+  #den{padding-block:calc(8px + env(safe-area-inset-top,0px)) calc(8px + env(safe-area-inset-bottom,0px))}
+  .den-head{flex-direction:row;justify-content:center;gap:12px}
+  .den-head .eyebrow{display:none}
+  .den-head h2{font-size:18px}
+  .den-card{max-height:42vh;padding:8px 12px}
+  .den-bottom{gap:6px}
+  .den-slots button{padding:5px 10px}
+}
+
 /* Main menu
    Широкий экран: колонка слева, панель справа. Телефон в портрете: заголовок сверху,
    пункты снизу под большим пальцем. Низкий экран (телефон в ландшафте): заголовок слева,
@@ -300,6 +350,7 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump{display:no
   .menu-list button::before{display:none}
   .menu-list button:focus-visible{transform:none;border-color:var(--accent)}
   .menu-list .primary,.menu-list #m-new,.menu-list #m-daily{grid-column:1/-1;font-size:17px}
+  .menu-list #m-den{grid-column:1/-1}
   /* В игре «Начать заново» и «Настройки» — парой в последнем ряду */
   .menu-list #m-new.minor{grid-column:auto;order:1;font:600 13px var(--f-mono);color:var(--ink)}
   .menu-list #m-settings{order:1}

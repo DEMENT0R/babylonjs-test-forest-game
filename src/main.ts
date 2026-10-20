@@ -41,6 +41,7 @@ import { say, setCrystals, setHintLevel, setLevelTitle, setQuest, setupHud, show
 import { setupFullscreen, toggleFullscreen } from './ui/fullscreen';
 import { MainMenu } from './ui/menu';
 import { activate, navigate, sendKey } from './ui/pad-nav';
+import { DenScreen } from './ui/den';
 import { SelectScreen, starsMissing } from './ui/select';
 import { SettingsPanel } from './ui/settings-panel';
 import { isTransitioning, setTransitionText, transition } from './ui/transition';
@@ -48,7 +49,7 @@ import { byId, plural } from './utils';
 import { wind } from './wind';
 import { World } from './world';
 
-type GameState = 'menu' | 'select' | 'play';
+type GameState = 'menu' | 'select' | 'play' | 'den';
 
 const canvas = byId<HTMLCanvasElement>('c');
 // Кадр всё равно идёт через пост-обработку, и сглаживание самого холста на телефоне
@@ -134,6 +135,11 @@ const select = new SelectScreen(engine, {
   isBlocked: () => settingsPanel.isOpen,
 });
 
+const den = new DenScreen(engine, {
+  onBack: () => openMenu(),
+  chime: () => audio.chime(true),
+});
+
 const menu = new MainMenu({
   onContinue: () => resumeGame(),
   onNewGame: () => (gameStarted ? restartLevel() : backToSelect()),
@@ -141,6 +147,7 @@ const menu = new MainMenu({
   onSettings: () => settingsPanel.open(),
   onPickLevel: (i) => pickLevel(i),
   onDaily: () => pickLevel(level, todayKey()),
+  onDen: () => openDen(),
 });
 
 setupHud({
@@ -474,8 +481,17 @@ function backToSelect(): void {
   select.chooseHero(player.hero?.def ?? select.selected);
 }
 
+function openDen(): void {
+  rig.releaseLock();
+  rig.cancelDrag();
+  menu.closeInfo();
+  setState('den');
+  den.open();
+}
+
 function openMenu(): void {
   if (isTransitioning()) return;
+  den.close();
   rig.releaseLock();
   rig.cancelDrag();
   clearInput();
@@ -534,6 +550,9 @@ addEventListener('keydown', (e) => {
       if (e.code === 'Escape') openMenu();
       else select.handleKey(e);
       return;
+    case 'den':
+      den.handleKey(e);
+      return;
     case 'play':
       if (e.code === 'Escape') {
         openMenu();
@@ -572,6 +591,7 @@ function padScreen(): HTMLElement | null {
   if (settingsPanel.isOpen) return byId('settings');
   if (state === 'menu') return byId('menu');
   if (state === 'select') return byId('select');
+  if (state === 'den') return byId('den');
   return null;
 }
 
@@ -600,6 +620,9 @@ function handleGamepad(): void {
   } else if (state === 'menu') {
     if (gamepad.pressed(BTN.LB)) menu.switchTab(-1);
     if (gamepad.pressed(BTN.RB)) menu.switchTab(1);
+  } else if (state === 'den') {
+    if (gamepad.pressed(BTN.LB)) den.cycle(-1);
+    if (gamepad.pressed(BTN.RB)) den.cycle(1);
   }
   if (gamepad.pressed(BTN.A)) {
     // На выборе героя A играет выбранным героем, если фокус не на кнопках внизу
@@ -695,7 +718,7 @@ engine.runRenderLoop(() => {
   syncPadConnected();
   handleGamepad();
   wind.update(Math.min(engine.getDeltaTime() / 1000, 0.1));
-  (state === 'select' ? select.scene : world.scene).render();
+  (state === 'select' ? select.scene : state === 'den' ? den.scene : world.scene).render();
   tickFps(engine);
   autoScale.update(engine.getDeltaTime() / 1000, state === 'play' && !settingsPanel.isOpen && !isTransitioning());
 });
@@ -714,4 +737,4 @@ byId('m-new').focus();
 void select.load();
 
 // Для отладки из консоли браузера; в production-сборку не попадает
-if (import.meta.env.DEV) Object.assign(window, { __game: { world, player, rig, select, beginLevel, get layout() { return layout; }, get quest() { return quest; } } });
+if (import.meta.env.DEV) Object.assign(window, { __game: { world, player, rig, select, den, beginLevel, get layout() { return layout; }, get quest() { return quest; } } });

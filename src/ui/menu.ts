@@ -10,6 +10,7 @@ import { currentStreak, dailyBest, formatTime, progress as saved, todayKey, tota
 import { recipeFor } from '../levels/recipes';
 import { byId, plural } from '../utils';
 import { growGarden, welcomeNote } from '../journal';
+import { crystals } from '../den/state';
 import { copyText, dailyShareText } from '../share';
 import { JOURNAL_TABS } from './journal-panel';
 import { seenStars, skyHtml } from './sky-panel';
@@ -28,6 +29,8 @@ const howtoHtml = (): string => `
     <p>За уровень — две звезды: за все кристаллы и за задание. Звёзды открывают новых героев и окрасы и зажигают созвездия на «Небе».</p>
     <h5>Лес дня</h5>
     <p>Одна раскладка на день, у всех одинаковая. Лучшее время за день видно в меню, результатом можно поделиться.</p>
+    <h5>Нора</h5>
+    <p>Свой двор под большой сосной. Собранные кристаллы — это и счёт норы: за них во дворе появляются вещи. Их можно менять местами и убирать — купленное не пропадает.</p>
     <h5>Дневник</h5>
     <p>Достижения, редкие кристаллы, записки путника и поляна у круга, которая растёт день за днём.</p>
     <p>Клавиши и геймпад — в настройках, во вкладке «Управление».</p>`;
@@ -58,6 +61,7 @@ export interface MenuActions {
   onSettings: () => void;
   onPickLevel: (index: number) => void;
   onDaily: () => void;
+  onDen: () => void;
 }
 
 /** Прогресс текущей игры; null — игра ещё не начата. */
@@ -96,6 +100,10 @@ export class MainMenu {
     byId('m-daily').addEventListener('click', () => {
       this.closeInfo();
       actions.onDaily();
+    });
+    byId('m-den').addEventListener('click', () => {
+      this.closeInfo();
+      actions.onDen();
     });
     for (const key of Object.keys(OPENERS) as InfoKey[]) {
       byId(OPENERS[key]).addEventListener('click', () => this.toggleInfo(key));
@@ -144,6 +152,7 @@ export class MainMenu {
     const best = dailyBest(todayKey());
     byId('m-daily-best').textContent = best === undefined ? 'новый' : `рекорд ${formatTime(best)}`;
     byId('m-daily-share').hidden = best === undefined;
+    byId('m-den-info').textContent = `✦ ${crystals()}`;
     this.syncNews();
   }
 
