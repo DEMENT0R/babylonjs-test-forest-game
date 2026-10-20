@@ -1,9 +1,11 @@
-// Экран выбора героя: отдельная 3D-сцена с тремя подиумами и карточки героев поверх неё.
+// Экран выбора героя: отдельная 3D-сцена — лесная поляна с каменным кругом и тремя подиумами,
+// карточки героев поверх неё. Поляна одета в биом уровня, который игрок сейчас начнёт.
 
 import {
   Color3,
   Color4,
   DirectionalLight,
+  PointLight,
   GlowLayer,
   HemisphericLight,
   MeshBuilder,
@@ -17,11 +19,17 @@ import {
   type Node,
   type PBRMaterial,
 } from '@babylonjs/core';
-import { GrassField, MEADOW_GROUND, MEADOW_TIP } from '../grass';
+import { GrassField } from '../grass';
 import { applyCoat, chooseCoat, coatFor, COATS, HEROES, loadHero, openCoats, type Hero, type HeroDef } from '../heroes';
+import { BIOMES, type Biome } from '../levels/biomes';
+import { Forest } from '../levels/forest';
+import type { TreeSpot } from '../levels/generator';
 import { totalStars } from '../levels/progress';
-import { addShadowCaster, createLightingContext, type LightingContext } from '../settings';
-import { byId, damp, now, wrapAngle } from '../utils';
+import { FLAT_TERRAIN } from '../levels/terrain';
+import { AirParticles } from '../particles';
+import { Rng } from '../rng';
+import { addShadowCaster, createLightingContext, settings, type LightingContext } from '../settings';
+import { byId, clamp, damp, now, wrapAngle } from '../utils';
 
 const SLOT_X = [-3.4, 0, 3.4];
 const CAM_Z = -9;
@@ -31,9 +39,17 @@ const PITCH = Math.atan2(1.4, 9);
     Общая для всех героев, чтобы камера не дёргалась вперёд-назад при выборе. */
 const FRAME_H = 2;
 const FILL = 0.5;
-const SKY = new Color3(0.55, 0.72, 0.78);
+/** Каменный круг за подиумами: центр, радиус и углы камней на дуге позади героев. */
+const CIRCLE = { x: 0, z: 1.5, r: 7.5 };
+const PILLAR_ANGLES = [0.35, 0.95, 1.5708, 2.19, 2.79];
+/** Утоптанная площадка под подиумами — эллипс, шире по X. */
+const PATH = { rx: 7.5, rz: 5.5, z: 0 };
+/** Поляна, свободная от деревьев: эллипс вокруг круга. */
+const CLEARING = { rx: 15, rz: 14 };
 /** Закрытый герой стоит на подиуме тёмным силуэтом. */
 const SILHOUETTE = new Color3(0.03, 0.04, 0.05);
+/** Ночью силуэт светлее, иначе он теряется на тёмном лесе: луна обрисовывает форму. */
+const NIGHT_SILHOUETTE = new Color3(0.07, 0.08, 0.1);
 
 /** Сколько звёзд не хватает до героя (0 — открыт). */
 export const starsMissing = (def: HeroDef): number => Math.max(0, def.stars - totalStars());
@@ -61,10 +77,21 @@ export class SelectScreen {
   readonly scene: Scene;
   private readonly camera: UniversalCamera;
   private readonly lighting: LightingContext;
-  private readonly grass: GrassField;
+  private readonly hemi: HemisphericLight;
+  private readonly sun: DirectionalLight;
+  /** Ночью над выбранным подиумом — тёплый свет, как от кристаллов на ночных уровнях. */
+  private readonly lamp: PointLight;
   private readonly slots: Slot[];
   private readonly ringOn: StandardMaterial;
   private readonly ringOff: StandardMaterial;
+  private readonly groundMat: StandardMaterial;
+  private readonly pathMat: StandardMaterial;
+  private readonly stoneMat: StandardMaterial;
+  private readonly trees = clearingTrees();
+  private grass: GrassField | null = null;
+  private forest: Forest | null = null;
+  private particles: AirParticles | null = null;
+  private biome: Biome | null = null;
   private readonly cardsEl = byId('cards');
   private readonly playBtn = byId<HTMLButtonElement>('play');
   private readonly coatBtn = byId<HTMLButtonElement>('coat');
@@ -81,23 +108,23 @@ export class SelectScreen {
 
   constructor(engine: Engine, private readonly actions: SelectActions) {
     const scene = (this.scene = new Scene(engine));
-    scene.clearColor = Color4.FromColor3(SKY, 1);
-    scene.fogColor = SKY.clone();
 
-    const hemi = new HemisphericLight('h', new Vector3(0, 1, 0), scene);
-    hemi.intensity = 0.75;
-    hemi.groundColor = new Color3(0.25, 0.3, 0.25);
-    const sun = new DirectionalLight('s', new Vector3(-0.4, -1, 0.6), scene);
+    // Цвета и сила света — из биома; направление своё: солнце светит героям в лицо из-за камеры
+    this.hemi = new HemisphericLight('h', new Vector3(0, 1, 0), scene);
+    const sun = (this.sun = new DirectionalLight('s', new Vector3(-0.4, -1, 0.6), scene));
     sun.position = new Vector3(8, 20, -12);
-    sun.intensity = 1.05;
-    sun.diffuse = new Color3(1, 0.95, 0.85);
+    this.lamp = new PointLight('lamp', new Vector3(0, 1.8, -0.6), scene);
+    this.lamp.diffuse = new Color3(1, 0.78, 0.4);
+    this.lamp.specular = new Color3(0, 0, 0);
+    this.lamp.range = 7;
+    this.lamp.intensity = 0;
 
     this.camera = new UniversalCamera('sc', new Vector3(0, 2.4, CAM_Z), scene);
     this.camera.inputs.clear();
     this.camera.fov = 0.75;
     this.camera.minZ = 0.1;
 
-    this.lighting = createLightingContext({ scene, sun, camera: this.camera, shadowFrustum: 16, fogBase: 1.2, fixedMaxZ: 200 });
+    this.lighting = createLightingContext({ scene, sun, camera: this.camera, shadowFrustum: 16, fixedMaxZ: 200 });
     this.lighting.glow = new GlowLayer('sg', scene);
     this.lighting.glow.intensity = 0.5;
 
@@ -107,13 +134,32 @@ export class SelectScreen {
       m.specularColor = new Color3(0, 0, 0);
       return m;
     };
-    const ground = MeshBuilder.CreateDisc('g', { radius: 60, tessellation: 64 }, scene);
+    // Земля уходит в туман — края мира не видно
+    const ground = MeshBuilder.CreateDisc('g', { radius: 150, tessellation: 64 }, scene);
     ground.rotation.x = Math.PI / 2;
-    ground.material = mat('gm', MEADOW_GROUND);
+    ground.material = this.groundMat = mat('gm', new Color3());
     ground.receiveShadows = true;
     ground.isPickable = false;
+    const path = MeshBuilder.CreateDisc('path', { radius: 1, tessellation: 48 }, scene);
+    path.rotation.x = Math.PI / 2;
+    path.scaling.set(PATH.rx, PATH.rz, 1);
+    path.position.set(0, 0.02, PATH.z);
+    path.material = this.pathMat = mat('pm', new Color3());
+    path.receiveShadows = true;
+    path.isPickable = false;
 
-    const podStone = mat('ps', new Color3(0.62, 0.6, 0.56));
+    // Камни каменного круга — такие же, как на уровнях, дугой позади подиумов
+    const podStone = (this.stoneMat = mat('ps', new Color3()));
+    PILLAR_ANGLES.forEach((a, i) => {
+      const h = 2.4 + (i % 2) * 0.8;
+      const m = MeshBuilder.CreateBox('pillar', { width: 0.9, height: h + 1, depth: 0.6 }, scene);
+      m.position.set(CIRCLE.x + Math.cos(a) * CIRCLE.r, (h - 1) / 2, CIRCLE.z + Math.sin(a) * CIRCLE.r);
+      m.rotation.y = Math.PI / 2 - a;
+      m.material = podStone;
+      m.receiveShadows = true;
+      m.isPickable = false;
+      addShadowCaster(this.lighting, m);
+    });
     this.ringOff = mat('ro', new Color3(0.5, 0.48, 0.44));
     this.ringOn = mat('ri', new Color3(1, 0.8, 0.3));
     this.ringOn.emissiveColor = new Color3(0.9, 0.6, 0.1);
@@ -132,18 +178,7 @@ export class SelectScreen {
       return { pod, ring, hero: null, hello: 0, face: Math.atan2(-SLOT_X[i], CAM_Z) };
     });
 
-    // Лужайка вокруг подиумов
-    this.grass = new GrassField(scene, {
-      area: {
-        minX: -16, maxX: 16, minZ: -2.5, maxZ: 18,
-        circles: SLOT_X.map((x) => ({ x, z: 0, r: 1.3 })),
-      },
-      baseColor: MEADOW_GROUND.scale(0.55),
-      tipColor: MEADOW_TIP,
-      glow: this.lighting.glow,
-      fixedDistance: 40,
-      seed: 777,
-    });
+    this.setBiome(BIOMES.meadow);
 
     this.buildCards();
     this.playBtn.addEventListener('click', () => this.confirm());
@@ -161,6 +196,53 @@ export class SelectScreen {
     window.addEventListener('resize', () => (this.bandDirty = true));
 
     this.choose(this.index);
+  }
+
+  /**
+   * Одеть поляну в биом: небо, свет, земля, камень, лес, трава и частицы — как на уровне,
+   * в который игрок сейчас отправится.
+   */
+  setBiome(b: Biome): void {
+    if (this.biome?.id === b.id) return;
+    this.biome = b;
+    const scene = this.scene;
+    scene.clearColor = Color4.FromColor3(b.sky, 1);
+    scene.fogColor = b.sky.clone();
+    this.lighting.fogBase = b.fogBase;
+    scene.fogDensity = b.fogBase / settings.view;
+    this.hemi.intensity = b.hemi.intensity;
+    this.hemi.groundColor = b.hemi.ground.clone();
+    this.sun.diffuse = b.sun.color.clone();
+    this.sun.intensity = b.sun.intensity;
+    this.groundMat.diffuseColor = b.ground.clone();
+    this.pathMat.diffuseColor = b.path.clone();
+    this.stoneMat.diffuseColor = b.stone.clone();
+    this.ringOff.diffuseColor = b.stone.scale(0.8);
+    if (this.ready) this.refreshLocks();
+
+    this.forest?.dispose();
+    this.forest = new Forest(scene, this.lighting, { trees: this.trees, biome: b, terrain: FLAT_TERRAIN });
+    this.particles?.dispose();
+    this.particles = b.particles ? new AirParticles(scene, b.particles) : null;
+    // Трава вокруг подиумов, камней и стволов; на утоптанной площадке редеет
+    this.grass?.dispose();
+    this.grass = new GrassField(scene, {
+      area: {
+        minX: -18, maxX: 18, minZ: -3, maxZ: 20,
+        circles: [
+          ...SLOT_X.map((x) => ({ x, z: 0, r: 1.3 })),
+          ...PILLAR_ANGLES.map((a) => ({ x: CIRCLE.x + Math.cos(a) * CIRCLE.r, z: CIRCLE.z + Math.sin(a) * CIRCLE.r, r: 0.6 })),
+          ...this.trees.filter((t) => Math.abs(t.x) < 19 && t.z < 21).map((t) => ({ x: t.x, z: t.z, r: 0.45 * t.s })),
+        ],
+        coverage: (x, z) => clamp((Math.hypot(x / PATH.rx, (z - PATH.z) / PATH.rz) - 0.75) * 3, 0.15, 1),
+      },
+      baseColor: b.grass.root,
+      tipColor: b.grass.tip,
+      densityScale: b.grass.density,
+      glow: this.lighting.glow,
+      fixedDistance: 40,
+      seed: 777,
+    });
   }
 
   get selected(): HeroDef {
@@ -214,7 +296,7 @@ export class SelectScreen {
     if (!locked) return;
     for (const m of hero.meshes) {
       const mat = m.material as PBRMaterial | null;
-      mat?.albedoColor?.copyFrom(SILHOUETTE);
+      mat?.albedoColor?.copyFrom(this.biome?.crystalLights ? NIGHT_SILHOUETTE : SILHOUETTE);
     }
   }
 
@@ -335,7 +417,12 @@ export class SelectScreen {
     const sway = Math.sin(now() * 0.3) * 0.25;
     cam.position.set(this.camX + sway, this.camFocusY + Math.sin(PITCH) * this.camDist, -Math.cos(PITCH) * this.camDist);
     cam.setTarget(cam.position.add(new Vector3(-sway / this.camDist, -Math.sin(look), Math.cos(look))));
-    this.grass.update(cam.position, null, 0);
+    this.grass?.update(cam.position, null, 0);
+    this.forest?.update(dt);
+    const lamp = this.lamp;
+    lamp.position.x += (SLOT_X[this.index] - lamp.position.x) * damp(5, dt);
+    lamp.intensity += ((this.biome?.crystalLights ? 1.6 : 0) - lamp.intensity) * damp(3, dt);
+    this.particles?.follow(cam.position);
 
     this.slots.forEach((s, k) => {
       const hero = s.hero;
@@ -358,4 +445,24 @@ export class SelectScreen {
       }
     });
   }
+}
+
+/**
+ * Лес вокруг поляны — всегда один и тот же. Деревья редеют к краю поляны,
+ * а перед подиумами растут только по краям кадра, чтобы не заслонять героев.
+ */
+function clearingTrees(): TreeSpot[] {
+  const r = Rng.stream(777, 'select-trees');
+  const trees: TreeSpot[] = [];
+  const step = 2.7;
+  for (let x = -42; x <= 42; x += step) {
+    for (let z = -4; z <= 46; z += step) {
+      const tx = x + r.range(-1, 1), tz = z + r.range(-1, 1);
+      const e = Math.hypot(tx / CLEARING.rx, (tz - CIRCLE.z) / CLEARING.rz);
+      if (e < 1 + r.range(0, 0.45)) continue;
+      if (tz < 1 && Math.abs(tx) < 15) continue;
+      trees.push({ x: tx, z: tz, s: r.range(0.85, 1.25) + Math.min(0.4, (e - 1) * 0.15), yaw: r.range(0, Math.PI * 2), tint: r.int(0, 11) });
+    }
+  }
+  return trees;
 }

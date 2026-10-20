@@ -469,6 +469,7 @@ function backToSelect(): void {
   rig.releaseLock();
   rig.cancelDrag();
   menu.closeInfo();
+  select.setBiome(layout.biome);
   setState('select');
   select.chooseHero(player.hero?.def ?? select.selected);
 }
@@ -713,4 +714,4 @@ byId('m-new').focus();
 void select.load();
 
 // Для отладки из консоли браузера; в production-сборку не попадает
-if (import.meta.env.DEV) Object.assign(window, { __game: { world, player, rig, beginLevel, get layout() { return layout; }, get quest() { return quest; } } });
+if (import.meta.env.DEV) Object.assign(window, { __game: { world, player, rig, select, beginLevel, get layout() { return layout; }, get quest() { return quest; } } });

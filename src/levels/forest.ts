@@ -193,6 +193,9 @@ function createFall(scene: Scene, texture: DynamicTexture, kind: Fall, leaves: r
 
 // ---------- Лес ----------
 
+/** Что нужно лесу от раскладки: деревья, биом и рельеф (уровень или поляна экрана выбора). */
+export type ForestLayout = Pick<LevelLayout, 'trees' | 'biome' | 'terrain'>;
+
 /** Тряхнутое дерево — для звука и прочих откликов. */
 export interface TreeHit { x: number; z: number; strength: number }
 
@@ -217,7 +220,7 @@ export class Forest {
   private contact = new Set<number>();
   private contactNext = new Set<number>();
 
-  constructor(private readonly scene: Scene, private readonly lighting: LightingContext, private readonly layout: LevelLayout) {
+  constructor(private readonly scene: Scene, private readonly lighting: LightingContext, private readonly layout: ForestLayout) {
     const { trees, biome } = layout;
     const n = trees.length;
     this.amp = new Float32Array(n);
@@ -276,7 +279,7 @@ export class Forest {
         this.crownH[i] = 2.8 * t.s;
       }
       this.radius[i] = (pine ? 0.45 : 0.35) * t.s;
-      const c = biome.trees.leaves[t.tint];
+      const c = biome.trees.leaves[t.tint % biome.trees.leaves.length];
       trunkShake.set([g, h, 0, 0], i * 4);
       for (let k = 0; k < crownsPerTree; k++) {
         const v = 0.92 + ((i * 7 + k * 13) % 10) / 60;
