@@ -19,8 +19,8 @@ import {
   type Mesh,
   type Node,
 } from '@babylonjs/core';
-import { itemById, itemsFor, SLOTS, type ItemDef, type SlotDef } from '../den/catalog';
-import { buy, canAfford, clearSlot, crystals, den, shortOf } from '../den/state';
+import { costText, itemById, itemsFor, materialById, MATERIALS, SLOTS, type ItemDef, type SlotDef } from '../den/catalog';
+import { buy, canAfford, clearSlot, crystals, den, matCount, shortOf } from '../den/state';
 import { DenKit, MOUND, type Built } from '../den/build';
 import { ClearingDecor } from '../den/decor';
 import { addShade, gardenShade, growGarden, harvestGarden, journal, SHADES } from '../journal';
@@ -305,7 +305,13 @@ export class DenScreen {
   private take(item: ItemDef): void {
     const owned = den.owned.includes(item.id);
     if (!buy(item)) {
-      say(`Не хватает ✦ ${shortOf(item.cost)}`);
+      const lack = shortOf(item.cost);
+      // Где искать недостающее: материалы лежат на уровнях своего биома
+      const where = Object.entries(item.cost.mats ?? {})
+        .map(([id, n]) => ({ m: materialById(id)!, n }))
+        .filter(({ m, n }) => matCount(m.id) < n)
+        .map(({ m }) => `${m.name} лежат в биоме «${BIOMES[m.biome].name}»`);
+      say(`Не хватает: ${lack.join(', ')}${where.length ? `. ${where.join('. ')}` : ''}`, 3500);
       return;
     }
     this.rebuild(this.slot);
@@ -336,7 +342,13 @@ export class DenScreen {
 
   /** Шапка, места и карточка выбранного места; focusId — вернуть фокус на эту кнопку. */
   private render(focusId?: string): void {
-    byId('den-wallet').innerHTML = `<span class="den-chip">✦ ${crystals()}</span>`;
+    byId('den-wallet').innerHTML =
+      `<span class="den-chip" title="Кристаллы">✦ ${crystals()}</span>` +
+      MATERIALS.map((m) => {
+        const n = matCount(m.id);
+        const [r, g, b] = m.color.map((v) => Math.round(v * 255));
+        return `<span class="den-chip${n ? '' : ' zero'}" title="${m.name} — в биоме «${BIOMES[m.biome].name}»"><i style="--c:rgb(${r} ${g} ${b})"></i>${m.name} <b>${n}</b></span>`;
+      }).join('');
     this.slotsEl.innerHTML = SLOTS.map((s) => {
       const item = den.slots[s.id] && itemById(den.slots[s.id]!);
       return `<button type="button" data-slot="${s.id}" aria-pressed="${s === this.slot}"><b>${s.name}</b><small>${item ? item.name : 'пусто'}</small></button>`;
@@ -347,7 +359,7 @@ export class DenScreen {
     const rows = itemsFor(this.slot.id).map((item) => {
       const owned = den.owned.includes(item.id);
       const here = placed === item.id;
-      const state = here ? 'стоит' : owned ? 'поставить' : costText(item);
+      const state = here ? 'стоит' : owned ? 'поставить' : costText(item.cost);
       const off = !owned && !canAfford(item.cost);
       return `<button type="button" class="den-item${here ? ' on' : ''}${off ? ' off' : ''}" data-item="${item.id}" aria-pressed="${here}">
         <span><b>${item.name}</b><small>${item.desc}</small></span><em>${state}</em></button>`;
@@ -417,9 +429,4 @@ function clearingTrees(): TreeSpot[] {
     }
   }
   return trees;
-}
-
-/** «✦ 20» — цена вещи. */
-export function costText(item: ItemDef): string {
-  return `✦ ${item.cost.crystals}`;
 }

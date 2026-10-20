@@ -22,7 +22,9 @@ import {
   welcomeNote,
 } from './journal';
 import type { LevelLayout } from './levels/generator';
+import { amount, materialOf } from './den/catalog';
 import { DECOR } from './den/decor';
+import { addMaterial } from './den/state';
 import { completeDaily, completeLevel, dailyBest, daysPlayed, formatTime, markPlayedToday, progress, setCurrentLevel, todayKey, totalStars } from './levels/progress';
 import { QuestMarkers } from './levels/markers';
 import { fitQuest, QuestRun } from './levels/quests';
@@ -92,6 +94,10 @@ const COMBO_WINDOW = 3;
 let combo = 0;
 let lastCrystalAt = -Infinity;
 let markers: QuestMarkers | null = null;
+/** Материалов для норы подобрано на этом уровне. */
+let gathered = 0;
+/** Сколько материалов разложить на уровне: от и до. */
+const PICKUPS = [2, 4] as const;
 
 // Браузер включает звук только после действия пользователя — первый клик или клавиша
 for (const type of ['pointerdown', 'keydown'] as const) addEventListener(type, () => audio.unlock(), { capture: true });
@@ -219,6 +225,7 @@ function beginLevel(index: number, dailyDate: string | null = null): void {
   // После долгого перерыва записка ждёт у старта; иначе изредка лежит на боковой поляне
   const spot = welcomeNote ? welcomeSpot() : journal.notes < NOTES.length && Math.random() < NOTE_CHANCE ? noteSpot() : null;
   if (spot) world.placeNote(spot.x, spot.z);
+  placePickups();
   placeMarkers();
   starSky.show(!!layout.biome.starSky, totalStars());
   audio.setAmbience(layout.biome.ambience);
@@ -261,6 +268,24 @@ function noteSpot(): { x: number; z: number } | null {
     if (freeSpot(x, z)) return { x, z };
   }
   return null;
+}
+
+/** Материалы для норы — свой у каждого биома — лежат на полянах и в лесу между ними. */
+function placePickups(): void {
+  gathered = 0;
+  const id = materialOf(layout.biome.id).id;
+  const n = PICKUPS[0] + Math.floor(Math.random() * (PICKUPS[1] - PICKUPS[0] + 1));
+  const placed: { x: number; z: number }[] = [];
+  const lim = layout.half * 0.85;
+  for (let t = 0; t < 200 && placed.length < n; t++) {
+    const x = (Math.random() * 2 - 1) * lim, z = (Math.random() * 2 - 1) * lim;
+    // Не у самого старта и не кучей: каждый — повод свернуть с пути к кристаллам
+    if (Math.hypot(x - layout.spawn.x, z - layout.spawn.z) < 12) continue;
+    if (placed.some((p) => Math.hypot(p.x - x, p.z - z) < 15)) continue;
+    if (!freeSpot(x, z)) continue;
+    world.placePickup(x, z, id);
+    placed.push({ x, z });
+  }
 }
 
 /** Место для записки, которая ждала игрока: впереди от старта, по пути к порталу. */
@@ -372,6 +397,7 @@ function finishLevel(): void {
   // Новый день засчитан — у норы появилась новая деталь
   const grown = DECOR[daysPlayed() - 1];
   if (streak && grown) notes.push(`🌼 У норы появилось новое: ${grown.name}`);
+  if (gathered) notes.push(`🧺 Для норы: ${amount(materialOf(layout.biome.id), gathered)}`);
   if (constellation) notes.push(`✦ Новое созвездие на небе: «${constellation}»`);
   if (newCoat) notes.push(`Открыт окрас «${newCoat}» — выбери его на экране героя`);
   notes.push(...almost(time, best, opened));
@@ -654,6 +680,13 @@ world.scene.onBeforeRenderObservable.add(() => {
     }
     if (got.includes(rare)) foundRare();
     updateCrystalsHud();
+  }
+  for (const id of world.collectPickups(player.center)) {
+    gathered++;
+    const n = addMaterial(id);
+    const m = materialOf(layout.biome.id);
+    audio.chime(false, 2);
+    say(`+${amount(m, 1)} для норы · всего ${n}`);
   }
   if (world.takeNote(player.center)) {
     audio.chime(false);

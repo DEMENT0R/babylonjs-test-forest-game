@@ -12,6 +12,7 @@ import {
   Vector3,
   type Engine,
 } from '@babylonjs/core';
+import type { MaterialId } from './den/catalog';
 import { generateLevel, PATH_R, type LevelLayout, type Obstacle, type Platform } from './levels/generator';
 import type { TreeHit } from './levels/forest';
 import { Level, type Crystal } from './levels/level';
@@ -290,6 +291,22 @@ export class World {
       }
     });
     this.collected += got.length;
+    return got;
+  }
+
+  placePickup(x: number, z: number, id: MaterialId): void {
+    this.level?.addPickup(x, z, id);
+  }
+
+  /** Подбирает материалы для норы рядом с точкой; возвращает, какие. */
+  collectPickups(center: Vector3, radius = 1.3): MaterialId[] {
+    const got: MaterialId[] = [];
+    for (const p of this.level?.pickups ?? []) {
+      if (p.mesh.isEnabled() && Vector3.Distance(p.mesh.position, center) < radius) {
+        p.mesh.setEnabled(false);
+        got.push(p.id);
+      }
+    }
     return got;
   }
 

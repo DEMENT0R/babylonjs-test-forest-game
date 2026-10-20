@@ -17,17 +17,22 @@ import {
 } from '@babylonjs/core';
 import { GrassField } from '../grass';
 import { AirParticles } from '../particles';
+import type { MaterialId } from '../den/catalog';
+import { materialMesh } from '../den/pickup';
 import { addShadowCaster, type LightingContext } from '../settings';
 import { clamp } from '../utils';
 import { Forest } from './forest';
 import { PATH_R, type LevelLayout } from './generator';
 
 export interface Crystal { mesh: Mesh; baseY: number; phase: number }
+/** Материал для норы на уровне. */
+export interface Pickup extends Crystal { id: MaterialId }
 
 const PORTAL_Y = 1.6;
 
 export class Level {
   readonly crystals: Crystal[] = [];
+  readonly pickups: Pickup[] = [];
   readonly grass: GrassField;
   /** Деревья: качаются на ветру и вздрагивают от героя. */
   readonly forest: Forest;
@@ -189,6 +194,19 @@ export class Level {
     (this.note.material as StandardMaterial).emissiveColor.set(0.15 * k, 0.35 * k, 0.6 * k);
   }
 
+  /** Положить материал для норы: висит над землёй, как кристалл, только ниже. */
+  addPickup(x: number, z: number, id: MaterialId): void {
+    const mats: StandardMaterial[] = [];
+    const m = this.track(materialMesh(this.scene, id, mats));
+    this.materials.push(...mats);
+    // Крупнее настоящего, чтобы было видно над травой издалека
+    m.scaling.scaleInPlace(1.7);
+    const y = this.layout.terrain.heightAt(x, z) + 0.9;
+    m.position.set(x, y, z);
+    addShadowCaster(this.lighting, m);
+    this.pickups.push({ mesh: m, baseY: y, phase: this.pickups.length * 1.7, id });
+  }
+
   /** Сделать кристалл редким: свой цвет и чуть крупнее. */
   makeRare(i: number, color: Color3): void {
     const k = this.crystals[i];
@@ -305,6 +323,12 @@ export class Level {
       k.phase += dt;
       k.mesh.rotation.y += dt * 1.5;
       k.mesh.position.y = k.baseY + Math.sin(k.phase * 2) * 0.15;
+    }
+    for (const p of this.pickups) {
+      if (!p.mesh.isEnabled()) continue;
+      p.phase += dt;
+      p.mesh.rotation.y += dt * 0.9;
+      p.mesh.position.y = p.baseY + Math.sin(p.phase * 1.6) * 0.1;
     }
   }
 
