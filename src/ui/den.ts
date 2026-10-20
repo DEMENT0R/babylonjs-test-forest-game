@@ -20,9 +20,11 @@ import {
   type Node,
 } from '@babylonjs/core';
 import { costText, itemById, itemsFor, materialById, MATERIALS, slotById, SLOTS, TIERS, type Cost, type ItemDef, type SlotDef } from '../den/catalog';
-import { buy, canAfford, clearSlot, crystals, den, matCount, nextTier, shortOf, slotOpen, upgrade } from '../den/state';
+import { buy, canAfford, clearSlot, crystals, den, matCount, nextTier, shortOf, upgrade } from '../den/state';
 import { ANNEX, DenKit, MOUND, type Built } from '../den/build';
 import { ClearingDecor } from '../den/decor';
+import { clearUrl, shareUrl, snapshot, type DenSnapshot } from '../den/snapshot';
+import { copyText } from '../share';
 import { addShade, gardenShade, growGarden, harvestGarden, journal, SHADES } from '../journal';
 import { GrassField } from '../grass';
 import { BIOMES, type BiomeId } from '../levels/biomes';
@@ -72,6 +74,11 @@ export class DenScreen {
   private decorCount = -1;
   private garden: GardenCrystal[] = [];
   private readonly harvestBtn = byId<HTMLButtonElement>('den-harvest');
+  private readonly shareBtn = byId<HTMLButtonElement>('den-share');
+  /** Что сейчас стоит во дворе: своя нора или снимок чужой. */
+  private view: DenSnapshot = snapshot(daysPlayed());
+  /** В гостях: всё только посмотреть. */
+  private guest = false;
   /** Выбранное место; null — сама нора: карточка улучшения. */
   private sel: SlotDef | null = null;
   private active = false;
@@ -169,7 +176,7 @@ export class DenScreen {
     this.cast(this.kit.gardenBed(GARDEN.x, GARDEN.z));
 
     scene.onPointerObservable.add((pi) => {
-      if (pi.type !== PointerEventTypes.POINTERTAP || !this.active) return;
+      if (pi.type !== PointerEventTypes.POINTERTAP || !this.active || this.guest) return;
       const picked = pi.pickInfo?.pickedMesh;
       const g = this.garden.findIndex((c) => c.mesh === picked);
       if (g >= 0) {
@@ -189,6 +196,8 @@ export class DenScreen {
     this.harvestBtn.addEventListener('click', () => {
       if (this.garden.length) this.harvest(0);
     });
+    this.shareBtn.addEventListener('click', () => void this.share());
+    byId('den-own').addEventListener('click', () => this.open());
     this.slotsEl.addEventListener('click', (e) => {
       const b = (e.target as HTMLElement).closest<HTMLElement>('[data-slot]');
       if (b) this.choose(slotById(b.dataset.slot!) ?? null);
@@ -200,25 +209,65 @@ export class DenScreen {
       else if (b.dataset.upgrade !== undefined) this.upgrade();
       else if (b.dataset.clear && this.sel) {
         clearSlot(this.sel.id);
+        this.view = snapshot(daysPlayed());
         this.rebuild(this.sel);
         this.render(b.dataset.clear);
       }
     });
   }
 
-  /** Открыть нору: камера слушает мышь и пальцы, панель — свежая. */
-  open(): void {
+  /**
+   * Открыть свою нору или, с guest, чужую в гостях: камера слушает мышь и пальцы,
+   * двор перестраивается под то, что в нём стоит.
+   */
+  open(guest: DenSnapshot | null = null): void {
+    if (!guest) clearUrl();
     this.active = true;
+    this.guest = guest !== null;
+    this.root.classList.toggle('guest', this.guest);
     this.bandDirty = true;
     this.camera.attachControl(true);
-    this.grow();
+    this.sel = null;
+    this.show(guest ?? snapshot(daysPlayed()));
+    if (!this.guest) this.grow();
     this.render();
-    this.slotsEl.querySelector<HTMLElement>('[aria-pressed="true"]')?.focus();
+    (this.guest ? byId('den-own') : this.slotsEl.querySelector<HTMLElement>('[aria-pressed="true"]'))?.focus();
   }
 
   close(): void {
     this.active = false;
     this.camera.detachControl();
+    if (this.guest) clearUrl();
+  }
+
+  /** Перестроить двор под снимок: нору, вещи по местам и поляну — только то, что поменялось. */
+  private show(view: DenSnapshot): void {
+    const was = this.view;
+    this.view = view;
+    if (was.tier !== view.tier) {
+      this.shell.root.dispose();
+      this.shell = this.buildShell();
+    }
+    for (const s of SLOTS) if (was.slots[s.id] !== view.slots[s.id]) this.rebuild(s);
+    if (view.days !== this.decorCount) {
+      this.decor?.dispose();
+      this.decor = new ClearingDecor(this.scene, { x: 0, z: YARD.z, r: 4.8, free: (x, z) => this.free(x, z) }, view.days);
+      this.decorCount = view.days;
+    }
+    // Чужой сад не собрать — в гостях грядка пустая
+    for (const c of this.garden) c.mesh.setEnabled(!this.guest);
+  }
+
+  /** Ссылка на свою нору — в буфер обмена; отклик на самой кнопке. */
+  private async share(): Promise<void> {
+    const ok = await copyText(shareUrl(snapshot(daysPlayed())));
+    this.shareBtn.textContent = ok ? 'Ссылка скопирована ✓' : 'Не удалось скопировать';
+    setTimeout(() => (this.shareBtn.textContent = 'Позвать в гости ⧉'), 2500);
+  }
+
+  /** Место открыто в той норе, что сейчас во дворе. */
+  private isOpen(s: SlotDef): boolean {
+    return s.tier <= this.view.tier;
   }
 
   /** Q/E — соседнее место, Esc — в меню. */
@@ -233,19 +282,20 @@ export class DenScreen {
 
   /** Соседняя остановка по кругу: нора, потом открытые места. */
   cycle(delta: number): void {
-    const list = [null, ...SLOTS.filter((s) => slotOpen(s.id))];
+    if (this.guest) return;
+    const list = [null, ...SLOTS.filter((s) => this.isOpen(s))];
     const i = list.indexOf(this.sel);
     this.choose(list[(i + delta + list.length) % list.length], true);
   }
 
   private choose(s: SlotDef | null, focus = false): void {
-    this.sel = s && slotOpen(s.id) ? s : null;
+    this.sel = s && this.isOpen(s) ? s : null;
     this.render();
     if (focus) this.slotsEl.querySelector<HTMLElement>(`[data-slot="${this.sel?.id ?? 'home'}"]`)?.focus();
   }
 
   private buildShell(): Built {
-    const b = this.kit.shell(den.tier);
+    const b = this.kit.shell(this.view.tier);
     for (const m of b.meshes) m.metadata = { slot: 'home' };
     this.cast(b);
     return b;
@@ -259,8 +309,7 @@ export class DenScreen {
       this.lacking(next.cost);
       return;
     }
-    this.shell.root.dispose();
-    this.shell = this.buildShell();
+    this.show(snapshot(daysPlayed()));
     this.actions.chime();
     const opened = SLOTS.filter((s) => s.tier === den.tier).map((s) => `«${s.name}»`);
     say(`${next.name}!${opened.length ? ` Во дворе открылось: ${opened.join(', ')}` : ''}`, 3500);
@@ -278,17 +327,8 @@ export class DenScreen {
     say(`Не хватает: ${lack.join(', ')}${where.length ? `. ${where.join('. ')}` : ''}`, 3500);
   }
 
-  /**
-   * Поляна и сад догоняют время: детали за новые дни с пройденным уровнем,
-   * кристаллы, выросшие, пока игрока не было.
-   */
+  /** Сад догоняет время: кристаллы, выросшие, пока игрока не было. */
   private grow(): void {
-    const days = daysPlayed();
-    if (days !== this.decorCount) {
-      this.decor?.dispose();
-      this.decor = new ClearingDecor(this.scene, { x: 0, z: YARD.z, r: 4.8, free: (x, z) => this.free(x, z) }, days);
-      this.decorCount = days;
-    }
     const ready = growGarden();
     while (this.garden.length < ready) this.plant();
     this.syncHarvest();
@@ -346,6 +386,7 @@ export class DenScreen {
       this.lacking(item.cost);
       return;
     }
+    this.view = snapshot(daysPlayed());
     this.rebuild(slotById(item.slot)!);
     if (!owned) {
       this.actions.chime();
@@ -358,7 +399,7 @@ export class DenScreen {
   private rebuild(s: SlotDef): void {
     this.built.get(s.id)?.root.dispose();
     this.built.delete(s.id);
-    const id = den.slots[s.id];
+    const id = this.view.slots[s.id];
     if (!id) return;
     const b = this.kit.item(id);
     b.root.position.set(s.x, 0, s.z);
@@ -381,9 +422,19 @@ export class DenScreen {
         const [r, g, b] = m.color.map((v) => Math.round(v * 255));
         return `<span class="den-chip${n ? '' : ' zero'}" title="${m.name} — в биоме «${BIOMES[m.biome].name}»"><i style="--c:rgb(${r} ${g} ${b})"></i>${m.name} <b>${n}</b></span>`;
       }).join('');
-    byId('den-title').textContent = TIERS[den.tier].name;
+    byId('den-title').textContent = TIERS[this.view.tier].name;
+    byId('den-eyebrow').textContent = this.guest ? 'В гостях' : 'Нора';
+    for (const [id, ring] of this.rings) {
+      ring.setEnabled(!this.guest && this.isOpen(slotById(id)!));
+      ring.material = id === this.sel?.id ? this.ringOn : this.ringOff;
+    }
+    if (this.guest) {
+      this.renderGuest();
+      this.bandDirty = true;
+      return;
+    }
     const next = nextTier();
-    const open = SLOTS.filter((s) => slotOpen(s.id));
+    const open = SLOTS.filter((s) => this.isOpen(s));
     this.slotsEl.innerHTML =
       `<button type="button" data-slot="home" aria-pressed="${this.sel === null}"><b>Нора</b><small>${next ? 'улучшить' : 'самая большая'}</small></button>` +
       open
@@ -392,10 +443,6 @@ export class DenScreen {
           return `<button type="button" data-slot="${s.id}" aria-pressed="${s === this.sel}"><b>${s.name}</b><small>${item ? item.name : 'пусто'}</small></button>`;
         })
         .join('');
-    for (const [id, ring] of this.rings) {
-      ring.setEnabled(slotOpen(id as SlotDef['id']));
-      ring.material = id === this.sel?.id ? this.ringOn : this.ringOff;
-    }
     if (!this.sel) {
       this.renderHome();
       if (focusId) this.root.querySelector<HTMLElement>('[data-upgrade]')?.focus();
@@ -417,6 +464,16 @@ export class DenScreen {
     }</div><div class="den-items">${rows.join('')}</div>`;
     if (focusId) this.root.querySelector<HTMLElement>(`[data-item="${focusId}"], [data-clear]`)?.focus();
     this.bandDirty = true;
+  }
+
+  /** В гостях: что стоит во дворе у друга. */
+  private renderGuest(): void {
+    const items = SLOTS.map((s) => this.view.slots[s.id] && itemById(this.view.slots[s.id]!)?.name.toLowerCase()).filter(Boolean);
+    const days = this.view.days;
+    this.cardEl.innerHTML = `<div class="den-card-head"><h3>Нора друга</h3></div>
+      <p>${items.length ? `Во дворе: ${items.join(', ')}.` : 'Двор пока пустой — нора только обживается.'}${
+        days ? ` Поляна вокруг росла ${days} ${plural(days, 'день', 'дня', 'дней')}.` : ''
+      }</p><p>Свою нору можно обустроить за кристаллы и находки с уровней.</p>`;
   }
 
   /** Карточка самой норы: каким будет следующий уровень и что он стоит. */

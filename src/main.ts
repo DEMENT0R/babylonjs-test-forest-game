@@ -24,6 +24,7 @@ import {
 import type { LevelLayout } from './levels/generator';
 import { amount, materialOf } from './den/catalog';
 import { DECOR } from './den/decor';
+import { clearUrl, snapshotFromUrl } from './den/snapshot';
 import { addMaterial } from './den/state';
 import { completeDaily, completeLevel, dailyBest, daysPlayed, formatTime, markPlayedToday, progress, setCurrentLevel, todayKey, totalStars } from './levels/progress';
 import { QuestMarkers } from './levels/markers';
@@ -722,6 +723,15 @@ showCameraMode(rig.mode, false);
 menu.update(null);
 byId('m-new').focus();
 void select.load();
+// Ссылка «в гости»: сразу в нору друга; из неё — в своё меню
+const visit = snapshotFromUrl();
+if (visit) {
+  setState('den');
+  den.open(visit);
+} else if (visit === null) {
+  clearUrl();
+  say('Ссылка на нору не открылась — похоже, она обрезана', 3500);
+}
 
 // Для отладки из консоли браузера; в production-сборку не попадает
 if (import.meta.env.DEV) Object.assign(window, { __game: { world, player, rig, select, den, beginLevel, get layout() { return layout; }, get quest() { return quest; } } });
