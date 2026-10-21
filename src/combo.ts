@@ -4,7 +4,7 @@
 import { clamp } from './utils';
 
 /** Сколько секунд после кристалла ждать следующий, чтобы серия не оборвалась. */
-export const COMBO_WINDOW = 3;
+export const COMBO_WINDOW = 5;
 
 /** Ступень серии для вида счётчика: 0 — до ×5, 1 — до ×10, 2 — дальше. */
 export const comboTier = (count: number): number => (count >= 10 ? 2 : count >= 5 ? 1 : 0);
