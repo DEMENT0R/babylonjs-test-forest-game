@@ -1,5 +1,6 @@
 // Фоновая музыка: тихий эмбиент, который сочиняется на ходу. Медленные аккорды-«подушки»
 // и редкие ноты колокольчика, бродящие по ладу биома. Никаких файлов — только осцилляторы.
+// На серии кристаллов поверх вплетается тихое арпеджио — и уходит, когда серия кончилась.
 
 import type { BiomeId } from './levels/biomes';
 
@@ -39,10 +40,22 @@ function pitch(m: Mood, degree: number): number {
   return m.root * Math.pow(2, oct + step / 12);
 }
 
+/** Шаг арпеджио серии, с. */
+const ARP_STEP = 0.3;
+/** Узор арпеджио: ступени от основы аккорда. */
+const ARP = [0, 2, 4, 2] as const;
+
 export class Music {
   private mood: Mood = MOODS.meadow;
   /** Ступень, на которой остановилась мелодия. */
   private degree = 0;
+  /** Шина арпеджио серии: громкость растёт с серией и плавно уходит в ноль. */
+  private readonly comboBus: GainNode;
+  private comboCount = 0;
+  /** До какого времени контекста звучит арпеджио: после серии — пока шина не стихнет. */
+  private comboUntil = -Infinity;
+  private arp = 0;
+  private arpBase = 0;
 
   /**
    * out — шина музыки, reverb — общий ревербератор; canPlay — можно ли сейчас звучать
@@ -56,6 +69,32 @@ export class Music {
   ) {
     this.loop(rand(2, 4), () => this.pad(), 9, 14);
     this.loop(rand(4, 6), () => this.melody(), 0, 0);
+    this.comboBus = ac.createGain();
+    this.comboBus.gain.value = 0;
+    this.comboBus.connect(out);
+    const send = ac.createGain();
+    send.gain.value = 0.5;
+    this.comboBus.connect(send).connect(reverb);
+    this.loop(ARP_STEP, () => this.arpeggio(), ARP_STEP, ARP_STEP);
+  }
+
+  /** Серия кристаллов: арпеджио вступает с ×3 и громче к ×10; 0 — серии нет, слой уходит. */
+  setCombo(count: number): void {
+    if (count === this.comboCount) return;
+    const was = this.comboCount;
+    this.comboCount = count;
+    const t = this.ac.currentTime;
+    const level = count >= 3 ? Math.min(1, 0.45 + (count - 3) * 0.08) : 0;
+    if (level > 0) {
+      if (was < 3) {
+        this.arp = 0;
+        this.comboUntil = Infinity;
+      }
+      this.comboBus.gain.setTargetAtTime(level, t, 0.25);
+    } else if (was >= 3) {
+      this.comboBus.gain.setTargetAtTime(0, t, 0.5);
+      this.comboUntil = t + 2.5;
+    }
   }
 
   setBiome(id: BiomeId): void {
@@ -129,6 +168,41 @@ export class Music {
       this.degree = Math.max(0, this.degree + (Math.random() < 0.5 ? -1 : 1));
       this.bell(pitch(m, this.degree), rand(0.4, 0.7), rand(0.35, 0.6));
     }
+  }
+
+  /** Шаг арпеджио серии: ноты аккорда октавой выше мелодии; аккорд меняется каждые два такта. */
+  private arpeggio(): void {
+    if (this.ac.currentTime > this.comboUntil) return;
+    const m = this.mood;
+    const n = m.scale.length;
+    if (this.arp % 8 === 0) this.arpBase = (Math.random() * n) | 0;
+    const d = n + this.arpBase + ARP[this.arp % ARP.length];
+    // Первая нота такта чуть громче — у арпеджио появляется пульс
+    this.twinkle(pitch(m, d), this.arp % ARP.length === 0 ? 1 : 0.65);
+    this.arp++;
+  }
+
+  /** Короткий звон для арпеджио: как колокольчик, но гаснет за секунду. */
+  private twinkle(f: number, gain: number): void {
+    const ac = this.ac;
+    const t = ac.currentTime + 0.02;
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.05 * gain, t + 0.01);
+    g.gain.setTargetAtTime(0, t + 0.015, 0.22);
+    const pan = ac.createStereoPanner();
+    pan.pan.value = rand(-0.35, 0.35);
+    g.connect(pan).connect(this.comboBus);
+    for (const [mul, level] of [[1, 1], [2.01, 0.15]] as const) {
+      const osc = ac.createOscillator();
+      osc.frequency.value = f * mul;
+      const og = ac.createGain();
+      og.gain.value = level;
+      osc.connect(og).connect(g);
+      osc.start(t);
+      osc.stop(t + 1.4);
+    }
+    setTimeout(() => [g, pan].forEach((x) => x.disconnect()), 2000);
   }
 
   /** Мягкий колокольчик: синус и тихий обертон, быстрая атака и долгое затухание. */

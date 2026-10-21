@@ -638,6 +638,7 @@ world.scene.onBeforeRenderObservable.add(() => {
     ripples.update(dt, null, null, 0, 0);
     breath.update(dt, player.hero, false, !!layout.biome.frost);
     sparks.update(null, 0, 0);
+    audio.setCombo(0);
     return;
   }
 
@@ -674,6 +675,7 @@ world.scene.onBeforeRenderObservable.add(() => {
   if (ended) endCombo(ended.record);
   setComboLeft(combo.left(levelTime));
   sparks.update(player.center, comboTier(combo.count), combo.left(levelTime));
+  audio.setCombo(combo.count);
   const got = world.collectNear(player.center);
   if (got.length > 0) {
     journal.stats.crystals += got.length;

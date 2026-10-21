@@ -215,6 +215,11 @@ export class GameAudio {
     this.music?.setBiome(id);
   }
 
+  /** Серия кристаллов для музыки: count — её длина, 0 — серии нет. */
+  setCombo(count: number): void {
+    this.music?.setCombo(count);
+  }
+
   private applyVolumes(s: Readonly<Settings>): void {
     const ac = this.ac;
     if (!ac) return;
