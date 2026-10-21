@@ -231,15 +231,18 @@ export class DenScreen {
     this.grass?.dispose();
     this.grass = new GrassField(scene, {
       area: {
-        minX: -16, maxX: 16, minZ: -8, maxZ: 16,
+        // Трава уходит и под лес вокруг поляны, в глубине редеет
+        minX: -28, maxX: 28, minZ: -8, maxZ: 30,
         circles: [
           { x: MOUND.x, z: MOUND.z, r: MOUND.r + 0.1 },
           { x: ANNEX.x, z: ANNEX.z, r: ANNEX.r + 0.1 },
           { x: GARDEN.x, z: GARDEN.z, r: 1.1 },
           ...SLOTS.map((s) => ({ x: s.x, z: s.z, r: 1 })),
-          ...this.trees.filter((t) => Math.abs(t.x) < 17 && t.z < 17).map((t) => ({ x: t.x, z: t.z, r: 0.45 * t.s })),
+          ...this.trees.filter((t) => Math.abs(t.x) < 29 && t.z < 31).map((t) => ({ x: t.x, z: t.z, r: 0.45 * t.s })),
         ],
-        coverage: (x, z) => clamp((Math.hypot(x / YARD.rx, (z - YARD.z) / YARD.rz) - 1.05) * 3, 0.1, 1),
+        coverage: (x, z) =>
+          clamp((Math.hypot(x / YARD.rx, (z - YARD.z) / YARD.rz) - 1.05) * 3, 0.1, 1) *
+          (1 - clamp((Math.hypot(x, z - 2) - CLEARING_R) / 16, 0, 1) * 0.6),
       },
       baseColor: b.grass.root,
       tipColor: b.grass.tip,

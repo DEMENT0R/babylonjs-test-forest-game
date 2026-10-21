@@ -224,17 +224,20 @@ export class SelectScreen {
     this.forest = new Forest(scene, this.lighting, { trees: this.trees, biome: b, terrain: FLAT_TERRAIN });
     this.particles?.dispose();
     this.particles = b.particles ? new AirParticles(scene, b.particles) : null;
-    // Трава вокруг подиумов, камней и стволов; на утоптанной площадке редеет
+    // Трава вокруг подиумов, камней и стволов, и под лесом вокруг поляны;
+    // на утоптанной площадке и в глубине леса редеет
     this.grass?.dispose();
     this.grass = new GrassField(scene, {
       area: {
-        minX: -18, maxX: 18, minZ: -3, maxZ: 20,
+        minX: -30, maxX: 30, minZ: -3, maxZ: 32,
         circles: [
           ...SLOT_X.map((x) => ({ x, z: 0, r: 1.3 })),
           ...PILLAR_ANGLES.map((a) => ({ x: CIRCLE.x + Math.cos(a) * CIRCLE.r, z: CIRCLE.z + Math.sin(a) * CIRCLE.r, r: 0.6 })),
-          ...this.trees.filter((t) => Math.abs(t.x) < 19 && t.z < 21).map((t) => ({ x: t.x, z: t.z, r: 0.45 * t.s })),
+          ...this.trees.filter((t) => Math.abs(t.x) < 31 && t.z < 33).map((t) => ({ x: t.x, z: t.z, r: 0.45 * t.s })),
         ],
-        coverage: (x, z) => clamp((Math.hypot(x / PATH.rx, (z - PATH.z) / PATH.rz) - 0.75) * 3, 0.15, 1),
+        coverage: (x, z) =>
+          clamp((Math.hypot(x / PATH.rx, (z - PATH.z) / PATH.rz) - 0.75) * 3, 0.15, 1) *
+          (1 - clamp(Math.hypot(x / CLEARING.rx, (z - CIRCLE.z) / CLEARING.rz) - 1, 0, 1) * 0.6),
       },
       baseColor: b.grass.root,
       tipColor: b.grass.tip,
