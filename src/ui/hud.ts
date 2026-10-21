@@ -44,12 +44,14 @@ const comboFill = byId('combo-fill');
 const comboNote = byId('combo-note');
 let comboTimer: ReturnType<typeof setTimeout> | undefined;
 
-/** Серия выросла до count: число крупнее с каждым кристаллом (до ×10), цвет — по ступени. */
-export function showCombo(count: number, tier: number): void {
+/** Серия выросла до count: число крупнее с каждым кристаллом (до ×10), цвет — по ступени.
+ *  note — подпись под числом (награда за ступень); держится, пока серия не кончится. */
+export function showCombo(count: number, tier: number, note?: string): void {
   if (count < 2) return;
   clearTimeout(comboTimer);
   comboN.textContent = String(count);
-  comboNote.textContent = '';
+  if (note !== undefined) comboNote.textContent = note;
+  else if (comboEl.classList.contains('ending')) comboNote.textContent = '';
   comboEl.style.setProperty('--s', String(1 + Math.min(count - 2, 8) * 0.075));
   comboEl.classList.toggle('t1', tier === 1);
   comboEl.classList.toggle('t2', tier === 2);

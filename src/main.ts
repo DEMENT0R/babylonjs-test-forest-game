@@ -674,9 +674,16 @@ world.scene.onBeforeRenderObservable.add(() => {
   if (got.length > 0) {
     journal.stats.crystals += got.length;
     const all = world.collected === world.crystals.length;
-    const n = combo.add(got.length, levelTime, journal.stats.bestCombo);
+    const { count: n, reward } = combo.add(got.length, levelTime, journal.stats.bestCombo);
     journal.stats.bestCombo = Math.max(journal.stats.bestCombo, n);
-    showCombo(n, comboTier(n));
+    if (reward) {
+      const m = materialOf(layout.biome.id);
+      gathered += reward;
+      addMaterial(m.id, reward);
+      showCombo(n, comboTier(n), `+${amount(m, reward)} для норы`);
+    } else {
+      showCombo(n, comboTier(n));
+    }
     audio.chime(all, n - 1);
     if (!world.portalOpen && world.collected >= layout.required) {
       world.openPortal();

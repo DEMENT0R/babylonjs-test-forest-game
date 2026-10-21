@@ -84,9 +84,9 @@ function pay(cost: Cost): boolean {
   return true;
 }
 
-/** Материал подобран на уровне; возвращает, сколько его теперь. */
-export function addMaterial(id: MaterialId): number {
-  den.mats[id] = matCount(id) + 1;
+/** Материал подобран на уровне (n штук); возвращает, сколько его теперь. */
+export function addMaterial(id: MaterialId, n = 1): number {
+  den.mats[id] = matCount(id) + n;
   save();
   return den.mats[id]!;
 }
