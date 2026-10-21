@@ -685,6 +685,7 @@ world.scene.onBeforeRenderObservable.add(() => {
     const all = world.collected === world.crystals.length;
     const { count: n, reward } = combo.add(got.length, levelTime, journal.stats.bestCombo);
     journal.stats.bestCombo = Math.max(journal.stats.bestCombo, n);
+    quest.onCombo(n);
     if (reward) {
       const m = materialOf(layout.biome.id);
       gathered += reward;

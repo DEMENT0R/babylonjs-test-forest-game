@@ -75,7 +75,7 @@ export function recipeFor(index: number): LevelRecipe {
     hidden: Math.min(0.6, 0.4 + extra * 0.02),
     clearings: Math.min(8, 5 + Math.floor(extra / 2)),
     relief: Math.min(1.5, 1.2 + extra * 0.03),
-    quest: rng.pick(endlessQuests(biome)),
+    quest: maybeCombo(rng.pick(endlessQuests(biome)), seed),
   };
 }
 
@@ -99,8 +99,20 @@ export function dailyRecipe(date: string): LevelRecipe {
     hidden: 0.4,
     clearings: 5,
     relief: 1.1,
-    quest: rng.pick(endlessQuests(biome)),
+    quest: maybeCombo(rng.pick(endlessQuests(biome)), seed),
   };
+}
+
+/** Доля уровней бесконечного режима и Лесов дня с заданием на серию. */
+const COMBO_SHARE = 1 / 8;
+
+/**
+ * Изредка задание на серию вместо выпавшего. Своя ветка случайности — список заданий
+ * не меняется, и прочие уровни и Леса дня остаются с теми же заданиями, что были.
+ */
+function maybeCombo(quest: Quest, seed: number): Quest {
+  if (!Rng.stream(seed, 'combo-quest').chance(COMBO_SHARE)) return quest;
+  return { kind: 'combo', intro: 'Кристаллы звенят в лад — собери их одним махом' };
 }
 
 /** Задания бесконечного режима; про озёра — только там, где есть вода. */

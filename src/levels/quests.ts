@@ -22,7 +22,9 @@ export type Quest =
   /** Искупаться в каждом озере. */
   | { kind: 'swim'; intro: string }
   /** Ни разу не зайти в воду. */
-  | { kind: 'dry'; intro: string };
+  | { kind: 'dry'; intro: string }
+  /** Собрать серию ×N; N — по самой длинной цепочке близких кристаллов на земле. */
+  | { kind: 'combo'; intro: string };
 
 export type QuestKind = Quest['kind'];
 
@@ -38,6 +40,13 @@ const DETOUR = 1.4;
 const SEARCH = 3;
 /** Секунд на каждую цепочку платформ — забраться и примериться к прыжкам. */
 const CHAIN_TIME = 10;
+/**
+ * Наибольшее расстояние между соседями в серии, м: окно серии 5 с, медленный бег 10 м/с,
+ * путь по лесу в DETOUR раз длиннее — около 4 с бега и секунда, чтобы найти следующий.
+ */
+const COMBO_LINK = 28;
+/** Самая длинная серия, которую задание может попросить. */
+const COMBO_MAX = 6;
 
 /**
  * Лимит задания «на время», с: сколько бежать от старта по ближайшим кристаллам до открытия
@@ -60,6 +69,33 @@ function timeLimit(layout: LevelLayout): number {
   const chains = layout.crystals.filter((c) => c.kind === 'top').length;
   const t = ((path * DETOUR) / SLOWEST_RUN) * SEARCH + chains * CHAIN_TIME + 30;
   return Math.round(t / 10) * 10;
+}
+
+/**
+ * Длина самой длинной серии на уровне: от каждого кристалла на земле идём к ближайшему
+ * несобранному в пределах COMBO_LINK. Вершины цепочек не в счёт — на них долго забираться.
+ */
+function longestCombo(layout: LevelLayout): number {
+  const ground = layout.crystals.filter((c) => c.kind !== 'top');
+  let best = 0;
+  ground.forEach((start) => {
+    const left = ground.filter((c) => c !== start);
+    let cur = start;
+    let n = 1;
+    for (;;) {
+      let next = -1;
+      let near = COMBO_LINK;
+      left.forEach((c, i) => {
+        const d = Math.hypot(c.x - cur.x, c.z - cur.z);
+        if (d <= near) [next, near] = [i, d];
+      });
+      if (next < 0) break;
+      cur = left.splice(next, 1)[0];
+      n++;
+    }
+    best = Math.max(best, n);
+  });
+  return best;
 }
 
 /** Что заданию нужно знать о герое в кадре. */
@@ -85,6 +121,11 @@ function targetCount(kind: QuestKind, layout: LevelLayout): number | null {
     case 'swim':
     case 'dry':
       return layout.lakes.length;
+    case 'combo': {
+      // Короче ×3 серии нет — такое задание не даём
+      const n = longestCombo(layout);
+      return n >= 3 ? Math.min(n, COMBO_MAX) : 0;
+    }
     default:
       return null;
   }
@@ -113,6 +154,8 @@ export class QuestRun {
   /** Цели заданий со счётчиком и уже достигнутые из них. */
   private readonly targets: number | null;
   private readonly reached = new Set<number>();
+  /** Лучшая серия на уровне — для задания на серию. */
+  private bestCombo = 0;
 
   constructor(
     readonly quest: Quest,
@@ -147,6 +190,8 @@ export class QuestRun {
         return 'Искупайся в каждом озере';
       case 'dry':
         return 'Не замочи ног';
+      case 'combo':
+        return `Собери серию ×${this.targets}`;
     }
   }
 
@@ -162,7 +207,8 @@ export class QuestRun {
 
   /** Все цели задания со счётчиком достигнуты; остаётся дойти до портала. */
   get complete(): boolean {
-    return this.targets !== null && this.reached.size >= this.targets;
+    if (this.targets === null) return false;
+    return (this.quest.kind === 'combo' ? this.bestCombo : this.reached.size) >= this.targets;
   }
 
   tick(dt: number, input: QuestInput): void {
@@ -222,6 +268,11 @@ export class QuestRun {
     for (const i of indices) if (this.layout.crystals[i].kind === want) this.reached.add(i);
   }
 
+  /** Серия кристаллов выросла до count. */
+  onCombo(count: number): void {
+    this.bestCombo = Math.max(this.bestCombo, count);
+  }
+
   /** Проверка при входе в портал. */
   passed(): boolean {
     return !this.failed && (this.targets === null || this.complete);
@@ -249,6 +300,8 @@ export class QuestRun {
         return `озёра ${count}`;
       case 'dry':
         return this.failed ? 'ноги промокли' : 'пока сухо';
+      case 'combo':
+        return this.complete ? 'есть!' : this.bestCombo > 1 ? `лучшая ×${this.bestCombo}` : 'пока нет';
     }
   }
 
