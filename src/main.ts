@@ -468,6 +468,7 @@ function openDen(): void {
   rig.releaseLock();
   rig.cancelDrag();
   menu.closeInfo();
+  den.setBiome(layout.biome);
   setState('den');
   den.open();
 }
@@ -730,6 +731,7 @@ void select.load();
 // Ссылка «в гости»: сразу в нору друга; из неё — в своё меню
 const visit = snapshotFromUrl();
 if (visit) {
+  den.setBiome(world.layout.biome);
   setState('den');
   den.open(visit);
 } else if (visit === null) {

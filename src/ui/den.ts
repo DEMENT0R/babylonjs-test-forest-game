@@ -11,6 +11,7 @@ import {
   HemisphericLight,
   MeshBuilder,
   PointerEventTypes,
+  PointLight,
   Scene,
   StandardMaterial,
   Vector3,
@@ -27,13 +28,14 @@ import { clearUrl, shareUrl, snapshot, type DenSnapshot } from '../den/snapshot'
 import { copyText } from '../share';
 import { addShade, gardenShade, growGarden, harvestGarden, journal, SHADES } from '../journal';
 import { GrassField } from '../grass';
-import { BIOMES, type BiomeId } from '../levels/biomes';
+import { BIOMES, type Biome, type BiomeId } from '../levels/biomes';
 import { Forest } from '../levels/forest';
 import type { TreeSpot } from '../levels/generator';
 import { daysPlayed } from '../levels/progress';
 import { FLAT_TERRAIN } from '../levels/terrain';
+import { AirParticles } from '../particles';
 import { Rng } from '../rng';
-import { addShadowCaster, createLightingContext, type LightingContext } from '../settings';
+import { addShadowCaster, createLightingContext, settings, type LightingContext } from '../settings';
 import { byId, clamp, damp, plural } from '../utils';
 import { say } from './hud';
 
@@ -60,8 +62,17 @@ export class DenScreen {
   private readonly camera: ArcRotateCamera;
   private readonly lighting: LightingContext;
   private readonly kit: DenKit;
-  private readonly forest: Forest;
-  private readonly grass: GrassField;
+  private readonly hemi: HemisphericLight;
+  private readonly sun: DirectionalLight;
+  /** Ночью двор освещён тёплым светом от норы — как кристаллы на уровне. */
+  private readonly lamp: PointLight;
+  private readonly groundMat: StandardMaterial;
+  private readonly yardMat: StandardMaterial;
+  private readonly trees = clearingTrees();
+  private biome: Biome | null = null;
+  private forest: Forest | null = null;
+  private grass: GrassField | null = null;
+  private particles: AirParticles | null = null;
   private readonly rings = new Map<string, Mesh>();
   private readonly ringOn: StandardMaterial;
   private readonly ringOff: StandardMaterial;
@@ -69,7 +80,7 @@ export class DenScreen {
   private readonly root = byId('den');
   private readonly cardEl = byId('den-card');
   private readonly slotsEl = byId('den-slots');
-  private shell: Built;
+  private shell: Built | null = null;
   private decor: ClearingDecor | null = null;
   private decorCount = -1;
   private garden: GardenCrystal[] = [];
@@ -89,17 +100,13 @@ export class DenScreen {
 
   constructor(engine: Engine, private readonly actions: DenActions) {
     const scene = (this.scene = new Scene(engine));
-    const b = BIOMES.meadow;
-    scene.clearColor = Color4.FromColor3(b.sky, 1);
-    scene.fogColor = b.sky.clone();
-
-    const hemi = new HemisphericLight('dh', new Vector3(0, 1, 0), scene);
-    hemi.intensity = b.hemi.intensity;
-    hemi.groundColor = b.hemi.ground.clone();
-    const sun = new DirectionalLight('ds', new Vector3(0.45, -1, 0.55), scene);
+    this.hemi = new HemisphericLight('dh', new Vector3(0, 1, 0), scene);
+    const sun = (this.sun = new DirectionalLight('ds', new Vector3(0.45, -1, 0.55), scene));
     sun.position = new Vector3(-10, 20, -12);
-    sun.diffuse = b.sun.color.clone();
-    sun.intensity = b.sun.intensity;
+    this.lamp = new PointLight('dl', new Vector3(0, 2.4, 1.6), scene);
+    this.lamp.diffuse = new Color3(1, 0.78, 0.4);
+    this.lamp.specular = new Color3(0, 0, 0);
+    this.lamp.range = 10;
 
     const cam = (this.camera = new ArcRotateCamera('dc', BASE_ALPHA, 1.08, 14, new Vector3(0, 0.8, 1.8), scene));
     cam.fov = 0.75;
@@ -114,7 +121,7 @@ export class DenScreen {
     const pointers = cam.inputs.attached.pointers as ArcRotateCameraPointersInput | undefined;
     if (pointers) pointers.pinchZoom = false;
 
-    this.lighting = createLightingContext({ scene, sun, camera: cam, shadowFrustum: 26, fixedMaxZ: 200, fogBase: b.fogBase });
+    this.lighting = createLightingContext({ scene, sun, camera: cam, shadowFrustum: 26, fixedMaxZ: 200, fogBase: BIOMES.meadow.fogBase });
     this.lighting.glow = new GlowLayer('dg', scene);
     this.lighting.glow.intensity = 0.6;
     this.kit = new DenKit(scene);
@@ -127,19 +134,19 @@ export class DenScreen {
     };
     const ground = MeshBuilder.CreateDisc('dg-ground', { radius: 150, tessellation: 64 }, scene);
     ground.rotation.x = Math.PI / 2;
-    ground.material = mat('dg-gm', b.ground.clone());
+    ground.material = this.groundMat = mat('dg-gm', new Color3());
     ground.receiveShadows = true;
     ground.isPickable = false;
     const yard = MeshBuilder.CreateDisc('dg-yard', { radius: 1, tessellation: 48 }, scene);
     yard.rotation.x = Math.PI / 2;
     yard.scaling.set(YARD.rx, YARD.rz, 1);
     yard.position.set(0, 0.02, YARD.z);
-    yard.material = mat('dg-pm', b.path.clone());
+    yard.material = this.yardMat = mat('dg-pm', new Color3());
     yard.receiveShadows = true;
     yard.isPickable = false;
 
     // Кольца мест: выбранное светится, как подиум на экране героя
-    this.ringOff = mat('dg-ro', b.stone.scale(0.8));
+    this.ringOff = mat('dg-ro', new Color3());
     this.ringOn = mat('dg-ri', new Color3(1, 0.8, 0.3));
     this.ringOn.emissiveColor = new Color3(0.9, 0.6, 0.1);
     for (const s of SLOTS) {
@@ -150,28 +157,7 @@ export class DenScreen {
       this.rings.set(s.id, ring);
     }
 
-    this.shell = this.buildShell();
-    const trees = clearingTrees();
-    this.forest = new Forest(scene, this.lighting, { trees, biome: b, terrain: FLAT_TERRAIN });
-    this.grass = new GrassField(scene, {
-      area: {
-        minX: -16, maxX: 16, minZ: -8, maxZ: 16,
-        circles: [
-          { x: MOUND.x, z: MOUND.z, r: MOUND.r + 0.1 },
-          { x: ANNEX.x, z: ANNEX.z, r: ANNEX.r + 0.1 },
-          { x: GARDEN.x, z: GARDEN.z, r: 1.1 },
-          ...SLOTS.map((s) => ({ x: s.x, z: s.z, r: 1 })),
-          ...trees.filter((t) => Math.abs(t.x) < 17 && t.z < 17).map((t) => ({ x: t.x, z: t.z, r: 0.45 * t.s })),
-        ],
-        coverage: (x, z) => clamp((Math.hypot(x / YARD.rx, (z - YARD.z) / YARD.rz) - 1.05) * 3, 0.1, 1),
-      },
-      baseColor: b.grass.root,
-      tipColor: b.grass.tip,
-      densityScale: b.grass.density,
-      glow: this.lighting.glow,
-      fixedDistance: 40,
-      seed: 4242,
-    });
+    this.setBiome(BIOMES.meadow);
     for (const s of SLOTS) this.rebuild(s);
     this.cast(this.kit.gardenBed(GARDEN.x, GARDEN.z));
 
@@ -217,6 +203,54 @@ export class DenScreen {
   }
 
   /**
+   * Одеть двор в биом уровня: небо, свет, земля, дёрн на норе, лес, трава и частицы.
+   */
+  setBiome(b: Biome): void {
+    if (this.biome?.id === b.id) return;
+    this.biome = b;
+    const scene = this.scene;
+    scene.clearColor = Color4.FromColor3(b.sky, 1);
+    scene.fogColor = b.sky.clone();
+    this.lighting.fogBase = b.fogBase;
+    scene.fogDensity = b.fogBase / settings.view;
+    this.hemi.intensity = b.hemi.intensity;
+    this.hemi.groundColor = b.hemi.ground.clone();
+    this.sun.diffuse = b.sun.color.clone();
+    this.sun.intensity = b.sun.intensity;
+    this.lamp.intensity = b.crystalLights ? 1.8 : 0;
+    this.groundMat.diffuseColor = b.ground.clone();
+    this.yardMat.diffuseColor = b.path.clone();
+    this.ringOff.diffuseColor = b.stone.scale(0.8);
+
+    this.shell?.root.dispose();
+    this.shell = this.buildShell();
+    this.forest?.dispose();
+    this.forest = new Forest(scene, this.lighting, { trees: this.trees, biome: b, terrain: FLAT_TERRAIN });
+    this.particles?.dispose();
+    this.particles = b.particles ? new AirParticles(scene, b.particles) : null;
+    this.grass?.dispose();
+    this.grass = new GrassField(scene, {
+      area: {
+        minX: -16, maxX: 16, minZ: -8, maxZ: 16,
+        circles: [
+          { x: MOUND.x, z: MOUND.z, r: MOUND.r + 0.1 },
+          { x: ANNEX.x, z: ANNEX.z, r: ANNEX.r + 0.1 },
+          { x: GARDEN.x, z: GARDEN.z, r: 1.1 },
+          ...SLOTS.map((s) => ({ x: s.x, z: s.z, r: 1 })),
+          ...this.trees.filter((t) => Math.abs(t.x) < 17 && t.z < 17).map((t) => ({ x: t.x, z: t.z, r: 0.45 * t.s })),
+        ],
+        coverage: (x, z) => clamp((Math.hypot(x / YARD.rx, (z - YARD.z) / YARD.rz) - 1.05) * 3, 0.1, 1),
+      },
+      baseColor: b.grass.root,
+      tipColor: b.grass.tip,
+      densityScale: b.grass.density,
+      glow: this.lighting.glow,
+      fixedDistance: 40,
+      seed: 4242,
+    });
+  }
+
+  /**
    * Открыть свою нору или, с guest, чужую в гостях: камера слушает мышь и пальцы,
    * двор перестраивается под то, что в нём стоит.
    */
@@ -245,7 +279,7 @@ export class DenScreen {
     const was = this.view;
     this.view = view;
     if (was.tier !== view.tier) {
-      this.shell.root.dispose();
+      this.shell?.root.dispose();
       this.shell = this.buildShell();
     }
     for (const s of SLOTS) if (was.slots[s.id] !== view.slots[s.id]) this.rebuild(s);
@@ -295,7 +329,8 @@ export class DenScreen {
   }
 
   private buildShell(): Built {
-    const b = this.kit.shell(this.view.tier);
+    const g = this.biome!.ground;
+    const b = this.kit.shell(this.view.tier, [g.r, g.g, g.b]);
     for (const m of b.meshes) m.metadata = { slot: 'home' };
     this.cast(b);
     return b;
@@ -522,8 +557,9 @@ export class DenScreen {
     // Середина двора — в середине свободной полосы
     cam.targetScreenOffset.y = (1 - 2 * this.band.center) * tanHalf * cam.radius;
 
-    this.forest.update(dt);
-    this.grass.update(cam.position, null, 0);
+    this.forest?.update(dt);
+    this.grass?.update(cam.position, null, 0);
+    this.particles?.follow(cam.position);
     for (const b of this.built.values()) b.tick?.(this.t);
     this.decor?.update(dt);
     for (const c of this.garden) {

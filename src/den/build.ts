@@ -83,8 +83,10 @@ export class DenKit {
   /**
    * Холм норы под большим деревом: вход под корнями. С уровнем нора растёт:
    * 1 — круглая дверца, 2 — окошко с ящиком цветов, 3 — вторая комната и труба с дымком.
+   * Дёрн на холмах — в цвет земли биома.
    */
-  shell(tier: number): Built {
+  shell(tier: number, ground: Rgb = [0.42, 0.6, 0.36]): Built {
+    const turf = (k: number): Rgb => [ground[0] * k, ground[1] * k, ground[2] * k];
     const s = this.scene;
     const { root, meshes, add } = this.start('den-shell');
     const ticks: ((t: number) => void)[] = [];
@@ -102,7 +104,7 @@ export class DenKit {
       m.position.set(x, y, z);
       return m;
     };
-    const mound = add(MeshBuilder.CreateSphere('den-mound', { diameter: MOUND.r * 2, segments: 20, slice: 0.5 }, s), [0.36, 0.52, 0.3], MOUND.x, 0, MOUND.z);
+    const mound = add(MeshBuilder.CreateSphere('den-mound', { diameter: MOUND.r * 2, segments: 20, slice: 0.5 }, s), turf(0.86), MOUND.x, 0, MOUND.z);
     mound.scaling.y = MOUND.h / MOUND.r;
     // Вход: тёмный круг, наполовину ушедший в землю и наклонённый по склону холма
     const door = moundPoint(0, ENTRANCE_Y);
@@ -156,7 +158,7 @@ export class DenKit {
     }
     if (tier >= 3) {
       // Вторая комната — холмик справа со своим окошком
-      const annex = add(MeshBuilder.CreateSphere('den-annex', { diameter: ANNEX.r * 2, segments: 16, slice: 0.5 }, s), [0.38, 0.54, 0.31], ANNEX.x, 0, ANNEX.z);
+      const annex = add(MeshBuilder.CreateSphere('den-annex', { diameter: ANNEX.r * 2, segments: 16, slice: 0.5 }, s), turf(0.9), ANNEX.x, 0, ANNEX.z);
       annex.scaling.y = ANNEX.h / ANNEX.r;
       const g = new TransformNode('den-annex-window', s);
       g.parent = root;
