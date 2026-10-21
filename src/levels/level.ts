@@ -22,7 +22,7 @@ import { materialMesh } from '../den/pickup';
 import { addShadowCaster, type LightingContext } from '../settings';
 import { clamp } from '../utils';
 import { Forest } from './forest';
-import { PATH_R, type LevelLayout } from './generator';
+import { BORDER, PATH_R, type LevelLayout } from './generator';
 
 export interface Crystal { mesh: Mesh; baseY: number; phase: number }
 /** Материал для норы на уровне. */
@@ -112,19 +112,25 @@ export class Level {
     // Светится кольцо; полупрозрачная сердцевина в слое свечения превращалась в белое пятно
     lighting.glow?.addExcludedMesh(this.portalCore);
 
-    // Трава — внутри границ, без утоптанной площадки в центре
+    // Трава — до конца стены леса за границей, без утоптанной площадки в центре
     const half = layout.half;
+    const outer = half + BORDER;
     this.grass = new GrassField(scene, {
       area: {
-        minX: -half + 0.5,
-        maxX: half - 0.5,
-        minZ: -half + 0.5,
-        maxZ: half - 0.5,
+        minX: -outer,
+        maxX: outer,
+        minZ: -outer,
+        maxZ: outer,
         circles: layout.obstacles,
         rects: layout.platforms,
-        // Без травы: утоптанная площадка в центре (к краю густеет) и вода
-        coverage: (x, z) =>
-          layout.waterLevel !== null && ground(x, z) < layout.waterLevel + 0.08 ? 0 : clamp((Math.hypot(x, z) - (PATH_R - 0.6)) / 1.4, 0, 1),
+        // Без травы: утоптанная площадка в центре (к краю густеет) и вода;
+        // в глубине стены леса редеет — оттуда её почти не видно
+        coverage: (x, z) => {
+          if (layout.waterLevel !== null && ground(x, z) < layout.waterLevel + 0.08) return 0;
+          const beyond = Math.max(Math.abs(x), Math.abs(z)) - half;
+          const edge = beyond > 0 ? 1 - (beyond / BORDER) * 0.6 : 1;
+          return edge * clamp((Math.hypot(x, z) - (PATH_R - 0.6)) / 1.4, 0, 1);
+        },
       },
       heightAt: ground,
       baseColor: b.grass.root,

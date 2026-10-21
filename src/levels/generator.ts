@@ -91,7 +91,7 @@ const PILLAR_RING = 5.5;
 /** Глубина, в которую уже не зайти. */
 export const MAX_WADE_DEPTH = 0.9;
 /** Ширина сплошной стены леса за границей уровня. */
-const BORDER = 9;
+export const BORDER = 9;
 
 // ---------- Помощники ----------
 
