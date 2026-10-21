@@ -6,6 +6,7 @@ import { Footsteps, GameAudio } from './audio';
 import { Breath } from './breath';
 import { checkAchievements } from './achievements';
 import { CameraRig } from './camera';
+import { Combo, comboTier } from './combo';
 import { skyFor } from './constellations';
 import { BTN, gamepad } from './gamepad';
 import { applyCoat, coatFor, COATS, HEROES, loadHero, openCoats, type HeroDef } from './heroes';
@@ -36,7 +37,7 @@ import { deviceTier, isMobile } from './device';
 import { AutoScale, GameEngine } from './perf';
 import { applySettings, pickPresetForDevice, settings } from './settings';
 import { StarSky } from './starsky';
-import { say, setCrystals, setHintLevel, setLevelTitle, setQuest, setupHud, showCameraMode, tickFps } from './ui/hud';
+import { clearCombo, endCombo, say, setComboLeft, setCrystals, setHintLevel, setLevelTitle, setQuest, setupHud, showCameraMode, showCombo, tickFps } from './ui/hud';
 import { setupFullscreen, toggleFullscreen } from './ui/fullscreen';
 import { MainMenu } from './ui/menu';
 import { activate, navigate, sendKey } from './ui/pad-nav';
@@ -90,10 +91,7 @@ let levelTime = 0;
 let quest: QuestRun;
 /** Номер редкого кристалла на уровне; -1 — его нет. */
 let rare = -1;
-/** Серия быстрых сборов: сколько кристаллов подряд и когда взят последний (по времени уровня). */
-const COMBO_WINDOW = 3;
-let combo = 0;
-let lastCrystalAt = -Infinity;
+const combo = new Combo();
 let markers: QuestMarkers | null = null;
 /** Материалов для норы подобрано на этом уровне. */
 let gathered = 0;
@@ -237,8 +235,8 @@ function beginLevel(index: number, dailyDate: string | null = null): void {
   footsteps.reset();
   ripples.clear();
   levelTime = 0;
-  combo = 0;
-  lastCrystalAt = -Infinity;
+  combo.reset();
+  clearCombo();
   setLevelTitle(currentLabel());
   setHintLevel(level);
   updateCrystalsHud();
@@ -669,20 +667,23 @@ world.scene.onBeforeRenderObservable.add(() => {
   breath.update(dt, player.hero, player.running, !!layout.biome.frost);
   ripples.update(dt, player.pos, layout.waterLevel, world.waterDepth(player.pos.x, player.pos.z), -player.vel.y);
 
+  const ended = combo.expire(levelTime);
+  if (ended) endCombo(ended.record);
+  setComboLeft(combo.left(levelTime));
   const got = world.collectNear(player.center);
   if (got.length > 0) {
     journal.stats.crystals += got.length;
     const all = world.collected === world.crystals.length;
-    combo = levelTime - lastCrystalAt < COMBO_WINDOW ? combo + got.length : got.length;
-    lastCrystalAt = levelTime;
-    journal.stats.bestCombo = Math.max(journal.stats.bestCombo, combo);
-    audio.chime(all, combo - 1);
+    const n = combo.add(got.length, levelTime, journal.stats.bestCombo);
+    journal.stats.bestCombo = Math.max(journal.stats.bestCombo, n);
+    showCombo(n, comboTier(n));
+    audio.chime(all, n - 1);
     if (!world.portalOpen && world.collected >= layout.required) {
       world.openPortal();
       audio.portalOpen();
       say(all ? 'Все кристаллы! ★ Портал открыт' : 'Портал открыт — он в каменном круге');
     } else {
-      say(all ? 'Все кристаллы собраны! ★' : combo > 1 ? `+1 кристалл · серия ×${combo}` : '+1 кристалл');
+      say(all ? 'Все кристаллы собраны! ★' : '+1 кристалл');
     }
     if (got.includes(rare)) foundRare();
     updateCrystalsHud();

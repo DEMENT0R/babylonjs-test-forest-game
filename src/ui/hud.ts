@@ -38,6 +38,45 @@ export function setCrystals(got: number, total: number, required: number, portal
   portalHint.classList.toggle('open', portalOpen);
 }
 
+const comboEl = byId('combo');
+const comboN = byId('combo-n');
+const comboFill = byId('combo-fill');
+const comboNote = byId('combo-note');
+let comboTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** Серия выросла до count: число крупнее с каждым кристаллом (до ×10), цвет — по ступени. */
+export function showCombo(count: number, tier: number): void {
+  if (count < 2) return;
+  clearTimeout(comboTimer);
+  comboN.textContent = String(count);
+  comboNote.textContent = '';
+  comboEl.style.setProperty('--s', String(1 + Math.min(count - 2, 8) * 0.075));
+  comboEl.classList.toggle('t1', tier === 1);
+  comboEl.classList.toggle('t2', tier === 2);
+  comboEl.classList.remove('ending', 'pulse');
+  void comboEl.offsetWidth; // перезапуск анимации пульса
+  comboEl.classList.add('on', 'pulse');
+}
+
+/** Полоска окна серии: left — доля оставшегося времени. */
+export function setComboLeft(left: number): void {
+  comboFill.style.transform = `scaleX(${left})`;
+}
+
+/** Серия оборвалась: число гаснет; побитый рекорд немного задерживается на экране. */
+export function endCombo(record: boolean): void {
+  comboEl.classList.add('ending');
+  comboNote.textContent = record ? 'рекорд серии!' : '';
+  clearTimeout(comboTimer);
+  comboTimer = setTimeout(() => comboEl.classList.remove('on'), record ? 1600 : 350);
+}
+
+/** Новый уровень: счётчик пропадает сразу, без затухания. */
+export function clearCombo(): void {
+  clearTimeout(comboTimer);
+  comboEl.classList.remove('on', 'pulse', 'ending');
+}
+
 /** Строка задания: цель и прогресс; обновляет DOM, только когда текст меняется. */
 export function setQuest(goal: string, status: string, state: 'active' | 'failed' | 'done'): void {
   if (questGoal.textContent !== goal) questGoal.textContent = goal;
