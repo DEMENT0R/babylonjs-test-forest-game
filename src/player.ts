@@ -13,6 +13,12 @@ import type { CameraModeId } from './camera';
 const GRAVITY = -24;
 /** На сколько тело доворачивает от камеры в сторону шага в режиме «из-за плеча». */
 const MAX_STRAFE_TURN = Math.PI * 0.42;
+/** Стоя на месте «из-за плеча», тело не следует за камерой, пока она не ушла в сторону дальше этого угла. */
+const TURN_DEADZONE = Math.PI * 0.3;
+/** Наибольшая скорость разворота на месте, рад/с. */
+const TURN_IN_PLACE_SPEED = 4.5;
+/** Перевод скорости разворота на месте (рад/с) в скорость шага лапами (м/с). */
+const TURN_STEP = 0.5;
 /** Наибольший крен в повороте, рад. */
 const MAX_LEAN = 0.12;
 /** «Койот-тайм»: сколько секунд после схода с края ещё можно оттолкнуться. */
@@ -160,6 +166,8 @@ export class Player {
   facing = 0;
   /** Текущий крен в повороте. */
   private lean = 0;
+  /** Разворачивается на месте вслед за камерой, пока не встанет к ней лицом. */
+  private turning = false;
   /** Сколько секунд герой в воздухе, не прыгнув; после прыжка — Infinity до приземления. */
   private airTime = 0;
   /** Сколько ещё секунд ждёт нажатый в воздухе прыжок. */
@@ -211,6 +219,7 @@ export class Player {
     this.vel.setAll(0);
     this.facing = 0;
     this.lean = 0;
+    this.turning = false;
     this.airTime = 0;
     this.jumpBuffer = 0;
     this.onGround = true;
@@ -246,10 +255,21 @@ export class Player {
     // не ехал боком (пятясь — зеркально, задом по ходу); в остальных режимах — по ходу движения
     const turnTo = (a: number) => (this.facing += wrapAngle(a - this.facing) * damp(12, dt));
     const before = this.facing;
-    if (shoulder) {
+    if (shoulder && this.moving) {
+      this.turning = false;
       const back = input.z < -0.1;
       const off = Math.atan2(back ? -input.x : input.x, back ? -input.z : input.z);
-      turnTo(yaw + (this.moving ? clamp(off, -MAX_STRAFE_TURN, MAX_STRAFE_TURN) : 0));
+      turnTo(yaw + clamp(off, -MAX_STRAFE_TURN, MAX_STRAFE_TURN));
+    } else if (shoulder) {
+      // Стоя — мёртвая зона: мелкие движения камеры тело не трогают, а ушла далеко —
+      // зверь переступает лапами и разворачивается к ней целиком
+      const diff = wrapAngle(yaw - this.facing);
+      if (Math.abs(diff) > TURN_DEADZONE) this.turning = true;
+      if (this.turning) {
+        const lim = TURN_IN_PLACE_SPEED * dt;
+        this.facing += clamp(diff * damp(8, dt), -lim, lim);
+        if (Math.abs(diff) < 0.05) this.turning = false;
+      }
     } else if (this.moving) turnTo(Math.atan2(dir.x, dir.z));
 
     // Наклон в поворот: чем быстрее бег и круче поворот, тем сильнее крен
@@ -283,7 +303,9 @@ export class Player {
     this.root.rotation.z = this.lean;
     // Пятится — шаги проигрываются задом наперёд
     const ahead = this.vel.x * Math.sin(this.facing) + this.vel.z * Math.cos(this.facing);
-    blendAnims(hero, this.horizontalSpeed, this.onGround, dt, shoulder && ahead < -0.3);
+    // Разворот на месте — лапы переступают, будто идёт шагом
+    const step = this.moving ? 0 : Math.min(Math.abs(turnRate) * TURN_STEP, D.walkRef * 0.9);
+    blendAnims(hero, Math.max(this.horizontalSpeed, step), this.onGround, dt, shoulder && ahead < -0.3);
   }
 
   private integrate(dt: number, height: number): void {
