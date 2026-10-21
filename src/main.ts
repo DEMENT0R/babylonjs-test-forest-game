@@ -36,6 +36,7 @@ import { Ripples } from './ripples';
 import { deviceTier, isMobile } from './device';
 import { AutoScale, GameEngine } from './perf';
 import { applySettings, pickPresetForDevice, settings } from './settings';
+import { Sparks } from './sparks';
 import { StarSky } from './starsky';
 import { clearCombo, endCombo, say, setComboLeft, setCrystals, setHintLevel, setLevelTitle, setQuest, setupHud, showCameraMode, showCombo, tickFps } from './ui/hud';
 import { setupFullscreen, toggleFullscreen } from './ui/fullscreen';
@@ -80,6 +81,7 @@ const audio = new GameAudio(isMobile || deviceTier(engine.getGlInfo().renderer) 
 const footsteps = new Footsteps(audio, world);
 const ripples = new Ripples(world.scene);
 const breath = new Breath(world.scene);
+const sparks = new Sparks(world.scene);
 const starSky = new StarSky(world.scene, world.camera, world.lighting.glow);
 
 /** Текущий уровень кампании и время, проведённое в нём (только в игре, без пауз). */
@@ -635,6 +637,7 @@ world.scene.onBeforeRenderObservable.add(() => {
     player.idle(dt);
     ripples.update(dt, null, null, 0, 0);
     breath.update(dt, player.hero, false, !!layout.biome.frost);
+    sparks.update(null, 0, 0);
     return;
   }
 
@@ -670,6 +673,7 @@ world.scene.onBeforeRenderObservable.add(() => {
   const ended = combo.expire(levelTime);
   if (ended) endCombo(ended.record);
   setComboLeft(combo.left(levelTime));
+  sparks.update(player.center, comboTier(combo.count), combo.left(levelTime));
   const got = world.collectNear(player.center);
   if (got.length > 0) {
     journal.stats.crystals += got.length;
