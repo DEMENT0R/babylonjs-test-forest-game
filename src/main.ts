@@ -6,7 +6,7 @@ import { Footsteps, GameAudio } from './audio';
 import { Breath } from './breath';
 import { checkAchievements } from './achievements';
 import { CameraRig } from './camera';
-import { Combo, comboTier } from './combo';
+import { Combo, comboTier, WIND_FROM } from './combo';
 import { skyFor } from './constellations';
 import { BTN, gamepad } from './gamepad';
 import { applyCoat, coatFor, COATS, HEROES, loadHero, openCoats, type HeroDef } from './heroes';
@@ -94,6 +94,8 @@ let quest: QuestRun;
 /** Номер редкого кристалла на уровне; -1 — его нет. */
 let rare = -1;
 const combo = new Combo();
+/** «Ветер в спину» на длинной серии: во сколько раз быстрее бег и шаг. */
+const WIND_BOOST = 1.15;
 let markers: QuestMarkers | null = null;
 /** Материалов для норы подобрано на этом уровне. */
 let gathered = 0;
@@ -646,6 +648,7 @@ world.scene.onBeforeRenderObservable.add(() => {
   if (active) levelTime += dt;
   const px = player.pos.x, pz = player.pos.z;
   const wasAir = !player.onGround, fallSpeed = -player.vel.y;
+  player.boost = combo.count >= WIND_FROM ? WIND_BOOST : 1;
   player.update(dt, { yaw: rig.yaw, modeId: rig.mode.id }, active);
   if (active) {
     // Врезался в ствол или приземлился рядом — дерево вздрагивает и шелестит
@@ -691,12 +694,14 @@ world.scene.onBeforeRenderObservable.add(() => {
       showCombo(n, comboTier(n));
     }
     audio.chime(all, n - 1);
+    const windUp = n >= WIND_FROM && n - got.length < WIND_FROM;
+    if (windUp) wind.gustNow(1.1, 0.5);
     if (!world.portalOpen && world.collected >= layout.required) {
       world.openPortal();
       audio.portalOpen();
       say(all ? 'Все кристаллы! ★ Портал открыт' : 'Портал открыт — он в каменном круге');
     } else {
-      say(all ? 'Все кристаллы собраны! ★' : '+1 кристалл');
+      say(all ? 'Все кристаллы собраны! ★' : windUp ? 'Ветер в спину!' : '+1 кристалл');
     }
     if (got.includes(rare)) foundRare();
     updateCrystalsHud();

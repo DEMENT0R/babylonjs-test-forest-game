@@ -9,6 +9,9 @@ export const COMBO_WINDOW = 3;
 /** Ступень серии для вида счётчика: 0 — до ×5, 1 — до ×10, 2 — дальше. */
 export const comboTier = (count: number): number => (count >= 10 ? 2 : count >= 5 ? 1 : 0);
 
+/** С какой длины серии дует «ветер в спину» — и держится, пока серия не оборвётся. */
+export const WIND_FROM = 5;
+
 /** Ступени серии, за которые дают материалы для норы: длина серии → сколько штук. */
 const REWARDS: readonly (readonly [count: number, mats: number])[] = [[3, 1], [5, 1], [10, 2]];
 

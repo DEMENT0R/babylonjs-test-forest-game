@@ -29,6 +29,14 @@ class Wind {
     this.listeners.push(fn);
   }
 
+  /** Порыв прямо сейчас, вне очереди: трава гнётся, ветер слышно; следующий — как обычно. */
+  gustNow(target: number, tau: number): void {
+    this.target = Math.min(1.3, target * this.scale);
+    this.tau = tau;
+    this.nextGust = rand(3, 6);
+    for (const fn of this.listeners) fn(this.target, this.tau);
+  }
+
   update(dt: number): void {
     this.nextGust -= dt;
     if (this.nextGust <= 0) {

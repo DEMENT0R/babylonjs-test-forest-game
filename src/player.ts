@@ -181,6 +181,8 @@ export class Player {
   running = false;
   /** Ввод «вперёд/назад» в этом кадре (-1…1). */
   inputZ = 0;
+  /** Множитель скорости от «ветра в спину» на серии; прыжок прибавляет вполовину меньше. */
+  boost = 1;
   hero: Hero | null = null;
 
   /** Круглое «пятно» тени, когда настоящие тени выключены. */
@@ -241,7 +243,7 @@ export class Player {
     this.running = this.moving && input.run;
     this.inputZ = input.z;
     const shoulder = view.modeId === 'shoulder';
-    let speed = input.run ? D.run : D.walk;
+    let speed = (input.run ? D.run : D.walk) * this.boost;
     // В воде идти тяжелее: чем глубже, тем медленнее
     const depth = this.world.waterDepth(this.pos.x, this.pos.z);
     const wading = this.pos.y < this.world.terrainAt(this.pos.x, this.pos.z) + 0.05 ? depth : 0;
@@ -284,7 +286,7 @@ export class Player {
     this.jumpBuffer -= dt;
     if (this.jumped) {
       this.jumpBuffer = 0;
-      this.vel.y = D.jump * (wading > 0.3 ? 0.65 : 1);
+      this.vel.y = D.jump * (1 + (this.boost - 1) / 2) * (wading > 0.3 ? 0.65 : 1);
       this.onGround = false;
       this.airTime = Infinity;
       const j = hero.anim('jump');
