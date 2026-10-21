@@ -522,8 +522,11 @@ export class DenScreen {
     const opens = SLOTS.filter((s) => s.tier === den.tier + 1).map((s) => s.name.toLowerCase());
     const off = !canAfford(next.cost);
     this.cardEl.innerHTML = `<div class="den-card-head"><h3>Нора · ${den.tier + 1} из ${TIERS.length}</h3></div>
-      <div class="den-items"><button type="button" class="den-item${off ? ' off' : ''}" data-upgrade>
-        <span><b>${next.name}</b><small>${next.desc}${opens.length ? ` · новые места: ${opens.join(', ')}` : ''}</small></span><em>${costText(next.cost)}</em></button></div>`;
+      <div class="den-items"><button type="button" class="den-item den-tier${off ? ' off' : ''}" data-upgrade>
+        <span><b>${next.name}</b><small>${next.desc}${opens.length ? ` · новые места: ${opens.join(', ')}` : ''}</small></span><em>${costText(next.cost)
+          .split(' · ')
+          .map((p) => `<i>${p}</i>`)
+          .join('')}</em></button></div>`;
   }
 
   private measureBand(): void {
