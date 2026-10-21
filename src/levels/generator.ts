@@ -21,6 +21,8 @@ export interface Obstacle {
   top: number;
   /** Радиус, в котором препятствие закрывает обзор камере (крона шире ствола). */
   view: number;
+  /** Можно перепрыгнуть и встать сверху (камни) — верх как пологий купол высотой top. */
+  stand?: boolean;
 }
 export interface Platform {
   x: number;
@@ -299,7 +301,7 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
     if (!rr.chance(0.6)) continue;
     if (depth(p.x, p.z) > 0.5) continue;
     rocks.push({ x: p.x, z: p.z, s, rx: rr.range(0, 3), ry: rr.range(0, 3), rz: rr.range(0, 3) });
-    obstacles.push({ x: p.x, z: p.z, r: s * 0.65, y0: at(p.x, p.z), top: s * 0.6, view: s * 0.55 });
+    obstacles.push({ x: p.x, z: p.z, r: s * 0.65, y0: at(p.x, p.z), top: s * 0.6, view: s * 0.55, stand: true });
   }
 
   // Карта проходимости и проверка платформ

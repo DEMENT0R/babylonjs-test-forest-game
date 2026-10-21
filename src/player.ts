@@ -293,9 +293,10 @@ export class Player {
     // Стенки платформ — раздельно по осям, чтобы скользить вдоль
     if (world.blockedByPlatform(nx, pos.z, pos.y)) nx = pos.x;
     if (world.blockedByPlatform(nx, nz, pos.y)) nz = pos.z;
-    // Круглые препятствия выталкивают наружу
+    // Круглые препятствия выталкивают наружу; камень, над которым герой уже поднялся, — нет
     const radius = 0.25 + 0.2 * height;
     for (const o of world.obstaclesNear(nx, nz, radius + 3)) {
+      if (world.overObstacle(o, nx, nz, pos.y)) continue;
       const dx = nx - o.x, dz = nz - o.z;
       const d = Math.hypot(dx, dz), m = o.r + radius;
       if (d < m && d > 0) {

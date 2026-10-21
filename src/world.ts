@@ -28,7 +28,10 @@ const GOLD = { sky: new Color3(0.93, 0.64, 0.46), sun: new Color3(1, 0.7, 0.45),
 const DUSK = { sky: new Color3(0.24, 0.22, 0.38), sun: new Color3(0.8, 0.42, 0.5), hemi: new Color3(0.55, 0.58, 0.9) };
 const WHITE = new Color3(1, 1, 1);
 
-const smoothstep = (a: number, b: number, x: number) => {
+/** На сколько герой шагает вверх без прыжка (на платформу или камень). */
+const STEP_UP = 0.35;
+
+const smoothstep =(a: number, b: number, x: number) => {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
 };
@@ -84,6 +87,8 @@ export class World {
   private level: Level | null = null;
   private grid = new ObstacleGrid([]);
   private readonly near = new Set<Obstacle>();
+  /** Отдельный буфер: groundAt зовётся и посреди обхода obstaclesNear. */
+  private readonly underfoot = new Set<Obstacle>();
   collected = 0;
 
   constructor(private readonly engine: Engine) {
@@ -216,27 +221,46 @@ export class World {
     let top: number | null = null;
     for (const p of this.platforms) {
       const t = p.y0 + p.h;
-      if (Math.abs(x - p.x) < p.w / 2 + 0.25 && Math.abs(z - p.z) < p.d / 2 + 0.25 && y >= t - 0.35) top = Math.max(top ?? -Infinity, t);
+      if (Math.abs(x - p.x) < p.w / 2 + 0.25 && Math.abs(z - p.z) < p.d / 2 + 0.25 && y >= t - STEP_UP) top = Math.max(top ?? -Infinity, t);
     }
     return top;
   }
 
-  /** Высота опоры под точкой: земля или верх платформы, на которую можно встать с высоты y. */
+  /** Высота купола камня над точкой; за краем — высота края. */
+  private static domeAt(o: Obstacle, x: number, z: number): number {
+    const k = Math.min(1, Math.hypot(x - o.x, z - o.z) / o.r);
+    return o.y0 + o.top * (1 - 0.3 * k * k);
+  }
+
+  /** Ноги на высоте y уже над камнем — он не толкает вбок, а на него можно встать. */
+  overObstacle(o: Obstacle, x: number, z: number, y: number): boolean {
+    return !!o.stand && y >= World.domeAt(o, x, z) - STEP_UP;
+  }
+
+  /** Верх камня под точкой, на который можно встать с высоты y; иначе null. */
+  private rockTopAt(x: number, z: number, y: number): number | null {
+    let top: number | null = null;
+    for (const o of this.grid.query(x - 2, z - 2, x + 2, z + 2, this.underfoot)) {
+      if (!o.stand || Math.hypot(x - o.x, z - o.z) >= o.r) continue;
+      const t = World.domeAt(o, x, z);
+      if (y >= t - STEP_UP) top = Math.max(top ?? -Infinity, t);
+    }
+    return top;
+  }
+
+  /** Высота опоры под точкой: земля, верх платформы или камня, на который можно встать с высоты y. */
   groundAt(x: number, z: number, y: number): number {
-    const g = this.terrainAt(x, z);
-    const top = this.platformTopAt(x, z, y);
-    return top === null ? g : Math.max(g, top);
+    return Math.max(this.terrainAt(x, z), this.platformTopAt(x, z, y) ?? -Infinity, this.rockTopAt(x, z, y) ?? -Infinity);
   }
 
   /** Упирается ли игрок на высоте y в боковую стенку платформы. */
   blockedByPlatform(x: number, z: number, y: number): boolean {
-    return this.platforms.some((p) => Math.abs(x - p.x) < p.w / 2 + 0.3 && Math.abs(z - p.z) < p.d / 2 + 0.3 && y < p.y0 + p.h - 0.35);
+    return this.platforms.some((p) => Math.abs(x - p.x) < p.w / 2 + 0.3 && Math.abs(z - p.z) < p.d / 2 + 0.3 && y < p.y0 + p.h - STEP_UP);
   }
 
   /** Из чего поверхность под ногами (y — высота ног) — для звука шагов. */
   surfaceAt(x: number, z: number, y: number): Surface {
-    const top = this.platformTopAt(x, z, y);
-    if (top !== null && top > this.terrainAt(x, z) + 0.05) return 'stone';
+    if (this.groundAt(x, z, y) > this.terrainAt(x, z) + 0.05) return 'stone';
     if (this.waterDepth(x, z) > 0.05) return 'water';
     if (this.level?.layout.biome.surface === 'snow') return 'snow';
     return Math.hypot(x, z) < PATH_R ? 'path' : 'grass';
