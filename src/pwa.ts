@@ -58,38 +58,44 @@ interface InstallPromptEvent extends Event {
 }
 
 const ua = navigator.userAgent;
-/** Safari на iPhone и iPad: API установки нет, ставят через «Поделиться». */
-const isIosSafari = (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) && !/CriOS|FxiOS|EdgiOS/.test(ua);
+const isIos = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
 
-/** Кнопка «Установить» в меню: видна, пока игра открыта во вкладке и браузер умеет её поставить. */
+/** Как поставить игру вручную, если браузер не дал своего окна установки. */
+function manualInstallHint(): string {
+  if (isIos) return 'Нажми «Поделиться» в Safari и выбери «На экран „Домой“»';
+  if (/Firefox/.test(ua)) return 'Firefox на компьютере не устанавливает сайты как приложения — открой игру в Chrome или Edge';
+  if (/Safari/.test(ua) && !/Chrome|Chromium|Edg/.test(ua)) return 'В Safari выбери «Файл» → «Добавить в Dock»';
+  return 'Браузер пока не предлагает установку — поищи «Установить приложение» в его меню. Если игра уже установлена, открой её с рабочего стола';
+}
+
+/** Кнопка «Установить» в меню: видна, пока игра открыта во вкладке, а не как приложение. */
 function setupInstall(note: (msg: string) => void): void {
   const btn = byId<HTMLButtonElement>('m-install');
-  const standalone = matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true;
-  if (standalone) return;
+  const installed = ['standalone', 'fullscreen', 'minimal-ui'].some((m) => matchMedia(`(display-mode: ${m})`).matches && !document.fullscreenElement)
+    || (navigator as { standalone?: boolean }).standalone === true;
+  if (installed) return;
+  btn.hidden = false;
 
   let deferred: InstallPromptEvent | null = null;
   addEventListener('beforeinstallprompt', (e) => {
     // Своя кнопка вместо баннера браузера
     e.preventDefault();
     deferred = e as InstallPromptEvent;
-    btn.hidden = false;
   });
   addEventListener('appinstalled', () => {
     deferred = null;
     btn.hidden = true;
     note('✓ Игра установлена — её можно запускать с главного экрана');
   });
-  if (isIosSafari) btn.hidden = false;
 
   btn.addEventListener('click', async () => {
     if (!deferred) {
-      if (isIosSafari) note('Нажми «Поделиться» в Safari и выбери «На экран „Домой“»');
+      note(manualInstallHint());
       return;
     }
     // Окно установки показывается один раз на событие; после отказа браузер пришлёт новое
     const prompt = deferred;
     deferred = null;
-    btn.hidden = true;
     await prompt.prompt();
   });
 }
