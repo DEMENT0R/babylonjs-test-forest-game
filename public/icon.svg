@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Иконка игры: кристалл над тёмным лесом в вечернем небе -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a4250"/>
+      <stop offset="1" stop-color="#1b2b33"/>
+    </linearGradient>
+    <linearGradient id="gem" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff2c4"/>
+      <stop offset="1" stop-color="#ffcf5a"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#sky)"/>
+  <circle cx="256" cy="226" r="132" fill="#ffcf5a" opacity=".14"/>
+  <!-- Кристалл -->
+  <path d="M256 112 L318 214 L256 330 L194 214 Z" fill="url(#gem)"/>
+  <path d="M256 112 L256 330 L194 214 Z" fill="#fff" opacity=".35"/>
+  <path d="M194 214 L318 214 L256 330 Z" fill="#c8901f" opacity=".35"/>
+  <!-- Ели -->
+  <path fill="#14211e" d="M0 512 V402 L40 330 L64 372 L96 300 L132 372 L156 336 L196 410 L230 372 L256 398 L282 372 L316 410 L356 336 L380 372 L416 300 L448 372 L472 330 L512 402 V512 Z"/>
+  <!-- Поляна -->
+  <path fill="#22382f" d="M0 512 V448 Q256 400 512 448 V512 Z"/>
+</svg>

@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#1b2b33">
   <title>Тихая поляна</title>
+  <link rel="icon" href="./favicon.ico" sizes="48x48">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="./apple-touch-icon-180x180.png">
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body data-state="menu">
@@ -26,6 +29,8 @@
         </div>
         <!-- Что ждёт игрока: записка, сад, серия; строка ведёт в нужную вкладку «Дневника» -->
         <ul class="menu-news" id="menu-news" hidden></ul>
+        <!-- Игра сохранилась для запуска без сети или вышла новая версия (src/pwa.ts) -->
+        <p class="menu-update" id="menu-update" role="status" hidden><span id="menu-update-text"></span> <button type="button" class="link" id="menu-update-btn" title="Игра перезагрузится — забег на уровне начнётся заново" hidden>Обновить</button></p>
       </header>
       <!-- Три яруса: игра, прогресс (плитки), служебное (настройки и ссылки в подвале) -->
       <nav class="menu-list" aria-label="Главное меню">

@@ -33,6 +33,7 @@ import { QuestMarkers } from './levels/markers';
 import { fitQuest, QuestRun } from './levels/quests';
 import { dailyRecipe, recipeFor } from './levels/recipes';
 import { clearInput, keys, Player, setupTouchControls } from './player';
+import { setupPwa } from './pwa';
 import { Ripples } from './ripples';
 import { deviceTier, isMobile } from './device';
 import { AutoScale, GameEngine } from './perf';
@@ -163,6 +164,7 @@ setupHud({
 });
 setupTouchControls();
 setupFullscreen();
+setupPwa();
 
 // ---------- Уровни ----------
 
