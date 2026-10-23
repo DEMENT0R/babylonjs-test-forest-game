@@ -92,19 +92,28 @@ export function setLevelTitle(text: string): void {
   levelTitle.textContent = text;
 }
 
-let hintLevel = 1;
-let hintMode: string | null = null;
+const KEYS_SHOWN_KEY = 'tihaya-polyana-keys-shown';
 
-/** Памятка по кнопкам раскрывается сама только по настройке; дальше её открывает игрок. */
-function syncKeyHint(): void {
-  hintMode = settings.keyHint;
-  keysEl.open = hintMode === 'open' || (hintMode === 'first' && hintLevel === 1);
-}
+/** Памятку уже показывали при прошлом запуске — больше она на экране не нужна. */
+const keysShownBefore = (() => {
+  try {
+    return localStorage.getItem(KEYS_SHOWN_KEY) === '1';
+  } catch {
+    return false;
+  }
+})();
 
-/** Новый уровень: памятка снова принимает положение из настроек. */
+/** Памятка по кнопкам видна только на первом уровне при первом запуске, дальше — справка в настройках. */
 export function setHintLevel(level: number): void {
-  hintLevel = level;
-  syncKeyHint();
+  const show = !keysShownBefore && level === 1;
+  keysEl.hidden = !show;
+  keysEl.open = show;
+  if (!show) return;
+  try {
+    localStorage.setItem(KEYS_SHOWN_KEY, '1');
+  } catch {
+    // Хранилище недоступно — памятка покажется и в следующий раз
+  }
 }
 
 export function showCameraMode(mode: CameraMode, announce = true): void {
@@ -127,8 +136,6 @@ export function setupHud(actions: HudActions): void {
   modeBtn.addEventListener('click', actions.onCycleCamera);
   onSettingsApplied((s) => {
     fpsEl.hidden = !s.fps;
-    // Другие настройки не должны сворачивать памятку, которую игрок раскрыл сам
-    if (s.keyHint !== hintMode) syncKeyHint();
   });
 }
 

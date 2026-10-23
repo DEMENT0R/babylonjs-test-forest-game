@@ -61,8 +61,6 @@ export interface Settings extends GraphicsSettings {
   fpsCap: 0 | 30 | 60;
   /** Снижать разрешение рендера, когда кадров не хватает. */
   autoScale: boolean;
-  /** Памятка по кнопкам: раскрыта на первом уровне, всегда или всегда свёрнута. */
-  keyHint: 'first' | 'open' | 'closed';
   /** Звук включён (клавиша M). */
   sound: boolean;
   /** Громкость 0…1: общая, шагов, природы (ветер, птицы) и фоновой музыки. */
@@ -85,7 +83,7 @@ export const PRESETS: Record<PresetId, GraphicsSettings> = {
 
 // На телефоне предел в 60 кадров бережёт батарею на экранах 90–120 Гц
 const DEFAULTS: Settings = {
-  preset: 'high', ...PRESETS.high, fov: 60, sens: 1, padSens: 1, invertY: false, stick: 'float', fps: false, keyHint: 'first',
+  preset: 'high', ...PRESETS.high, fov: 60, sens: 1, padSens: 1, invertY: false, stick: 'float', fps: false,
   fpsCap: isMobile ? 60 : 0, autoScale: isMobile,
   sound: true, volume: 0.8, stepsVolume: 0.8, natureVolume: 0.6, musicVolume: 0.5,
 };
