@@ -348,7 +348,7 @@ export class MainMenu {
       const row = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>('.menu-tiles, .menu-foot');
       if (!row) return false;
       e.preventDefault();
-      const items = [...row.querySelectorAll<HTMLElement>('button')];
+      const items = [...row.querySelectorAll<HTMLElement>('button')].filter((b) => b.getClientRects().length > 0);
       const i = items.indexOf(document.activeElement as HTMLElement);
       items[(i + (e.code === 'ArrowRight' ? 1 : -1) + items.length) % items.length].focus();
       return true;

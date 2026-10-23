@@ -43,4 +43,53 @@ export function setupPwa(): void {
     btn.textContent = 'Обновляю…';
     void updateSW(true);
   });
+
+  setupInstall((msg) => {
+    text.textContent = msg;
+    btn.hidden = true;
+    el.hidden = false;
+  });
+}
+
+/** Событие установки из Chromium; в типах DOM его пока нет. */
+interface InstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
+const ua = navigator.userAgent;
+/** Safari на iPhone и iPad: API установки нет, ставят через «Поделиться». */
+const isIosSafari = (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) && !/CriOS|FxiOS|EdgiOS/.test(ua);
+
+/** Кнопка «Установить» в меню: видна, пока игра открыта во вкладке и браузер умеет её поставить. */
+function setupInstall(note: (msg: string) => void): void {
+  const btn = byId<HTMLButtonElement>('m-install');
+  const standalone = matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true;
+  if (standalone) return;
+
+  let deferred: InstallPromptEvent | null = null;
+  addEventListener('beforeinstallprompt', (e) => {
+    // Своя кнопка вместо баннера браузера
+    e.preventDefault();
+    deferred = e as InstallPromptEvent;
+    btn.hidden = false;
+  });
+  addEventListener('appinstalled', () => {
+    deferred = null;
+    btn.hidden = true;
+    note('✓ Игра установлена — её можно запускать с главного экрана');
+  });
+  if (isIosSafari) btn.hidden = false;
+
+  btn.addEventListener('click', async () => {
+    if (!deferred) {
+      if (isIosSafari) note('Нажми «Поделиться» в Safari и выбери «На экран „Домой“»');
+      return;
+    }
+    // Окно установки показывается один раз на событие; после отказа браузер пришлёт новое
+    const prompt = deferred;
+    deferred = null;
+    btn.hidden = true;
+    await prompt.prompt();
+  });
 }
