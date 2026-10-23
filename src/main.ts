@@ -1,6 +1,7 @@
 // Точка входа: движок, сцены и переключение состояний меню → выбор героя → игра,
 // а внутри игры — смена уровней через портал.
 
+import './fonts';
 import { Color3, Vector3 } from '@babylonjs/core';
 import { Footsteps, GameAudio } from './audio';
 import { Breath } from './breath';
