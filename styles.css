@@ -339,6 +339,12 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump,body[data-
 .info-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px 10px;border-bottom:1px solid var(--line)}
 .info-head h4{margin:0;font:700 15px var(--f-display)}
 .info-body{padding:12px 18px 16px;overflow:auto;overscroll-behavior:contain}
+/* «Поделиться игрой»: крупный QR на белом — чтобы его легко поймала камера с экрана */
+.share-qr{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
+.share-qr .qr{display:block;width:min(260px,70vw);height:auto;border-radius:10px}
+.share-qr p{margin:0;max-width:44ch}
+.share-qr .share-warn{color:var(--accent)}
+.share-url{font:600 12px var(--f-mono);color:var(--ink);word-break:break-all;background:rgba(0,0,0,.25);border:1px solid var(--line);border-radius:6px;padding:4px 8px}
 /* Вкладки панели («Дневник»): шапка без своей черты, под вкладками — общая */
 .info-head:has(+ .tabs:not([hidden])){border-bottom:0;padding-bottom:0}
 .menu-info .tabs{flex:none;margin:0;padding:0 10px;border-bottom:1px solid var(--line)}

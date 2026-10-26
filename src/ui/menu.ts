@@ -11,7 +11,8 @@ import { recipeFor } from '../levels/recipes';
 import { byId, plural } from '../utils';
 import { growGarden, welcomeNote } from '../journal';
 import { crystals } from '../den/state';
-import { copyText, dailyShareText } from '../share';
+import { copyText, dailyShareText, gameUrl } from '../share';
+import { qrSvg } from '../qr';
 import { JOURNAL_TABS } from './journal-panel';
 import { seenStars, skyHtml } from './sky-panel';
 
@@ -21,7 +22,8 @@ const CREDITS = `
     <p>Волк и олень — Quaternius, Ultimate Animated Animals (CC0).</p>
     <p>Лиса — PixelMannen (CC0), риг и анимация @tomkranis (CC BY 4.0), из Khronos glTF Sample Assets.</p>
     <p>Звуки ветра, птиц и шагов синтезируются в браузере (Web Audio API).</p>
-    <p>Шрифты — Unbounded и JetBrains Mono.</p>`;
+    <p>Шрифты — Unbounded и JetBrains Mono.</p>
+    <p>QR-код — qrcode-generator, Kazuhiko Arase (MIT).</p>`;
 /** Начинается с описания игры из шапки меню — его там видит только тот, кто ещё не играл. */
 const howtoHtml = (): string => `
     <p>${byId('menu-sub').textContent}</p>
@@ -41,11 +43,30 @@ const howtoHtml = (): string => `
 /** Вкладка панели: разметка строится заново при каждом показе. */
 export interface InfoTab { id: string; name: string; html: () => string }
 
-type InfoKey = 'levels' | 'sky' | 'journal' | 'about';
+type InfoKey = 'levels' | 'sky' | 'journal' | 'about' | 'share';
 
-const TITLES: Record<InfoKey, string> = { levels: 'Уровни', sky: 'Звёздное небо', journal: 'Дневник', about: 'Об игре' };
+const TITLES: Record<InfoKey, string> = { levels: 'Уровни', sky: 'Звёздное небо', journal: 'Дневник', about: 'Об игре', share: 'Поделиться игрой' };
 /** Пункт меню, который открывает панель, — на него возвращается фокус при закрытии. */
-const OPENERS: Record<InfoKey, string> = { levels: 'm-levels', sky: 'm-sky', journal: 'm-journal', about: 'm-about' };
+const OPENERS: Record<InfoKey, string> = { levels: 'm-levels', sky: 'm-sky', journal: 'm-journal', about: 'm-about', share: 'm-share' };
+
+const COPY_LABEL = 'Скопировать ссылку ⧉';
+
+/** «Поделиться игрой»: QR-код ссылки — показать с экрана, — сама ссылка и кнопки. */
+function shareHtml(): string {
+  const url = gameUrl();
+  // С localhost и адреса в локальной сети телефон друга игру не откроет — честно предупредить
+  const local = /^(localhost|127\.|\[::1\]|192\.168\.|10\.)/.test(location.hostname);
+  return `<div class="share-qr">
+      ${qrSvg(url, 'QR-код ссылки на игру')}
+      <p>Наведи камеру телефона на код — откроется игра. Её можно поставить на главный экран и играть без сети.</p>
+      ${local ? '<p class="share-warn">Сейчас игра открыта с этого компьютера — по такому адресу с другого устройства она может не открыться.</p>' : ''}
+      <code class="share-url">${url}</code>
+      <div class="btn-row">
+        <button type="button" class="small-btn" data-copy>${COPY_LABEL}</button>
+        ${'share' in navigator ? '<button type="button" class="small-btn" data-native-share>Отправить…</button>' : ''}
+      </div>
+    </div>`;
+}
 
 const TAB_HINT = (key: string, pad: string, cls: string) =>
   `<span class="${cls}" aria-hidden="true"><kbd class="key-only">${key}</kbd><kbd class="pad-only">${pad}</kbd></span>`;
@@ -123,7 +144,21 @@ export class MainMenu {
       if (t) this.selectTab(t.dataset.tab!, true);
     });
     this.infoBody.addEventListener('click', (e) => {
-      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-level]');
+      const t = e.target as HTMLElement;
+      const copy = t.closest<HTMLElement>('[data-copy]');
+      if (copy) {
+        void copyText(gameUrl()).then((ok) => {
+          copy.textContent = ok ? 'Скопировано ✓' : 'Не удалось скопировать';
+          setTimeout(() => (copy.textContent = COPY_LABEL), 2500);
+        });
+        return;
+      }
+      if (t.closest('[data-native-share]')) {
+        // Окно «Поделиться» системы; отмену пользователем молча пропускаем
+        navigator.share({ title: 'Тихая поляна', url: gameUrl() }).catch(() => {});
+        return;
+      }
+      const b = t.closest<HTMLElement>('[data-level]');
       if (!b) return;
       this.closeInfo();
       actions.onPickLevel(Number(b.dataset.level));
@@ -256,6 +291,7 @@ export class MainMenu {
       case 'levels': return this.levelsHtml();
       case 'sky': return skyHtml(totalStars());
       case 'journal': return JOURNAL_TABS;
+      case 'share': return shareHtml();
       case 'about':
         return [
           { id: 'howto', name: 'Как играть', html: howtoHtml },

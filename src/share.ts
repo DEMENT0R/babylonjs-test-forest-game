@@ -1,4 +1,4 @@
-// «Поделиться» результатом Леса дня: короткий текст в буфер обмена, как в Wordle.
+// «Поделиться»: ссылка на игру и результат Леса дня — короткий текст в буфер обмена, как в Wordle.
 
 import { BIOMES } from './levels/biomes';
 import { currentStreak, formatTime, progress } from './levels/progress';
@@ -14,10 +14,11 @@ export function dailyShareText(date: string): string | null {
   const parts = [`⏱ ${formatTime(d.time)}`];
   if (d.quest) parts.push('★ задание');
   if (days > 1) parts.push(`🔥 ${days}`);
-  // Без query и hash — ссылка ведёт на игру, а не на чьё-то состояние
-  const url = location.origin + location.pathname;
-  return `Тихая поляна · Лес дня ${day}.${m} · ${biome}\n${parts.join(' · ')}\n${url}`;
+  return `Тихая поляна · Лес дня ${day}.${m} · ${biome}\n${parts.join(' · ')}\n${gameUrl()}`;
 }
+
+/** Ссылка на игру: без query и hash — она ведёт на игру, а не на чьё-то состояние. */
+export const gameUrl = (): string => location.origin + location.pathname;
 
 /** Копирует текст; на старых браузерах и без HTTPS — через скрытое поле. */
 export async function copyText(text: string): Promise<boolean> {

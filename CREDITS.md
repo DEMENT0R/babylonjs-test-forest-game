@@ -34,3 +34,4 @@ CC BY 4.0 требует указывать автора: строка про @t
 - [Babylon.js](https://www.babylonjs.com/) — Apache License 2.0.
 - Шрифты [Unbounded](https://fonts.google.com/specimen/Unbounded) и [JetBrains Mono](https://fonts.google.com/specimen/JetBrains+Mono) — SIL Open Font License 1.1, входят в сборку из пакетов [Fontsource](https://fontsource.org/) (`src/fonts.ts`).
 - [vite-plugin-pwa](https://vite-pwa-org.netlify.app/) и Workbox — офлайн-кэш и обновления, MIT.
+- [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) (Kazuhiko Arase) — QR-код ссылки на игру, MIT. «QR Code» — товарный знак DENSO WAVE.
