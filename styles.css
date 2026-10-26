@@ -79,9 +79,12 @@ h1{margin:0;font:700 15px/1.2 var(--f-display);letter-spacing:.02em}
    не промахивался; вверх — чуть-чуть, там кнопка режима камеры */
 #jump::after{content:'';position:absolute;left:-40px;top:-8px;right:calc(-1 * (max(16px,env(safe-area-inset-right,0px)) + 8px));bottom:calc(-1 * var(--jump-bottom))}
 #jump.on{transform:scale(.9);background:var(--accent);color:var(--accent-ink)}
+/* «Шагом» — маленькая кнопка над прыжком; включённая горит, пока не выключат */
+#walk{position:fixed;right:calc(max(16px,env(safe-area-inset-right,0px)) + 8px + 14px);bottom:calc(var(--jump-bottom,40px) + 76px + 14px);--jump-bottom:calc(40px + env(safe-area-inset-bottom,0px));width:48px;height:48px;border-radius:50%;border:1px solid var(--line);background:var(--panel);font:700 9px var(--f-display);touch-action:none;padding:0}
+#walk.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 #fps{position:fixed;left:50%;transform:translateX(-50%);top:calc(10px + env(safe-area-inset-top,0px));font:600 11px var(--f-mono);font-variant-numeric:tabular-nums;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:2px 8px;pointer-events:none}
-@media (hover:hover) and (pointer:fine){#stick,#stick-zone,#jump{display:none}}
-body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump{display:none}
+@media (hover:hover) and (pointer:fine){#stick,#stick-zone,#jump,#walk{display:none}}
+body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump,body[data-pad] #walk{display:none}
 @media (max-width:520px){.keys{display:none}}
 /* Сенсорный экран: без подсказок клавиш и памятки по клавиатуре, кнопки крупнее,
    режим камеры — над кнопкой прыжка (с геймпадом прыжка нет — опускается в угол) */
@@ -102,6 +105,7 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump{display:no
   .hud .card{padding:6px 10px}
   #stick{width:104px;height:104px;bottom:calc(16px + env(safe-area-inset-bottom,0px))}
   #jump{width:68px;height:68px;--jump-bottom:calc(24px + env(safe-area-inset-bottom,0px))}
+  #walk{--jump-bottom:calc(24px + env(safe-area-inset-bottom,0px));bottom:calc(var(--jump-bottom) + 68px + 10px);right:calc(max(16px,env(safe-area-inset-right,0px)) + 8px + 10px)}
 }
 /* Телефон в ландшафте: HUD в одну полосу сверху — слева строки уровня, справа кнопки.
    «Герой» и «Настройки» есть в меню паузы, у режима камеры — только название */

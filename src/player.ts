@@ -33,6 +33,9 @@ export const keys: Record<string, boolean> = {};
 /** Отклонение сенсорного стика, -1…1 (y вверх). */
 const touch = { x: 0, y: 0 };
 let jumpRequested = false;
+/** «Шагом»: бег выключен, как бы ни был отклонён стик, — для задания «ни разу не побежав». */
+let walkLock = false;
+let walkBtn: HTMLElement | null = null;
 let knob: HTMLElement | null = null;
 let stickEl: HTMLElement | null = null;
 
@@ -46,6 +49,15 @@ function releaseStick(): void {
   }
 }
 
+/** Включить или выключить «Шагом»; кнопка на экране показывает, что включено. */
+export function setWalkLock(on: boolean): void {
+  walkLock = on;
+  walkBtn?.classList.toggle('on', on);
+  walkBtn?.setAttribute('aria-pressed', String(on));
+}
+
+export const walkLocked = (): boolean => walkLock;
+
 export function clearInput(): void {
   for (const k in keys) keys[k] = false;
   jumpRequested = false;
@@ -57,7 +69,7 @@ export function clearInput(): void {
  * Стик фиксированный — ловит касания только по себе; плавающий — появляется под пальцем
  * в любом месте левой части экрана (зона #stick-zone).
  */
-export function setupTouchControls(): void {
+export function setupTouchControls(onWalk: () => void): void {
   const stick = (stickEl = byId('stick'));
   const zone = byId('stick-zone');
   knob = byId('knob');
@@ -126,6 +138,12 @@ export function setupTouchControls(): void {
     jumpFlash = window.setTimeout(() => jump.classList.remove('on'), 120);
     navigator.vibrate?.(12);
   });
+  walkBtn = byId('walk');
+  walkBtn.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    onWalk();
+    navigator.vibrate?.(8);
+  });
 }
 
 interface MoveInput { x: number; z: number; run: boolean; jump: boolean }
@@ -143,13 +161,13 @@ function readInput(active: boolean): MoveInput {
   return {
     x,
     z,
-    // Стик до упора — бег; на геймпаде ещё LB или нажатый левый стик
+    // Стик до упора — бег; на геймпаде ещё LB. «Шагом» бег запрещает совсем
     run:
-      !!(keys.ShiftLeft || keys.ShiftRight) ||
-      Math.hypot(touch.x, touch.y) > 0.95 ||
-      Math.hypot(pad.x, pad.y) > 0.95 ||
-      gamepad.down(BTN.LB) ||
-      gamepad.down(BTN.L3),
+      !walkLock &&
+      (!!(keys.ShiftLeft || keys.ShiftRight) ||
+        Math.hypot(touch.x, touch.y) > 0.95 ||
+        Math.hypot(pad.x, pad.y) > 0.95 ||
+        gamepad.down(BTN.LB)),
     jump: !!keys.Space || jumpRequested || gamepad.pressed(BTN.A),
   };
 }

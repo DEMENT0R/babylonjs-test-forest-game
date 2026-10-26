@@ -32,7 +32,7 @@ import { completeDaily, completeLevel, dailyBest, daysPlayed, formatTime, markPl
 import { QuestMarkers } from './levels/markers';
 import { fitQuest, QuestRun } from './levels/quests';
 import { dailyRecipe, recipeFor } from './levels/recipes';
-import { clearInput, keys, Player, setupTouchControls } from './player';
+import { clearInput, keys, Player, setupTouchControls, setWalkLock, walkLocked } from './player';
 import { setupPwa } from './pwa';
 import { Ripples } from './ripples';
 import { deviceTier, isMobile } from './device';
@@ -162,7 +162,13 @@ setupHud({
     canvas.focus();
   },
 });
-setupTouchControls();
+/** «Шагом» по кнопке на экране, клавише X или L3 на геймпаде. */
+function toggleWalk(): void {
+  setWalkLock(!walkLocked());
+  say(walkLocked() ? 'Шагом — бег выключен' : 'Можно бежать');
+}
+
+setupTouchControls(toggleWalk);
 setupFullscreen();
 setupPwa();
 
@@ -237,6 +243,8 @@ function beginLevel(index: number, dailyDate: string | null = null): void {
   audio.setAmbience(layout.biome.ambience);
   audio.setMusic(layout.biome.id);
   wind.setScale(layout.biome.ambience.wind);
+  // В задании «ни разу не побежав» шаг включается сам, на других уровнях — выключен
+  setWalkLock(quest.quest.kind === 'walk');
   player.reset(layout.spawn);
   rig.reset();
   footsteps.reset();
@@ -551,6 +559,7 @@ addEventListener('keydown', (e) => {
       if (e.code === 'Space') e.preventDefault();
       if (e.code === 'KeyC' && !e.repeat) rig.cycleMode();
       if (e.code === 'KeyH' && !e.repeat) backToSelect();
+      if (e.code === 'KeyX' && !e.repeat) toggleWalk();
   }
 });
 addEventListener('keyup', (e) => (keys[e.code] = false));
@@ -603,6 +612,7 @@ function handleGamepad(): void {
   if (!screen) {
     if (gamepad.pressed(BTN.START)) openMenu();
     else if (gamepad.pressed(BTN.Y)) rig.cycleMode();
+    else if (gamepad.pressed(BTN.L3)) toggleWalk();
     return;
   }
   const dir = gamepad.nav();
