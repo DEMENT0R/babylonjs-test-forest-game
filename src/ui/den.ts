@@ -20,8 +20,52 @@ import {
   type Mesh,
   type Node,
 } from '@babylonjs/core';
-import { CAPACITY, costText, itemById, itemsFor, materialById, MATERIALS, powerById, POWERS, slotById, SLOTS, TIERS, type Cost, type ItemDef, type PowerDef, type SlotDef } from '../den/catalog';
-import { buy, buyPower, canAfford, clearSlot, crystals, den, matCount, nextTier, powerLevel, shortOf, upgrade } from '../den/state';
+import {
+  amount,
+  boostById,
+  BOOSTS,
+  CAPACITY,
+  costText,
+  cropById,
+  CROPS,
+  itemById,
+  itemsFor,
+  materialById,
+  MATERIALS,
+  powerById,
+  POWERS,
+  slotById,
+  SLOTS,
+  TIERS,
+  type BoostDef,
+  type Cost,
+  type CropId,
+  type ItemDef,
+  type PowerDef,
+  type SlotDef,
+} from '../den/catalog';
+import {
+  boostCount,
+  brew,
+  buy,
+  buyPower,
+  canAfford,
+  clearSlot,
+  cropCap,
+  cropOpen,
+  cropReady,
+  crystals,
+  den,
+  growCrops,
+  harvestCrops,
+  matCount,
+  nextTier,
+  pack,
+  powerLevel,
+  shortOf,
+  stockOf,
+  upgrade,
+} from '../den/state';
 import { ANNEX, DenKit, MOUND, type Built } from '../den/build';
 import { ClearingDecor } from '../den/decor';
 import { clearUrl, shareUrl, snapshot, type DenSnapshot } from '../den/snapshot';
@@ -51,9 +95,11 @@ const YARD = { z: 0.6, rx: 5.2, rz: 4.6 };
 
 interface GardenCrystal { mesh: Mesh; baseY: number; phase: number; shade: BiomeId }
 
-/** Остановки панели, которые не места во дворе: «Сила» — апгрейды запала. */
-type Page = 'power';
-const PAGES: readonly Page[] = ['power'];
+/** Остановки панели, которые не места во дворе: «Сила» — апгрейды запала, «Котелок» — усилители. */
+type Page = 'power' | 'kettle';
+const PAGES: readonly Page[] = ['power', 'kettle'];
+/** Сколько ягод на кусте — одна горсть урожая; соты — по одной. */
+const fruitsPer = (id: CropId): number => (id === 'honey' ? 1 : 3);
 const isPage = (id: string | undefined): id is Page => PAGES.includes(id as Page);
 
 export interface DenActions {
@@ -89,7 +135,10 @@ export class DenScreen {
   private decor: ClearingDecor | null = null;
   private decorCount = -1;
   private garden: GardenCrystal[] = [];
+  /** Кусты и улей у той норы, что сейчас во дворе. */
+  private readonly crops = new Map<CropId, Built & { fruits: Mesh[] }>();
   private readonly harvestBtn = byId<HTMLButtonElement>('den-harvest');
+  private readonly cropsBtn = byId<HTMLButtonElement>('den-crops');
   private readonly shareBtn = byId<HTMLButtonElement>('den-share');
   /** Что сейчас стоит во дворе: своя нора или снимок чужой. */
   private view: DenSnapshot = snapshot(daysPlayed());
@@ -176,6 +225,10 @@ export class DenScreen {
         return;
       }
       let n: Node | null = picked ?? null;
+      if ((n?.metadata as { crop?: string } | null)?.crop) {
+        this.harvestCrops();
+        return;
+      }
       while (n && (n.metadata as { slot?: string } | null)?.slot === undefined) n = n.parent;
       const id = (n?.metadata as { slot?: string } | null)?.slot;
       if (id === 'home') this.choose(null);
@@ -188,6 +241,7 @@ export class DenScreen {
     this.harvestBtn.addEventListener('click', () => {
       if (this.garden.length) this.harvest(0);
     });
+    this.cropsBtn.addEventListener('click', () => this.harvestCrops());
     this.shareBtn.addEventListener('click', () => void this.share());
     byId('den-own').addEventListener('click', () => this.open());
     this.slotsEl.addEventListener('click', (e) => {
@@ -199,6 +253,11 @@ export class DenScreen {
       if (!b) return;
       if (b.dataset.item) this.take(itemById(b.dataset.item)!);
       else if (b.dataset.power) this.buyPower(powerById(b.dataset.power)!);
+      else if (b.dataset.brew) this.brew(boostById(b.dataset.brew)!);
+      else if (b.dataset.pack !== undefined) {
+        pack(boostById(b.dataset.pack)?.id ?? null);
+        this.render(`pack-${b.dataset.pack}`);
+      }
       else if (b.dataset.upgrade !== undefined) this.upgrade();
       else if (b.dataset.clear && this.sel) {
         clearSlot(this.sel.id);
@@ -244,6 +303,7 @@ export class DenScreen {
           { x: MOUND.x, z: MOUND.z, r: MOUND.r + 0.1 },
           { x: ANNEX.x, z: ANNEX.z, r: ANNEX.r + 0.1 },
           { x: GARDEN.x, z: GARDEN.z, r: 1.1 },
+          ...CROPS.map((c) => ({ x: c.x, z: c.z, r: 0.8 })),
           ...SLOTS.map((s) => ({ x: s.x, z: s.z, r: 1 })),
           ...this.trees.filter((t) => Math.abs(t.x) < 29 && t.z < 31).map((t) => ({ x: t.x, z: t.z, r: 0.45 * t.s })),
         ],
@@ -293,6 +353,7 @@ export class DenScreen {
       this.shell?.root.dispose();
       this.shell = this.buildShell();
     }
+    this.syncCrops();
     for (const s of SLOTS) if (was.slots[s.id] !== view.slots[s.id]) this.rebuild(s);
     if (view.days !== this.decorCount) {
       this.decor?.dispose();
@@ -387,14 +448,78 @@ export class DenScreen {
       .map(([id, n]) => ({ m: materialById(id)!, n }))
       .filter(({ m, n }) => matCount(m.id) < n)
       .map(({ m }) => `${m.name} лежат в биоме «${BIOMES[m.biome].name}»`);
+    for (const [id, n] of Object.entries(cost.crops ?? {})) {
+      const c = cropById(id)!;
+      if (stockOf(c.id) >= n) continue;
+      where.push(cropOpen(c) ? `${c.name} растёт во дворе — собери урожай` : `${c.source} появится у норы «${TIERS[c.tier].name}»`);
+    }
     say(`Не хватает: ${lack.join(', ')}${where.length ? `. ${where.join('. ')}` : ''}`, 3500);
   }
 
-  /** Сад догоняет время: кристаллы, выросшие, пока игрока не было. */
+  /** Сад и урожай догоняют время: что выросло, пока игрока не было. */
   private grow(): void {
     const ready = growGarden();
     while (this.garden.length < ready) this.plant();
     this.syncHarvest();
+    growCrops();
+    this.syncCrops();
+  }
+
+  /**
+   * Кусты и улей — по уровню норы во дворе; ягод на них столько, сколько созрело.
+   * В гостях кусты видны, но пустые: чужой урожай не собрать.
+   */
+  private syncCrops(): void {
+    let ready = 0;
+    for (const c of CROPS) {
+      const open = c.tier <= this.view.tier;
+      let b = this.crops.get(c.id);
+      if (!open) {
+        b?.root.dispose();
+        this.crops.delete(c.id);
+        continue;
+      }
+      if (!b) {
+        b = this.kit.crop(c.id, c.color, 4);
+        b.root.position.set(c.x, 0, c.z);
+        b.root.rotation.y = c.x < 0 ? 0.3 : -0.3;
+        for (const m of b.meshes) m.metadata = { crop: c.id };
+        this.cast(b);
+        this.crops.set(c.id, b);
+      }
+      const n = this.guest ? 0 : cropReady(c.id);
+      ready += n;
+      const shown = n * fruitsPer(c.id);
+      b.fruits.forEach((f, k) => f.setEnabled(k < shown));
+    }
+    this.cropsBtn.hidden = this.guest || ready === 0;
+    this.cropsBtn.textContent = `Собрать урожай · ${ready}`;
+  }
+
+  /** Собрать весь урожай с кустов и улья. */
+  private harvestCrops(): void {
+    if (this.guest) return;
+    const got = Object.entries(harvestCrops()).map(([id, n]) => amount(cropById(id)!, n));
+    if (!got.length) {
+      const growing = CROPS.filter(cropOpen).map((c) => c.source.toLowerCase());
+      say(`Урожай ещё растёт: ${growing.join(', ')} — по одному за пару часов, до ${cropCap()}`, 2500);
+      return;
+    }
+    this.actions.chime();
+    say(`Урожай: ${got.join(', ')} — из него варят усилители в «Котелке»`, 3000);
+    this.syncCrops();
+    this.render();
+  }
+
+  /** Сварить усилитель в котелке. */
+  private brew(b: BoostDef): void {
+    if (!brew(b)) {
+      this.lacking(b.cost);
+      return;
+    }
+    this.actions.chime();
+    say(den.packed === b.id ? `${b.name} — возьмётся с собой на следующий уровень` : `${b.name} сварен`, 2500);
+    this.render(b.id);
   }
 
   /** Деталь поляны не встаёт на нору, сад и места вещей. */
@@ -403,6 +528,7 @@ export class DenScreen {
       Math.hypot(x - MOUND.x, z - MOUND.z) > MOUND.r + 0.3 &&
       Math.hypot(x - GARDEN.x, z - GARDEN.z) > 1.4 &&
       Math.hypot(x - ANNEX.x, z - ANNEX.z) > ANNEX.r + 0.3 &&
+      CROPS.every((c) => Math.hypot(x - c.x, z - c.z) > 1.3) &&
       SLOTS.every((s) => Math.hypot(x - s.x, z - s.z) > 1.3)
     );
   }
@@ -501,7 +627,15 @@ export class DenScreen {
         const n = matCount(m.id);
         const [r, g, b] = m.color.map((v) => Math.round(v * 255));
         return `<span class="den-chip${n ? '' : ' zero'}" title="${m.name} — в биоме «${BIOMES[m.biome].name}»"><i style="--c:rgb(${r} ${g} ${b})"></i>${m.name} <b>${n}</b></span>`;
-      }).join('');
+      }).join('') +
+      // Урожай на руках — только то, что есть: шапка норы и так в три строки
+      CROPS.filter((c) => !this.guest && stockOf(c.id) > 0)
+        .map((c) => {
+          const n = stockOf(c.id);
+          const [r, g, b] = c.color.map((v) => Math.round(v * 255));
+          return `<span class="den-chip" title="${c.source} во дворе"><i style="--c:rgb(${r} ${g} ${b})"></i>${c.name} <b>${n}</b></span>`;
+        })
+        .join('');
     byId('den-title').textContent = TIERS[this.view.tier].name;
     byId('den-eyebrow').textContent = this.guest ? 'В гостях' : 'Нора';
     for (const [id, ring] of this.rings) {
@@ -518,6 +652,9 @@ export class DenScreen {
     this.slotsEl.innerHTML =
       `<button type="button" data-slot="home" aria-pressed="${this.key === 'home'}"><b>Нора</b><small>${next ? 'улучшить' : 'самая большая'}</small></button>` +
       `<button type="button" data-slot="power" aria-pressed="${this.page === 'power'}"><b>Сила</b><small>запал ${CAPACITY[powerLevel('cap')]}</small></button>` +
+      `<button type="button" data-slot="kettle" aria-pressed="${this.page === 'kettle'}"><b>Котелок</b><small>${
+        den.packed ? `с собой: ${boostById(den.packed)!.short}` : 'усилители'
+      }</small></button>` +
       open
         .map((s) => {
           const item = den.slots[s.id] && itemById(den.slots[s.id]!);
@@ -527,6 +664,12 @@ export class DenScreen {
     if (this.page === 'power') {
       this.renderPower();
       if (focusId) this.root.querySelector<HTMLElement>(`[data-power="${focusId}"]`)?.focus();
+      this.bandDirty = true;
+      return;
+    }
+    if (this.page === 'kettle') {
+      this.renderKettle();
+      if (focusId) this.root.querySelector<HTMLElement>(`[data-brew="${focusId}"], [data-pack="${focusId.replace('pack-', '')}"]`)?.focus();
       this.bandDirty = true;
       return;
     }
@@ -580,6 +723,27 @@ export class DenScreen {
     this.cardEl.innerHTML = `<div class="den-card-head"><h3>Сила</h3></div>
       <p>Запал тратится на рывок и высокий прыжок. Апгрейды работают на всех уровнях, кроме Леса дня — там у всех одинаково.</p>
       <div class="den-items">${rows.join('')}</div>`;
+  }
+
+  /**
+   * «Котелок»: усилители на один уровень — варятся из урожая и находок.
+   * Один из сваренных берётся с собой и тратится, когда начнётся следующий уровень.
+   */
+  private renderKettle(): void {
+    const rows = BOOSTS.map((b) => {
+      const n = boostCount(b.id);
+      const off = !canAfford(b.cost);
+      return `<button type="button" class="den-item den-tier${off ? ' off' : ''}" data-brew="${b.id}"><span><b>${b.name}${n ? ` · ${n}` : ''}</b><small>${b.desc}</small></span><em>${priceHtml(b.cost)}</em></button>`;
+    });
+    const owned = BOOSTS.filter((b) => boostCount(b.id) > 0);
+    const chip = (id: string, label: string, on: boolean) =>
+      `<button type="button" class="den-pack${on ? ' on' : ''}" data-pack="${id}" aria-pressed="${on}">${label}</button>`;
+    const packRow = owned.length
+      ? `<div class="den-packs"><span>С собой на уровень:</span>${chip('', 'ничего', !den.packed)}${owned.map((b) => chip(b.id, b.name, den.packed === b.id)).join('')}</div>`
+      : '';
+    this.cardEl.innerHTML = `<div class="den-card-head"><h3>Котелок</h3></div>
+      <p>Усилитель действует один уровень: взятый с собой тратится, когда уровень начнётся. В Лесу дня усилители не действуют.</p>
+      ${packRow}<div class="den-items">${rows.join('')}</div>`;
   }
 
   /** Карточка самой норы: каким будет следующий уровень и что он стоит. */

@@ -24,10 +24,10 @@ import {
   welcomeNote,
 } from './journal';
 import type { LevelLayout } from './levels/generator';
-import { amount, materialOf } from './den/catalog';
+import { amount, boostById, HONEY_WIND, materialOf, type BoostId } from './den/catalog';
 import { DECOR } from './den/decor';
 import { clearUrl, snapshotFromUrl } from './den/snapshot';
-import { addMaterial, staminaWithPowers } from './den/state';
+import { addMaterial, staminaWithPowers, takePacked } from './den/state';
 import { completeDaily, completeLevel, dailyBest, daysPlayed, formatTime, markPlayedToday, progress, setCurrentLevel, todayKey, totalStars } from './levels/progress';
 import { QuestMarkers } from './levels/markers';
 import { fitQuest, QuestRun } from './levels/quests';
@@ -41,7 +41,23 @@ import { applySettings, pickPresetForDevice, settings } from './settings';
 import { Sparks } from './sparks';
 import { StarSky } from './starsky';
 import { BASE_STAMINA, CRYSTAL_ENERGY, DASH_COST } from './stamina';
-import { clearCombo, endCombo, say, setComboLeft, setCrystals, setEnergy, setHintLevel, setLevelTitle, setQuest, setupHud, showCameraMode, showCombo, tickFps } from './ui/hud';
+import {
+  clearCombo,
+  endCombo,
+  say,
+  setBoostLine,
+  setComboLeft,
+  setCrystals,
+  setEnergy,
+  setFirefly,
+  setHintLevel,
+  setLevelTitle,
+  setQuest,
+  setupHud,
+  showCameraMode,
+  showCombo,
+  tickFps,
+} from './ui/hud';
 import { setupFullscreen, toggleFullscreen } from './ui/fullscreen';
 import { MainMenu } from './ui/menu';
 import { activate, navigate, sendKey } from './ui/pad-nav';
@@ -49,7 +65,7 @@ import { DenScreen } from './ui/den';
 import { SelectScreen, starsMissing } from './ui/select';
 import { SettingsPanel } from './ui/settings-panel';
 import { continueTransition, isTransitioning, setTransitionText, transition } from './ui/transition';
-import { byId, plural } from './utils';
+import { byId, plural, wrapAngle } from './utils';
 import { wind } from './wind';
 import { World } from './world';
 
@@ -100,6 +116,10 @@ const combo = new Combo();
 /** «Ветер в спину» на длинной серии: во сколько раз быстрее бег и шаг. */
 const WIND_BOOST = 1.15;
 let markers: QuestMarkers | null = null;
+/** Усилитель из котелка, взятый на этот уровень. */
+let activeBoost: BoostId | null = null;
+/** Уровень ещё не начали играть: усилитель возьмётся с первым кадром игры, а не когда уровень построен для фона меню. */
+let boostPending = false;
 /** Материалов для норы подобрано на этом уровне. */
 let gathered = 0;
 /** Сколько материалов разложить на уровне: от и до. */
@@ -223,9 +243,16 @@ function tickQuest(dt: number, got: number[]): void {
   updateQuestHud();
 }
 
-/** Построить уровень (или «Лес дня» на дату dailyDate) и поставить героя на старт. */
-function beginLevel(index: number, dailyDate: string | null = null): void {
+/**
+ * Построить уровень (или «Лес дня» на дату dailyDate) и поставить героя на старт.
+ * Новый уровень берёт с собой усилитель из котелка; keepBoost — рестарт того же, усилитель остаётся прежний.
+ */
+function beginLevel(index: number, dailyDate: string | null = null, keepBoost = false): void {
   daily = dailyDate;
+  if (!keepBoost || daily) activeBoost = null;
+  boostPending = !daily && !keepBoost;
+  showBoost();
+  setFirefly(null);
   if (!daily) {
     level = index;
     setCurrentLevel(index);
@@ -326,14 +353,49 @@ function freeSpot(x: number, z: number): boolean {
   );
 }
 
-/** Запал с апгрейдами из норы; в Лесу дня у всех одинаковый — базовый. */
+/** Запал с апгрейдами из норы и усилителем уровня; в Лесу дня у всех одинаковый — базовый. */
 function applyStamina(): void {
   player.stamina = daily ? { ...BASE_STAMINA } : staminaWithPowers();
+  if (activeBoost === 'feather') player.stamina.glide = true;
+  player.regenScale = activeBoost === 'tea' ? 2 : 1;
   player.energy = Math.min(player.energy, player.stamina.max);
 }
 
+function showBoost(): void {
+  const boost = activeBoost && boostById(activeBoost);
+  setBoostLine(boost ? `${boost.name}: ${boost.desc[0].toLowerCase()}${boost.desc.slice(1)}` : null);
+}
+
+/** Уровень начался: взятый с собой усилитель тратится и сразу действует. */
+function startBoost(): void {
+  boostPending = false;
+  activeBoost = takePacked();
+  if (!activeBoost) return;
+  showBoost();
+  applyStamina();
+  player.energy = player.stamina.max;
+  if (activeBoost === 'honeycomb') wind.gustNow(1.1, 0.5);
+  say(`С собой: ${boostById(activeBoost)!.name}`, 2200);
+}
+
+/** Светлячок: направление на ближайший несобранный кристалл относительно камеры. */
+function updateFirefly(): void {
+  if (activeBoost !== 'firefly') return;
+  let best: Vector3 | null = null;
+  let bestD = Infinity;
+  for (const c of world.crystals) {
+    if (!c.mesh.isEnabled()) continue;
+    const d = Vector3.DistanceSquared(c.mesh.position, player.pos);
+    if (d < bestD) {
+      bestD = d;
+      best = c.mesh.position;
+    }
+  }
+  setFirefly(best && wrapAngle(Math.atan2(best.x - player.pos.x, best.z - player.pos.z) - rig.yaw));
+}
+
 function restartLevel(): void {
-  beginLevel(level, daily);
+  beginLevel(level, daily, true);
   resumeGame();
 }
 
@@ -668,10 +730,13 @@ world.scene.onBeforeRenderObservable.add(() => {
   }
 
   const active = !settingsPanel.isOpen && !isTransitioning();
+  if (active && boostPending) startBoost();
   if (active) levelTime += dt;
   const px = player.pos.x, pz = player.pos.z;
   const wasAir = !player.onGround, fallSpeed = -player.vel.y;
-  player.boost = combo.count >= WIND_FROM ? WIND_BOOST : 1;
+  // Ветер в спину — от длинной серии или от медовых сот в начале уровня
+  const honey = activeBoost === 'honeycomb' && levelTime < HONEY_WIND;
+  player.boost = combo.count >= WIND_FROM || honey ? WIND_BOOST : 1;
   player.update(dt, { yaw: rig.yaw, modeId: rig.mode.id }, active);
   if (active) {
     // Врезался в ствол или приземлился рядом — дерево вздрагивает и шелестит
@@ -701,6 +766,7 @@ world.scene.onBeforeRenderObservable.add(() => {
   if (player.boosted) audio.whoosh(1.4);
   if (player.denied) audio.thud();
   setEnergy(player.energy, player.stamina.max, DASH_COST, dt, player.denied);
+  updateFirefly();
   ripples.update(dt, player.pos, layout.waterLevel, world.waterDepth(player.pos.x, player.pos.z), -player.vel.y);
 
   const ended = combo.expire(levelTime);

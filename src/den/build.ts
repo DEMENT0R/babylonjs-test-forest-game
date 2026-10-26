@@ -2,7 +2,7 @@
 // Вещь строится вокруг своего начала координат; DenScreen ставит её в слот и поворачивает.
 
 import { Color3, Mesh, MeshBuilder, StandardMaterial, TransformNode, Vector3, type Scene } from '@babylonjs/core';
-import type { ItemId } from './catalog';
+import type { CropId, ItemId } from './catalog';
 
 type Rgb = readonly [r: number, g: number, b: number];
 
@@ -205,6 +205,54 @@ export class DenKit {
     }
     for (const m of meshes) m.isPickable = false;
     return { root, meshes };
+  }
+
+  // ---------- Урожай ----------
+
+  /**
+   * Куст шиповника, черничник или улей. fruits — ягоды или соты по местам:
+   * DenScreen включает столько, сколько созрело.
+   */
+  crop(id: CropId, color: Rgb, slots: number): Built & { fruits: Mesh[] } {
+    const s = this.scene;
+    const { root, meshes, add } = this.start(`den-crop-${id}`);
+    const fruits: Mesh[] = [];
+    if (id === 'honey') {
+      // Соломенный улей-колокол на пеньке, соты — на полочке рядом
+      add(MeshBuilder.CreateCylinder('hive-stump', { diameter: 0.7, height: 0.4, tessellation: 10 }, s), BARK, 0, 0.2, 0);
+      const straw: Rgb = [0.86, 0.68, 0.36];
+      for (let k = 0; k < 3; k++) {
+        const d = 0.9 - k * 0.2;
+        add(MeshBuilder.CreateTorus('hive-ring', { diameter: d * 0.82, thickness: 0.2, tessellation: 16 }, s), straw, 0, 0.52 + k * 0.17, 0);
+        add(MeshBuilder.CreateCylinder('hive-core', { diameter: d * 0.8, height: 0.18, tessellation: 14 }, s), straw, 0, 0.52 + k * 0.17, 0);
+      }
+      add(MeshBuilder.CreateSphere('hive-top', { diameter: 0.4, segments: 8, slice: 0.5 }, s), straw, 0, 0.96, 0);
+      add(MeshBuilder.CreateDisc('hive-door', { radius: 0.07, tessellation: 10 }, s), DARK, 0, 0.5, -0.39);
+      add(MeshBuilder.CreateBox('hive-shelf', { width: 0.9, height: 0.06, depth: 0.32 }, s), WOOD, -0.85, 0.36, 0);
+      for (const x of [-1.2, -0.5]) add(MeshBuilder.CreateBox('hive-leg', { width: 0.06, height: 0.36, depth: 0.06 }, s), WOOD, x, 0.18, 0);
+      for (let k = 0; k < slots; k++) {
+        const f = add(MeshBuilder.CreateCylinder('honey', { diameter: 0.2, height: 0.14, tessellation: 6 }, s), color, -1.15 + k * 0.22, 0.46, 0, 0.35);
+        fruits.push(f);
+      }
+    } else {
+      // Куст: несколько шаров листвы; ягоды — по его поверхности, обращённой к камере
+      const low = id === 'berry';
+      const leaf: Rgb = low ? [0.2, 0.42, 0.24] : LEAF;
+      const parts = low
+        ? [[0, 0.32, 0, 0.8], [0.4, 0.26, 0.1, 0.6], [-0.4, 0.26, 0.05, 0.6]]
+        : [[0, 0.55, 0, 1], [0.35, 0.4, 0.15, 0.7], [-0.35, 0.42, 0.1, 0.7], [0, 0.95, 0.05, 0.6]];
+      for (const [x, y, z, d] of parts) {
+        const m = add(MeshBuilder.CreateSphere('bush', { diameter: d, segments: 8 }, s), leaf, x, y, z);
+        m.scaling.y = low ? 0.7 : 0.9;
+      }
+      for (let k = 0; k < slots * 3; k++) {
+        const a = -Math.PI / 2 + (k - (slots * 3 - 1) / 2) * 0.42;
+        const y = (low ? 0.3 : 0.5) + ((k * 37) % 5) * (low ? 0.04 : 0.08);
+        const r = (low ? 0.48 : 0.55) + ((k * 13) % 3) * 0.04;
+        fruits.push(add(MeshBuilder.CreateSphere('berry', { diameter: low ? 0.1 : 0.12, segments: 6 }, s), color, Math.cos(a) * r, y, Math.sin(a) * r, 0.25));
+      }
+    }
+    return { root, meshes, fruits };
   }
 
   // ---------- Вещи ----------

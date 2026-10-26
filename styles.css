@@ -137,6 +137,9 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump,body[data-
 }
 
 #portal-hint{color:var(--muted)}
+.boost-line{font:600 11px var(--f-mono);color:var(--accent);margin-top:3px}
+#firefly{position:fixed;left:50%;top:26%;width:28px;height:28px;color:#e8ff9a;filter:drop-shadow(0 0 6px rgba(220,255,120,.9)) drop-shadow(0 1px 3px rgba(0,0,0,.6));pointer-events:none;transform:translateX(-50%)}
+#firefly[hidden]{display:none}
 #portal-hint.open{color:var(--accent)}
 
 /* Level transition */
@@ -246,6 +249,11 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump,body[data-
 .den-item.on em{color:var(--ink)}
 .den-item.off em{color:var(--muted)}
 .den-tier{grid-column:1/-1}
+/* Котелок: какой усилитель взять с собой — переключатель из кнопок-фишек */
+.den-packs{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 8px;font:400 12px var(--f-mono);color:var(--muted)}
+.den-pack{background:transparent;border:1px solid var(--line);border-radius:999px;padding:3px 10px;font:600 11px var(--f-mono);cursor:pointer}
+.den-pack.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.den-pack:is(:hover,:focus-visible){border-color:var(--accent)}
 .den-tier span{flex:1}
 .den-tier em{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
 .den-tier em i{font-style:normal}

@@ -30,17 +30,74 @@ export const MATERIALS: readonly MaterialDef[] = [
 export const materialById = (id: string): MaterialDef | undefined => MATERIALS.find((m) => m.id === id);
 export const materialOf = (biome: BiomeId): MaterialDef => MATERIALS.find((m) => m.biome === biome)!;
 /** «3 шишки». */
-export const amount = (m: MaterialDef, n: number): string => `${n} ${plural(n, ...m.forms)}`;
+export const amount = (m: { forms: readonly [string, string, string] }, n: number): string => `${n} ${plural(n, ...m.forms)}`;
 
-/** Цена: кристаллы из общего счёта и материалы. */
-export interface Cost { crystals: number; mats?: Partial<Record<MaterialId, number>> }
+/** Цена: кристаллы из общего счёта, материалы и урожай со двора. */
+export interface Cost { crystals: number; mats?: Partial<Record<MaterialId, number>>; crops?: Partial<Record<CropId, number>> }
 
-/** «✦ 20 · 2 шишки». */
+/** «✦ 20 · 2 шишки · 1 горсть шиповника»; без кристаллов — без «✦ 0». */
 export function costText(cost: Cost): string {
-  const parts = [`✦ ${cost.crystals}`];
+  const parts = cost.crystals || !cost.mats && !cost.crops ? [`✦ ${cost.crystals}`] : [];
   for (const [id, n] of Object.entries(cost.mats ?? {})) parts.push(amount(materialById(id)!, n));
+  for (const [id, n] of Object.entries(cost.crops ?? {})) parts.push(amount(cropById(id)!, n));
   return parts.join(' · ');
 }
+
+// ---------- Урожай во дворе ----------
+
+export type CropId = 'rosehip' | 'berry' | 'honey';
+
+/** Урожай: растёт во дворе сам, в реальном времени, пока игрока нет. */
+export interface CropDef {
+  id: CropId;
+  /** Во множественном числе, с большой буквы — для кошелька. */
+  name: string;
+  forms: readonly [one: string, few: string, many: string];
+  /** Где растёт: куст или улей. */
+  source: string;
+  /** С какого уровня норы растёт. */
+  tier: number;
+  color: readonly [r: number, g: number, b: number];
+  /** Место во дворе. */
+  x: number;
+  z: number;
+}
+
+export const CROPS: readonly CropDef[] = [
+  { id: 'rosehip', name: 'Шиповник', forms: ['горсть шиповника', 'горсти шиповника', 'горстей шиповника'], source: 'Куст шиповника', tier: 0, color: [0.86, 0.22, 0.14], x: -4.6, z: 6.2 },
+  { id: 'berry', name: 'Черника', forms: ['горсть черники', 'горсти черники', 'горстей черники'], source: 'Черничник', tier: 1, color: [0.25, 0.3, 0.62], x: 3.9, z: 2.8 },
+  { id: 'honey', name: 'Мёд', forms: ['сота с мёдом', 'соты с мёдом', 'сот с мёдом'], source: 'Улей', tier: 2, color: [1, 0.72, 0.18], x: 4.9, z: 4.6 },
+];
+
+export const cropById = (id: string): CropDef | undefined => CROPS.find((c) => c.id === id);
+/** Урожай вырастает раз в CROP_GROW_MS и ждёт сбора; на кусте помещается CROP_CAP, у большой норы — на один больше. */
+export const CROP_GROW_MS = 2 * 3600_000;
+export const CROP_CAP = 3;
+
+// ---------- Котелок: усилители на один уровень ----------
+
+export type BoostId = 'tea' | 'honeycomb' | 'firefly' | 'feather';
+
+export interface BoostDef {
+  id: BoostId;
+  name: string;
+  /** Одним словом — для кнопки «Котелок». */
+  short: string;
+  desc: string;
+  cost: Cost;
+}
+
+/** Сколько секунд в начале уровня дует ветер в спину от медовых сот. */
+export const HONEY_WIND = 20;
+
+export const BOOSTS: readonly BoostDef[] = [
+  { id: 'tea', name: 'Шиповниковый отвар', short: 'отвар', desc: 'Запал восстанавливается вдвое быстрее', cost: { crystals: 5, crops: { rosehip: 2 }, mats: { cone: 1 } } },
+  { id: 'honeycomb', name: 'Медовые соты', short: 'соты', desc: `Первые ${HONEY_WIND} секунд — ветер в спину`, cost: { crystals: 5, crops: { honey: 1 }, mats: { acorn: 1 } } },
+  { id: 'firefly', name: 'Светлячок в банке', short: 'светлячок', desc: 'Стрелка показывает на ближайший кристалл', cost: { crystals: 5, crops: { berry: 2 }, mats: { pebble: 1 } } },
+  { id: 'feather', name: 'Совиное перо', short: 'перо', desc: 'Планирование на весь уровень, даже без апгрейда', cost: { crystals: 5, crops: { berry: 1, rosehip: 1 }, mats: { feather: 1 } } },
+];
+
+export const boostById = (id: string): BoostDef | undefined => BOOSTS.find((b) => b.id === id);
 
 /** Уровень норы: что она собой представляет и сколько стоит до него дорасти. */
 export interface TierDef {

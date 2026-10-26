@@ -118,6 +118,30 @@ export function setEnergy(value: number, max: number, dashCost: number, dt: numb
   }
 }
 
+const boostEl = byId('boost-line');
+const fireflyEl = byId('firefly');
+let fireflyAngle: number | null = null;
+
+/** Строка усилителя под заданием; null — усилителя на уровне нет. */
+export function setBoostLine(text: string | null): void {
+  boostEl.hidden = !text;
+  boostEl.textContent = text ? `✦ ${text}` : '';
+}
+
+/** Стрелка светлячка: угол на кристалл от направления камеры (по часовой); null — спрятать. */
+export function setFirefly(angle: number | null): void {
+  if (angle === null) {
+    fireflyEl.hidden = true;
+    fireflyAngle = null;
+    return;
+  }
+  fireflyEl.hidden = false;
+  // Поворот меньше градуса не стоит перерисовки
+  if (fireflyAngle !== null && Math.abs(angle - fireflyAngle) < 0.015) return;
+  fireflyAngle = angle;
+  fireflyEl.style.transform = `translateX(-50%) rotate(${angle.toFixed(3)}rad)`;
+}
+
 export function setLevelTitle(text: string): void {
   levelTitle.textContent = text;
 }

@@ -7,7 +7,12 @@ import { BASE_STAMINA, type Stamina } from '../stamina';
 import { clamp } from '../utils';
 import {
   amount,
+  BOOSTS,
   CAPACITY,
+  cropById,
+  CROP_CAP,
+  CROP_GROW_MS,
+  CROPS,
   itemById,
   materialById,
   MATERIALS,
@@ -15,7 +20,11 @@ import {
   REGEN_STEP,
   slotById,
   TIERS,
+  type BoostDef,
+  type BoostId,
   type Cost,
+  type CropDef,
+  type CropId,
   type ItemDef,
   type ItemId,
   type MaterialId,
@@ -37,6 +46,25 @@ export interface DenState {
   mats: Partial<Record<MaterialId, number>>;
   /** Апгрейды запала: сколько ступеней куплено. */
   power: Partial<Record<PowerId, number>>;
+  /** Урожай на кустах и в улье: сколько ждёт сбора и с какого момента растёт следующий. */
+  crops: Partial<Record<CropId, { ready: number; since: number }>>;
+  /** Собранный урожай на руках. */
+  stock: Partial<Record<CropId, number>>;
+  /** Сваренные усилители. */
+  boosts: Partial<Record<BoostId, number>>;
+  /** Усилитель, который возьмётся с собой на следующий уровень. */
+  packed: BoostId | null;
+}
+
+/** Целое неотрицательное число из сохранения. */
+const count = (v: unknown): number => Math.max(0, Math.floor(Number(v) || 0));
+
+/** Словарь «id → число» из сохранения: только известные id и только положительные. */
+function counts<K extends string>(raw: unknown, ids: readonly { id: K }[]): Partial<Record<K, number>> {
+  const out: Partial<Record<K, number>> = {};
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  for (const { id } of ids) if (count(r[id]) > 0) out[id] = count(r[id]);
+  return out;
 }
 
 const KEY = 'tihaya-polyana-den';
@@ -62,12 +90,19 @@ function load(): DenState {
         const n = clamp(Math.floor(Number(d.power?.[p.id]) || 0), 0, p.steps.length);
         if (n > 0) power[p.id] = n;
       }
-      return { v: 1, tier, owned, slots, spent: Math.max(0, Number(d.spent) || 0), mats, power };
+      const crops: DenState['crops'] = {};
+      for (const c of CROPS) {
+        const g = d.crops?.[c.id];
+        if (g && typeof g === 'object') crops[c.id] = { ready: count(g.ready), since: Number(g.since) || Date.now() };
+      }
+      const boosts = counts(d.boosts, BOOSTS);
+      const packed = d.packed && boosts[d.packed] ? d.packed : null;
+      return { v: 1, tier, owned, slots, spent: Math.max(0, Number(d.spent) || 0), mats, power, crops, stock: counts(d.stock, CROPS), boosts, packed };
     }
   } catch {
     // Повреждённые данные — нора начинается с пустого двора
   }
-  return { v: 1, tier: 0, owned: [], slots: {}, spent: 0, mats: {}, power: {} };
+  return { v: 1, tier: 0, owned: [], slots: {}, spent: 0, mats: {}, power: {}, crops: {}, stock: {}, boosts: {}, packed: null };
 }
 
 export const den: DenState = load();
@@ -96,6 +131,10 @@ export function shortOf(cost: Cost): string[] {
     const lack = n - matCount(id as MaterialId);
     if (lack > 0) out.push(amount(materialById(id)!, lack));
   }
+  for (const [id, n] of Object.entries(cost.crops ?? {})) {
+    const lack = n - stockOf(id as CropId);
+    if (lack > 0) out.push(amount(cropById(id)!, lack));
+  }
   return out;
 }
 
@@ -106,6 +145,7 @@ function pay(cost: Cost): boolean {
   if (!canAfford(cost)) return false;
   den.spent += cost.crystals;
   for (const [id, n] of Object.entries(cost.mats ?? {})) den.mats[id as MaterialId] = matCount(id as MaterialId) - n;
+  for (const [id, n] of Object.entries(cost.crops ?? {})) den.stock[id as CropId] = stockOf(id as CropId) - n;
   return true;
 }
 
@@ -172,6 +212,87 @@ export function staminaWithPowers(): Stamina {
     double: powerLevel('double') > 0,
     glide: powerLevel('glide') > 0,
   };
+}
+
+// ---------- Урожай и котелок ----------
+
+export const stockOf = (id: CropId): number => den.stock[id] ?? 0;
+
+/** Урожай растёт у нынешней норы. */
+export const cropOpen = (c: CropDef): boolean => c.tier <= den.tier;
+
+/** Сколько урожая помещается на кусте: у большой норы — на один больше. */
+export const cropCap = (): number => CROP_CAP + (den.tier >= 3 ? 1 : 0);
+
+/**
+ * Досчитать, что выросло на кустах с прошлого раза, — как сад кристаллов:
+ * полный куст не растёт, отсчёт следующего начнётся после сбора.
+ */
+export function growCrops(): void {
+  const now = Date.now();
+  const cap = cropCap();
+  for (const c of CROPS) {
+    if (!cropOpen(c)) continue;
+    const g = (den.crops[c.id] ??= { ready: 0, since: now });
+    if (g.ready >= cap) {
+      g.since = now;
+      continue;
+    }
+    const grown = Math.floor((now - g.since) / CROP_GROW_MS);
+    if (grown > 0) {
+      g.ready = Math.min(cap, g.ready + grown);
+      g.since = g.ready >= cap ? now : g.since + grown * CROP_GROW_MS;
+    }
+  }
+  save();
+}
+
+export const cropReady = (id: CropId): number => den.crops[id]?.ready ?? 0;
+
+/** Собрать весь урожай; возвращает, сколько чего собрано. */
+export function harvestCrops(): Partial<Record<CropId, number>> {
+  const got: Partial<Record<CropId, number>> = {};
+  const cap = cropCap();
+  for (const c of CROPS) {
+    const g = den.crops[c.id];
+    if (!g?.ready) continue;
+    if (g.ready >= cap) g.since = Date.now();
+    got[c.id] = g.ready;
+    den.stock[c.id] = stockOf(c.id) + g.ready;
+    g.ready = 0;
+  }
+  save();
+  return got;
+}
+
+export const boostCount = (id: BoostId): number => den.boosts[id] ?? 0;
+
+/** Сварить усилитель; false — не хватило. Первый сваренный сразу берётся с собой. */
+export function brew(b: BoostDef): boolean {
+  if (!pay(b.cost)) return false;
+  den.boosts[b.id] = boostCount(b.id) + 1;
+  den.packed ??= b.id;
+  save();
+  return true;
+}
+
+/** Взять усилитель с собой на следующий уровень; null — ничего не брать. */
+export function pack(id: BoostId | null): void {
+  den.packed = id && boostCount(id) > 0 ? id : null;
+  save();
+}
+
+/** Уровень начинается: взятый с собой усилитель тратится; кончились — больше не берётся. */
+export function takePacked(): BoostId | null {
+  const id = den.packed;
+  if (!id || boostCount(id) <= 0) return null;
+  den.boosts[id] = boostCount(id) - 1;
+  if (!den.boosts[id]) {
+    delete den.boosts[id];
+    den.packed = null;
+  }
+  save();
+  return id;
 }
 
 /** Освободить место. */
