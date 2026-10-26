@@ -233,6 +233,8 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump,body[data-
 .den-chip.zero{opacity:.55}
 .den-bottom{display:flex;flex-direction:column;gap:10px;align-items:center;width:100%;max-width:720px;margin:0 auto}
 .den-card{width:100%;background:var(--panel-hi);border:1px solid var(--line);border-radius:12px;padding:12px 14px;backdrop-filter:blur(8px);pointer-events:auto;max-height:38vh;overflow:auto;overscroll-behavior:contain}
+.den-card.tall{max-height:66vh}
+.den-card .share-qr .qr{width:min(230px,58vw,40vh)}
 .den-card-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:8px}
 .den-card h3{margin:0;font:700 15px var(--f-display)}
 .den-card p{margin:0 0 8px;font:400 12px/1.55 var(--f-mono);color:var(--muted)}

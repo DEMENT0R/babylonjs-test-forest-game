@@ -70,6 +70,7 @@ import { ANNEX, DenKit, MOUND, type Built } from '../den/build';
 import { ClearingDecor } from '../den/decor';
 import { clearUrl, shareUrl, snapshot, type DenSnapshot } from '../den/snapshot';
 import { copyText } from '../share';
+import { qrSvg } from '../qr';
 import { addShade, gardenShade, growGarden, harvestGarden, journal, SHADES } from '../journal';
 import { GrassField } from '../grass';
 import { BIOMES, type Biome, type BiomeId } from '../levels/biomes';
@@ -95,9 +96,13 @@ const YARD = { z: 0.6, rx: 5.2, rz: 4.6 };
 
 interface GardenCrystal { mesh: Mesh; baseY: number; phase: number; shade: BiomeId }
 
-/** Остановки панели, которые не места во дворе: «Сила» — апгрейды запала, «Котелок» — усилители. */
-type Page = 'power' | 'kettle';
+/**
+ * Страницы панели, которые не места во дворе: «Сила» — апгрейды запала, «Котелок» — усилители
+ * (по ним ходят Q/E), и приглашение в гости с QR-кодом — по кнопке «Позвать в гости».
+ */
+type Page = 'power' | 'kettle' | 'invite';
 const PAGES: readonly Page[] = ['power', 'kettle'];
+const COPY_LABEL = 'Скопировать ссылку ⧉';
 /** Сколько ягод на кусте — одна горсть урожая; соты — по одной. */
 const fruitsPer = (id: CropId): number => (id === 'honey' ? 1 : 3);
 const isPage = (id: string | undefined): id is Page => PAGES.includes(id as Page);
@@ -242,7 +247,7 @@ export class DenScreen {
       if (this.garden.length) this.harvest(0);
     });
     this.cropsBtn.addEventListener('click', () => this.harvestCrops());
-    this.shareBtn.addEventListener('click', () => void this.share());
+    this.shareBtn.addEventListener('click', () => this.invite());
     byId('den-own').addEventListener('click', () => this.open());
     this.slotsEl.addEventListener('click', (e) => {
       const b = (e.target as HTMLElement).closest<HTMLElement>('[data-slot]');
@@ -254,6 +259,9 @@ export class DenScreen {
       if (b.dataset.item) this.take(itemById(b.dataset.item)!);
       else if (b.dataset.power) this.buyPower(powerById(b.dataset.power)!);
       else if (b.dataset.brew) this.brew(boostById(b.dataset.brew)!);
+      else if (b.dataset.copyInvite !== undefined) void this.copyInvite(b);
+      else if (b.dataset.nativeShare !== undefined) navigator.share({ title: 'Моя нора · Тихая поляна', url: shareUrl(snapshot(daysPlayed())) }).catch(() => {});
+      else if (b.dataset.closeInvite !== undefined) this.choose(null, true);
       else if (b.dataset.pack !== undefined) {
         pack(boostById(b.dataset.pack)?.id ?? null);
         this.render(`pack-${b.dataset.pack}`);
@@ -364,11 +372,23 @@ export class DenScreen {
     for (const c of this.garden) c.mesh.setEnabled(!this.guest);
   }
 
+  /** «Позвать в гости»: карточка с QR-кодом ссылки на нору; второе нажатие её закрывает. */
+  private invite(): void {
+    if (this.page === 'invite') {
+      this.choose(null);
+      return;
+    }
+    this.sel = null;
+    this.page = 'invite';
+    this.render();
+    this.root.querySelector<HTMLElement>('[data-copy-invite]')?.focus();
+  }
+
   /** Ссылка на свою нору — в буфер обмена; отклик на самой кнопке. */
-  private async share(): Promise<void> {
+  private async copyInvite(btn: HTMLElement): Promise<void> {
     const ok = await copyText(shareUrl(snapshot(daysPlayed())));
-    this.shareBtn.textContent = ok ? 'Ссылка скопирована ✓' : 'Не удалось скопировать';
-    setTimeout(() => (this.shareBtn.textContent = 'Позвать в гости ⧉'), 2500);
+    btn.textContent = ok ? 'Скопировано ✓' : 'Не удалось скопировать';
+    setTimeout(() => (btn.textContent = COPY_LABEL), 2500);
   }
 
   /** Место открыто в той норе, что сейчас во дворе. */
@@ -621,6 +641,9 @@ export class DenScreen {
 
   /** Шапка, места и карточка выбранного места; focusId — вернуть фокус на эту кнопку. */
   private render(focusId?: string): void {
+    // QR-коду нужно место: карточка приглашения выше обычной
+    this.cardEl.classList.toggle('tall', this.page === 'invite' && !this.guest);
+    this.shareBtn.setAttribute('aria-pressed', String(this.page === 'invite'));
     byId('den-wallet').innerHTML =
       `<span class="den-chip" title="Кристаллы">✦ ${crystals()}</span>` +
       MATERIALS.map((m) => {
@@ -664,6 +687,11 @@ export class DenScreen {
     if (this.page === 'power') {
       this.renderPower();
       if (focusId) this.root.querySelector<HTMLElement>(`[data-power="${focusId}"]`)?.focus();
+      this.bandDirty = true;
+      return;
+    }
+    if (this.page === 'invite') {
+      this.renderInvite();
       this.bandDirty = true;
       return;
     }
@@ -723,6 +751,23 @@ export class DenScreen {
     this.cardEl.innerHTML = `<div class="den-card-head"><h3>Сила</h3></div>
       <p>Запал тратится на рывок и высокий прыжок. Апгрейды работают на всех уровнях, кроме Леса дня — там у всех одинаково.</p>
       <div class="den-items">${rows.join('')}</div>`;
+  }
+
+  /**
+   * Приглашение: QR-код ссылки на нору такой, какая она сейчас, — показать другу с экрана.
+   * Ссылка хранит снимок, поэтому после перемен во дворе код меняется.
+   */
+  private renderInvite(): void {
+    const url = shareUrl(snapshot(daysPlayed()));
+    this.cardEl.innerHTML = `<div class="den-card-head"><h3>Позвать в гости</h3><button type="button" class="link" data-close-invite>закрыть</button></div>
+      <div class="share-qr">
+        ${qrSvg(url, 'QR-код ссылки на твою нору')}
+        <p>Друг наведёт камеру телефона на код — и увидит твою нору такой, какая она сейчас. Поменяешь что-то во дворе — покажи код заново.</p>
+        <div class="btn-row">
+          <button type="button" class="small-btn" data-copy-invite>${COPY_LABEL}</button>
+          ${'share' in navigator ? '<button type="button" class="small-btn" data-native-share>Отправить…</button>' : ''}
+        </div>
+      </div>`;
   }
 
   /**
