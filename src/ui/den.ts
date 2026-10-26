@@ -20,8 +20,8 @@ import {
   type Mesh,
   type Node,
 } from '@babylonjs/core';
-import { costText, itemById, itemsFor, materialById, MATERIALS, slotById, SLOTS, TIERS, type Cost, type ItemDef, type SlotDef } from '../den/catalog';
-import { buy, canAfford, clearSlot, crystals, den, matCount, nextTier, shortOf, upgrade } from '../den/state';
+import { CAPACITY, costText, itemById, itemsFor, materialById, MATERIALS, powerById, POWERS, slotById, SLOTS, TIERS, type Cost, type ItemDef, type PowerDef, type SlotDef } from '../den/catalog';
+import { buy, buyPower, canAfford, clearSlot, crystals, den, matCount, nextTier, powerLevel, shortOf, upgrade } from '../den/state';
 import { ANNEX, DenKit, MOUND, type Built } from '../den/build';
 import { ClearingDecor } from '../den/decor';
 import { clearUrl, shareUrl, snapshot, type DenSnapshot } from '../den/snapshot';
@@ -50,6 +50,11 @@ const GARDEN = { x: -3.6, z: 4.2 };
 const YARD = { z: 0.6, rx: 5.2, rz: 4.6 };
 
 interface GardenCrystal { mesh: Mesh; baseY: number; phase: number; shade: BiomeId }
+
+/** Остановки панели, которые не места во дворе: «Сила» — апгрейды запала. */
+type Page = 'power';
+const PAGES: readonly Page[] = ['power'];
+const isPage = (id: string | undefined): id is Page => PAGES.includes(id as Page);
 
 export interface DenActions {
   onBack: () => void;
@@ -90,8 +95,9 @@ export class DenScreen {
   private view: DenSnapshot = snapshot(daysPlayed());
   /** В гостях: всё только посмотреть. */
   private guest = false;
-  /** Выбранное место; null — сама нора: карточка улучшения. */
+  /** Выбранное место; null — сама нора: карточка улучшения, или страница page. */
   private sel: SlotDef | null = null;
+  private page: Page | null = null;
   private active = false;
   private t = 0;
   /** Свободная полоса экрана между шапкой и панелью — туда камера ставит двор. */
@@ -186,12 +192,13 @@ export class DenScreen {
     byId('den-own').addEventListener('click', () => this.open());
     this.slotsEl.addEventListener('click', (e) => {
       const b = (e.target as HTMLElement).closest<HTMLElement>('[data-slot]');
-      if (b) this.choose(slotById(b.dataset.slot!) ?? null);
+      if (b) this.chooseKey(b.dataset.slot!);
     });
     this.cardEl.addEventListener('click', (e) => {
       const b = (e.target as HTMLElement).closest<HTMLElement>('button');
       if (!b) return;
       if (b.dataset.item) this.take(itemById(b.dataset.item)!);
+      else if (b.dataset.power) this.buyPower(powerById(b.dataset.power)!);
       else if (b.dataset.upgrade !== undefined) this.upgrade();
       else if (b.dataset.clear && this.sel) {
         clearSlot(this.sel.id);
@@ -265,6 +272,7 @@ export class DenScreen {
     this.bandDirty = true;
     this.camera.attachControl(true);
     this.sel = null;
+    this.page = null;
     this.show(guest ?? snapshot(daysPlayed()));
     if (!this.guest) this.grow();
     this.render();
@@ -317,18 +325,35 @@ export class DenScreen {
     }
   }
 
-  /** Соседняя остановка по кругу: нора, потом открытые места. */
+  /** Соседняя остановка по кругу: нора, сила, потом открытые места. */
   cycle(delta: number): void {
     if (this.guest) return;
-    const list = [null, ...SLOTS.filter((s) => this.isOpen(s))];
-    const i = list.indexOf(this.sel);
-    this.choose(list[(i + delta + list.length) % list.length], true);
+    const list = ['home', ...PAGES, ...SLOTS.filter((s) => this.isOpen(s)).map((s) => s.id)];
+    const i = list.indexOf(this.key);
+    this.chooseKey(list[(i + delta + list.length) % list.length], true);
+  }
+
+  /** Что выбрано: 'home', страница или id места — как data-slot у кнопок. */
+  private get key(): string {
+    return this.page ?? this.sel?.id ?? 'home';
+  }
+
+  private chooseKey(key: string, focus = false): void {
+    if (isPage(key)) {
+      this.sel = null;
+      this.page = key;
+      this.render();
+      if (focus) this.slotsEl.querySelector<HTMLElement>(`[data-slot="${key}"]`)?.focus();
+    } else {
+      this.choose(slotById(key) ?? null, focus);
+    }
   }
 
   private choose(s: SlotDef | null, focus = false): void {
     this.sel = s && this.isOpen(s) ? s : null;
+    this.page = null;
     this.render();
-    if (focus) this.slotsEl.querySelector<HTMLElement>(`[data-slot="${this.sel?.id ?? 'home'}"]`)?.focus();
+    if (focus) this.slotsEl.querySelector<HTMLElement>(`[data-slot="${this.key}"]`)?.focus();
   }
 
   private buildShell(): Built {
@@ -433,6 +458,23 @@ export class DenScreen {
     this.render(item.id);
   }
 
+  /** Купить следующую ступень апгрейда запала. */
+  private buyPower(p: PowerDef): void {
+    const step = p.steps[powerLevel(p.id)];
+    if (!step) return;
+    if (den.tier < p.tier) {
+      say(`Откроется, когда нора станет «${TIERS[p.tier].name}»`, 2500);
+      return;
+    }
+    if (!buyPower(p)) {
+      this.lacking(step.cost);
+      return;
+    }
+    this.actions.chime();
+    say(`${p.name}: ${step.desc[0].toLowerCase()}${step.desc.slice(1)}`, 2500);
+    this.render(p.id);
+  }
+
   /** Пересобрать вещь в месте s по сохранению. */
   private rebuild(s: SlotDef): void {
     this.built.get(s.id)?.root.dispose();
@@ -474,13 +516,20 @@ export class DenScreen {
     const next = nextTier();
     const open = SLOTS.filter((s) => this.isOpen(s));
     this.slotsEl.innerHTML =
-      `<button type="button" data-slot="home" aria-pressed="${this.sel === null}"><b>Нора</b><small>${next ? 'улучшить' : 'самая большая'}</small></button>` +
+      `<button type="button" data-slot="home" aria-pressed="${this.key === 'home'}"><b>Нора</b><small>${next ? 'улучшить' : 'самая большая'}</small></button>` +
+      `<button type="button" data-slot="power" aria-pressed="${this.page === 'power'}"><b>Сила</b><small>запал ${CAPACITY[powerLevel('cap')]}</small></button>` +
       open
         .map((s) => {
           const item = den.slots[s.id] && itemById(den.slots[s.id]!);
           return `<button type="button" data-slot="${s.id}" aria-pressed="${s === this.sel}"><b>${s.name}</b><small>${item ? item.name : 'пусто'}</small></button>`;
         })
         .join('');
+    if (this.page === 'power') {
+      this.renderPower();
+      if (focusId) this.root.querySelector<HTMLElement>(`[data-power="${focusId}"]`)?.focus();
+      this.bandDirty = true;
+      return;
+    }
     if (!this.sel) {
       this.renderHome();
       if (focusId) this.root.querySelector<HTMLElement>('[data-upgrade]')?.focus();
@@ -514,6 +563,25 @@ export class DenScreen {
       }</p><p>Свою нору можно обустроить за кристаллы и находки с уровней.</p>`;
   }
 
+  /** «Сила»: апгрейды запала — следующая ступень каждого и её цена. */
+  private renderPower(): void {
+    const rows = POWERS.map((p) => {
+      const n = powerLevel(p.id);
+      const step = p.steps[n];
+      const steps = p.steps.length > 1 ? ` · ${n} из ${p.steps.length}` : '';
+      if (!step) {
+        return `<div class="den-item den-tier on"><span><b>${p.name}${steps}</b><small>${p.steps[n - 1].desc}</small></span><em>есть</em></div>`;
+      }
+      const locked = den.tier < p.tier;
+      const off = locked || !canAfford(step.cost);
+      const price = locked ? `<i>нора: «${TIERS[p.tier].name}»</i>` : priceHtml(step.cost);
+      return `<button type="button" class="den-item den-tier${off ? ' off' : ''}" data-power="${p.id}"><span><b>${p.name}${steps}</b><small>${step.desc}</small></span><em>${price}</em></button>`;
+    });
+    this.cardEl.innerHTML = `<div class="den-card-head"><h3>Сила</h3></div>
+      <p>Запал тратится на рывок и высокий прыжок. Апгрейды работают на всех уровнях, кроме Леса дня — там у всех одинаково.</p>
+      <div class="den-items">${rows.join('')}</div>`;
+  }
+
   /** Карточка самой норы: каким будет следующий уровень и что он стоит. */
   private renderHome(): void {
     const next = nextTier();
@@ -526,10 +594,7 @@ export class DenScreen {
     const off = !canAfford(next.cost);
     this.cardEl.innerHTML = `<div class="den-card-head"><h3>Нора · ${den.tier + 1} из ${TIERS.length}</h3></div>
       <div class="den-items"><button type="button" class="den-item den-tier${off ? ' off' : ''}" data-upgrade>
-        <span><b>${next.name}</b><small>${next.desc}${opens.length ? ` · новые места: ${opens.join(', ')}` : ''}</small></span><em>${costText(next.cost)
-          .split(' · ')
-          .map((p) => `<i>${p}</i>`)
-          .join('')}</em></button></div>`;
+        <span><b>${next.name}</b><small>${next.desc}${opens.length ? ` · новые места: ${opens.join(', ')}` : ''}</small></span><em>${priceHtml(next.cost)}</em></button></div>`;
   }
 
   private measureBand(): void {
@@ -556,7 +621,7 @@ export class DenScreen {
     const byHeight = 4.2 / (tanHalf * Math.max(0.25, this.band.size));
     const dist = clamp(Math.max(byWidth, byHeight), 11, 34);
     cam.radius += (dist - cam.radius) * damp(4, dt);
-    const focus = this.sel ?? { x: 0, z: 3.5 };
+    const focus = this.sel ?? { x: 0, z: this.page ? 4.5 : 3.5 };
     const tx = focus.x * 0.3, tz = 1.8 + (focus.z - 1.8) * 0.25;
     cam.target.x += (tx - cam.target.x) * damp(3, dt);
     cam.target.z += (tz - cam.target.z) * damp(3, dt);
@@ -574,6 +639,14 @@ export class DenScreen {
       c.mesh.position.y = c.baseY + Math.sin(c.phase * 2) * 0.1;
     }
   }
+}
+
+/** Цена столбиком: кристаллы и каждый материал — своей строкой. */
+function priceHtml(cost: Cost): string {
+  return costText(cost)
+    .split(' · ')
+    .map((p) => `<i>${p}</i>`)
+    .join('');
 }
 
 /** Лес кольцом вокруг поляны и большая сосна над норой. */

@@ -120,6 +120,62 @@ export const ITEMS: readonly ItemDef[] = [
   },
 ];
 
+// ---------- Сила: апгрейды запала ----------
+
+export type PowerId = 'cap' | 'regen' | 'double' | 'glide';
+
+/** Ступень апгрейда: что она даёт и сколько стоит. */
+export interface PowerStep { desc: string; cost: Cost }
+
+export interface PowerDef {
+  id: PowerId;
+  name: string;
+  /** С какого уровня норы апгрейд можно купить. */
+  tier: number;
+  steps: readonly PowerStep[];
+}
+
+/** Ёмкость запала и множитель восстановления по ступеням — с нулевой, базовой. */
+export const CAPACITY = [100, 130, 160, 200] as const;
+export const REGEN_STEP = 0.2;
+
+export const POWERS: readonly PowerDef[] = [
+  {
+    id: 'cap',
+    name: 'Выносливость',
+    tier: 0,
+    steps: [
+      { desc: `Запала ${CAPACITY[1]} вместо ${CAPACITY[0]}`, cost: { crystals: 30, mats: { cone: 2 } } },
+      { desc: `Запала ${CAPACITY[2]}`, cost: { crystals: 60, mats: { acorn: 3 } } },
+      { desc: `Запала ${CAPACITY[3]}`, cost: { crystals: 100, mats: { pebble: 3, icicle: 2 } } },
+    ],
+  },
+  {
+    id: 'regen',
+    name: 'Второе дыхание',
+    tier: 0,
+    steps: [
+      { desc: 'Запал восстанавливается на 20% быстрее', cost: { crystals: 25, mats: { cone: 1 } } },
+      { desc: 'На 40% быстрее', cost: { crystals: 50, mats: { acorn: 2 } } },
+      { desc: 'На 60% быстрее', cost: { crystals: 90, mats: { shell: 3 } } },
+    ],
+  },
+  {
+    id: 'double',
+    name: 'Двойной прыжок',
+    tier: 1,
+    steps: [{ desc: 'Ещё один прыжок в воздухе — нажми прыжок снова', cost: { crystals: 80, mats: { pebble: 2, icicle: 3 } } }],
+  },
+  {
+    id: 'glide',
+    name: 'Планирование',
+    tier: 2,
+    steps: [{ desc: 'Падая, держи прыжок — спускаешься медленно, как на крыльях', cost: { crystals: 80, mats: { feather: 4 } } }],
+  },
+];
+
+export const powerById = (id: string): PowerDef | undefined => POWERS.find((p) => p.id === id);
+
 export const itemById = (id: string): ItemDef | undefined => ITEMS.find((i) => i.id === id);
 export const slotById = (id: string): SlotDef | undefined => SLOTS.find((s) => s.id === id);
 export const itemsFor = (slot: SlotId): ItemDef[] => ITEMS.filter((i) => i.slot === slot);

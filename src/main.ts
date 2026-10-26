@@ -27,7 +27,7 @@ import type { LevelLayout } from './levels/generator';
 import { amount, materialOf } from './den/catalog';
 import { DECOR } from './den/decor';
 import { clearUrl, snapshotFromUrl } from './den/snapshot';
-import { addMaterial } from './den/state';
+import { addMaterial, staminaWithPowers } from './den/state';
 import { completeDaily, completeLevel, dailyBest, daysPlayed, formatTime, markPlayedToday, progress, setCurrentLevel, todayKey, totalStars } from './levels/progress';
 import { QuestMarkers } from './levels/markers';
 import { fitQuest, QuestRun } from './levels/quests';
@@ -40,7 +40,7 @@ import { AutoScale, GameEngine } from './perf';
 import { applySettings, pickPresetForDevice, settings } from './settings';
 import { Sparks } from './sparks';
 import { StarSky } from './starsky';
-import { CRYSTAL_ENERGY, DASH_COST } from './stamina';
+import { BASE_STAMINA, CRYSTAL_ENERGY, DASH_COST } from './stamina';
 import { clearCombo, endCombo, say, setComboLeft, setCrystals, setEnergy, setHintLevel, setLevelTitle, setQuest, setupHud, showCameraMode, showCombo, tickFps } from './ui/hud';
 import { setupFullscreen, toggleFullscreen } from './ui/fullscreen';
 import { MainMenu } from './ui/menu';
@@ -246,6 +246,7 @@ function beginLevel(index: number, dailyDate: string | null = null): void {
   wind.setScale(layout.biome.ambience.wind);
   // В задании «ни разу не побежав» шаг включается сам, на других уровнях — выключен
   setWalkLock(quest.quest.kind === 'walk');
+  applyStamina();
   player.reset(layout.spawn);
   rig.reset();
   footsteps.reset();
@@ -323,6 +324,12 @@ function freeSpot(x: number, z: number): boolean {
     layout.crystals.every((c) => Math.hypot(c.x - x, c.z - z) > 2) &&
     (layout.waterLevel === null || world.terrainAt(x, z) > layout.waterLevel + 0.2)
   );
+}
+
+/** Запал с апгрейдами из норы; в Лесу дня у всех одинаковый — базовый. */
+function applyStamina(): void {
+  player.stamina = daily ? { ...BASE_STAMINA } : staminaWithPowers();
+  player.energy = Math.min(player.energy, player.stamina.max);
 }
 
 function restartLevel(): void {
@@ -510,6 +517,8 @@ function openMenu(): void {
 function resumeGame(): void {
   if (!gameStarted) return;
   menu.closeInfo();
+  // Апгрейд, купленный в норе посреди уровня, работает сразу
+  applyStamina();
   footsteps.reset();
   setState('play');
   canvas.focus();

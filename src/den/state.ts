@@ -3,8 +3,26 @@
 // поэтому старым сохранениям не нужен перенос.
 
 import { journal } from '../journal';
+import { BASE_STAMINA, type Stamina } from '../stamina';
 import { clamp } from '../utils';
-import { amount, itemById, materialById, MATERIALS, slotById, TIERS, type Cost, type ItemDef, type ItemId, type MaterialId, type SlotId } from './catalog';
+import {
+  amount,
+  CAPACITY,
+  itemById,
+  materialById,
+  MATERIALS,
+  POWERS,
+  REGEN_STEP,
+  slotById,
+  TIERS,
+  type Cost,
+  type ItemDef,
+  type ItemId,
+  type MaterialId,
+  type PowerDef,
+  type PowerId,
+  type SlotId,
+} from './catalog';
 
 export interface DenState {
   /** Версия формата — на неё смотрит и чтение чужой норы. */
@@ -17,6 +35,8 @@ export interface DenState {
   spent: number;
   /** Материалы на руках. */
   mats: Partial<Record<MaterialId, number>>;
+  /** Апгрейды запала: сколько ступеней куплено. */
+  power: Partial<Record<PowerId, number>>;
 }
 
 const KEY = 'tihaya-polyana-den';
@@ -37,12 +57,17 @@ function load(): DenState {
         const n = Math.floor(Number(d.mats?.[m.id]) || 0);
         if (n > 0) mats[m.id] = n;
       }
-      return { v: 1, tier, owned, slots, spent: Math.max(0, Number(d.spent) || 0), mats };
+      const power: DenState['power'] = {};
+      for (const p of POWERS) {
+        const n = clamp(Math.floor(Number(d.power?.[p.id]) || 0), 0, p.steps.length);
+        if (n > 0) power[p.id] = n;
+      }
+      return { v: 1, tier, owned, slots, spent: Math.max(0, Number(d.spent) || 0), mats, power };
     }
   } catch {
     // Повреждённые данные — нора начинается с пустого двора
   }
-  return { v: 1, tier: 0, owned: [], slots: {}, spent: 0, mats: {} };
+  return { v: 1, tier: 0, owned: [], slots: {}, spent: 0, mats: {}, power: {} };
 }
 
 export const den: DenState = load();
@@ -125,6 +150,28 @@ export function place(item: ItemDef): void {
   if (!den.owned.includes(item.id) || !slotOpen(item.slot)) return;
   den.slots[item.slot] = item.id;
   save();
+}
+
+/** Сколько ступеней апгрейда куплено. */
+export const powerLevel = (id: PowerId): number => den.power[id] ?? 0;
+
+/** Купить следующую ступень апгрейда; false — не хватило, нора мала или ступеней больше нет. */
+export function buyPower(p: PowerDef): boolean {
+  const n = powerLevel(p.id);
+  if (n >= p.steps.length || den.tier < p.tier || !pay(p.steps[n].cost)) return false;
+  den.power[p.id] = n + 1;
+  save();
+  return true;
+}
+
+/** Запал с апгрейдами из норы. */
+export function staminaWithPowers(): Stamina {
+  return {
+    max: CAPACITY[powerLevel('cap')],
+    regen: BASE_STAMINA.regen * (1 + REGEN_STEP * powerLevel('regen')),
+    double: powerLevel('double') > 0,
+    glide: powerLevel('glide') > 0,
+  };
 }
 
 /** Освободить место. */
