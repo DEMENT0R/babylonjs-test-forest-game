@@ -117,8 +117,8 @@
       </div>
       <details class="card keys" id="keys" hidden>
         <summary>Кнопки</summary>
-        <div class="keys-body key-only"><kbd>WASD</kbd>ходьба · <kbd>Shift</kbd>бег · <kbd>X</kbd>шагом<br><kbd>Space</kbd>прыжок · <kbd>мышь</kbd>камера · <kbd>колесо</kbd>зум<br><kbd>C</kbd>режим камеры · <kbd>M</kbd>звук · <kbd>F</kbd>весь экран · <kbd>Esc</kbd>пауза и меню</div>
-        <div class="keys-body pad-only"><kbd>L</kbd>ходьба, до упора — бег · <kbd>LB</kbd>бег · <kbd>L3</kbd>шагом<br><kbd>A</kbd>прыжок · <kbd>R</kbd>камера · <kbd>↑↓</kbd>зум<br><kbd>Y</kbd>режим камеры · <kbd>View</kbd>настройки · <kbd>Start</kbd>пауза</div>
+        <div class="keys-body key-only"><kbd>WASD</kbd>ходьба · <kbd>Shift</kbd>бег · <kbd>X</kbd>шагом<br><kbd>Space</kbd>прыжок, держать — выше · <kbd>E</kbd>рывок · <kbd>мышь</kbd>камера · <kbd>колесо</kbd>зум<br><kbd>C</kbd>режим камеры · <kbd>M</kbd>звук · <kbd>F</kbd>весь экран · <kbd>Esc</kbd>пауза и меню</div>
+        <div class="keys-body pad-only"><kbd>L</kbd>ходьба, до упора — бег · <kbd>LB</kbd>бег · <kbd>L3</kbd>шагом<br><kbd>A</kbd>прыжок, держать — выше · <kbd>B</kbd>рывок · <kbd>R</kbd>камера · <kbd>↑↓</kbd>зум<br><kbd>Y</kbd>режим камеры · <kbd>View</kbd>настройки · <kbd>Start</kbd>пауза</div>
       </details>
     </div>
   </div>
@@ -128,6 +128,9 @@
   <div id="stick" class="play-ui"><div id="knob"></div></div>
   <button id="jump" class="play-ui" type="button">Прыжок</button>
   <button id="walk" class="play-ui" type="button" aria-pressed="false" title="Шагом: не переходить на бег">Шагом</button>
+  <button id="dash" class="play-ui" type="button" title="Рывок — тратит запал">Рывок</button>
+  <!-- Запал: видна, пока не полная -->
+  <div id="energy" class="play-ui" aria-hidden="true"><span class="energy-label">запал</span><i class="energy-bar"><i id="energy-fill"></i></i></div>
 
   <!-- Переход между уровнями -->
   <div id="fade" aria-live="polite">

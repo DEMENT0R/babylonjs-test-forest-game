@@ -9,6 +9,7 @@ import { MAX_WADE_DEPTH } from './levels/generator';
 import { MAX_WALK_SLOPE } from './levels/terrain';
 import type { World } from './world';
 import type { CameraModeId } from './camera';
+import { BASE_STAMINA, DASH_COST, DOUBLE_JUMP_COST, GLIDE_COST, HIGH_JUMP_COST, REGEN_DELAY, type Stamina } from './stamina';
 
 const GRAVITY = -24;
 /** На сколько тело доворачивает от камеры в сторону шага в режиме «из-за плеча». */
@@ -25,6 +26,14 @@ const MAX_LEAN = 0.12;
 const COYOTE_TIME = 0.1;
 /** Буфер прыжка: нажатие чуть раньше приземления срабатывает в момент касания земли, с. */
 const JUMP_BUFFER = 0.12;
+/** Рывок: сколько длится и во сколько раз быстрее бега. */
+const DASH_TIME = 0.35;
+const DASH_SPEED = 1.8;
+/** Сколько держать прыжок, чтобы он стал высоким, с, и во сколько раз выше обычного он. */
+const HIGH_JUMP_HOLD = 0.15;
+const HIGH_JUMP_GAIN = 1.35;
+/** Скорость падения при планировании, м/с. */
+const GLIDE_FALL = 2.2;
 
 // ---------- Ввод ----------
 
@@ -33,6 +42,9 @@ export const keys: Record<string, boolean> = {};
 /** Отклонение сенсорного стика, -1…1 (y вверх). */
 const touch = { x: 0, y: 0 };
 let jumpRequested = false;
+/** Кнопка прыжка на экране зажата — для высокого прыжка и планирования. */
+let jumpTouchHeld = false;
+let dashRequested = false;
 /** «Шагом»: бег выключен, как бы ни был отклонён стик, — для задания «ни разу не побежав». */
 let walkLock = false;
 let walkBtn: HTMLElement | null = null;
@@ -61,6 +73,8 @@ export const walkLocked = (): boolean => walkLock;
 export function clearInput(): void {
   for (const k in keys) keys[k] = false;
   jumpRequested = false;
+  jumpTouchHeld = false;
+  dashRequested = false;
   releaseStick();
 }
 
@@ -132,11 +146,23 @@ export function setupTouchControls(onWalk: () => void): void {
   jump.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     jumpRequested = true;
+    jumpTouchHeld = true;
     // Отклик на нажатие: вспышка кнопки и короткая вибрация (где она есть)
     jump.classList.add('on');
     clearTimeout(jumpFlash);
     jumpFlash = window.setTimeout(() => jump.classList.remove('on'), 120);
     navigator.vibrate?.(12);
+  });
+  for (const type of ['pointerup', 'pointercancel', 'lostpointercapture'] as const) jump.addEventListener(type, () => (jumpTouchHeld = false));
+  const dash = byId('dash');
+  let dashFlash = 0;
+  dash.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    dashRequested = true;
+    dash.classList.add('on');
+    clearTimeout(dashFlash);
+    dashFlash = window.setTimeout(() => dash.classList.remove('on'), 160);
+    navigator.vibrate?.(14);
   });
   walkBtn = byId('walk');
   walkBtn.addEventListener('pointerdown', (e) => {
@@ -146,10 +172,10 @@ export function setupTouchControls(onWalk: () => void): void {
   });
 }
 
-interface MoveInput { x: number; z: number; run: boolean; jump: boolean }
+interface MoveInput { x: number; z: number; run: boolean; jump: boolean; jumpHeld: boolean; dash: boolean }
 
 function readInput(active: boolean): MoveInput {
-  if (!active) return { x: 0, z: 0, run: false, jump: false };
+  if (!active) return { x: 0, z: 0, run: false, jump: false, jumpHeld: false, dash: false };
   const pad = gamepad.move;
   let x = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0) + touch.x + pad.x;
   let z = (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0) + touch.y - pad.y;
@@ -169,6 +195,8 @@ function readInput(active: boolean): MoveInput {
         Math.hypot(pad.x, pad.y) > 0.95 ||
         gamepad.down(BTN.LB)),
     jump: !!keys.Space || jumpRequested || gamepad.pressed(BTN.A),
+    jumpHeld: !!keys.Space || jumpTouchHeld || gamepad.down(BTN.A),
+    dash: !!keys.KeyE || dashRequested || gamepad.pressed(BTN.B),
   };
 }
 
@@ -201,6 +229,32 @@ export class Player {
   inputZ = 0;
   /** Множитель скорости от «ветра в спину» на серии; прыжок прибавляет вполовину меньше. */
   boost = 1;
+  /** Что умеет запал на этом уровне. */
+  stamina: Stamina = { ...BASE_STAMINA };
+  /** Множитель восстановления запала (усилитель уровня). */
+  regenScale = 1;
+  /** Запал сейчас. */
+  energy = BASE_STAMINA.max;
+  /** Сколько секунд назад запал тратился. */
+  private sinceSpend = Infinity;
+  /** Сколько ещё длится рывок и куда он. */
+  private dashLeft = 0;
+  private readonly dashDir = new Vector3();
+  /** Обычный прыжок может стать высоким, пока кнопку держат: высота и скорость отрыва, время удержания. */
+  private highArmed = false;
+  private highFrom = 0;
+  private highV0 = 0;
+  private highHold = 0;
+  /** Второй прыжок в этом полёте уже был. */
+  private doubled = false;
+  private jumpWas = false;
+  private dashWas = false;
+  /** Что случилось с запалом в этом кадре — для звука и HUD: рывок, высокий или двойной прыжок, планирование. */
+  dashed = false;
+  boosted = false;
+  gliding = false;
+  /** Хотел особое движение, но запала не хватило. */
+  denied = false;
   hero: Hero | null = null;
 
   /** Круглое «пятно» тени, когда настоящие тени выключены. */
@@ -243,6 +297,27 @@ export class Player {
     this.airTime = 0;
     this.jumpBuffer = 0;
     this.onGround = true;
+    this.energy = this.stamina.max;
+    this.sinceSpend = Infinity;
+    this.dashLeft = 0;
+    this.highArmed = false;
+    this.doubled = false;
+  }
+
+  /** Прибавить запал (кристалл), не больше полного. */
+  addEnergy(n: number): void {
+    this.energy = Math.min(this.stamina.max, this.energy + n);
+  }
+
+  /** Потратить запал; false — не хватило, ничего не потрачено. */
+  private spend(n: number): boolean {
+    if (this.energy < n) {
+      this.denied = true;
+      return false;
+    }
+    this.energy -= n;
+    this.sinceSpend = 0;
+    return true;
   }
 
   update(dt: number, view: CameraView, active: boolean): void {
@@ -251,6 +326,13 @@ export class Player {
     const D = hero.def;
     const input = readInput(active);
     jumpRequested = false;
+    dashRequested = false;
+    this.dashed = this.boosted = this.gliding = this.denied = false;
+    // Клавиши держатся несколько кадров — особые движения срабатывают по нажатию, а не пока держат
+    const jumpEdge = input.jump && !this.jumpWas;
+    const dashEdge = input.dash && !this.dashWas;
+    this.jumpWas = input.jump;
+    this.dashWas = input.dash;
 
     // Скорость по направлению относительно камеры
     const yaw = view.yaw;
@@ -258,7 +340,14 @@ export class Player {
     const right = new Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
     const dir = fwd.scale(input.z).add(right.scale(input.x));
     this.moving = dir.lengthSquared() > 0.01;
-    this.running = this.moving && input.run;
+    // Рывок — по ходу движения, а стоя — куда смотрит герой; «Шагом» его не пускает
+    if (dashEdge && this.dashLeft <= 0 && !walkLock && this.spend(DASH_COST)) {
+      this.dashLeft = DASH_TIME;
+      if (this.moving) this.dashDir.copyFrom(dir).normalize();
+      else this.dashDir.set(Math.sin(this.facing), 0, Math.cos(this.facing));
+      this.dashed = true;
+    }
+    this.running = (this.moving && input.run) || this.dashLeft > 0;
     this.inputZ = input.z;
     const shoulder = view.modeId === 'shoulder';
     let speed = (input.run ? D.run : D.walk) * this.boost;
@@ -267,9 +356,16 @@ export class Player {
     const wading = this.pos.y < this.world.terrainAt(this.pos.x, this.pos.z) + 0.05 ? depth : 0;
     speed *= clamp(1 - wading * 0.7, 0.4, 1);
     if (shoulder && input.z < 0) speed *= 0.6; // пятиться медленнее
-    const acc = this.onGround ? 14 : 5;
-    this.vel.x += (dir.x * speed - this.vel.x) * damp(acc, dt);
-    this.vel.z += (dir.z * speed - this.vel.z) * damp(acc, dt);
+    if (this.dashLeft > 0) {
+      this.dashLeft -= dt;
+      const v = D.run * DASH_SPEED * this.boost * clamp(1 - wading * 0.7, 0.4, 1);
+      this.vel.x = this.dashDir.x * v;
+      this.vel.z = this.dashDir.z * v;
+    } else {
+      const acc = this.onGround ? 14 : 5;
+      this.vel.x += (dir.x * speed - this.vel.x) * damp(acc, dt);
+      this.vel.z += (dir.z * speed - this.vel.z) * damp(acc, dt);
+    }
 
     // Поворот тела: из-за плеча — по камере, но с разворотом в сторону шага, чтобы зверь
     // не ехал боком (пятясь — зеркально, задом по ходу); в остальных режимах — по ходу движения
@@ -302,9 +398,26 @@ export class Player {
     if (input.jump) this.jumpBuffer = JUMP_BUFFER;
     this.jumped = this.jumpBuffer > 0 && this.airTime <= COYOTE_TIME;
     this.jumpBuffer -= dt;
+    const jumpV = D.jump * (1 + (this.boost - 1) / 2) * (wading > 0.3 ? 0.65 : 1);
     if (this.jumped) {
       this.jumpBuffer = 0;
-      this.vel.y = D.jump * (1 + (this.boost - 1) / 2) * (wading > 0.3 ? 0.65 : 1);
+      this.vel.y = jumpV;
+      this.highArmed = true;
+      this.highFrom = this.pos.y;
+      this.highV0 = jumpV;
+      this.highHold = 0;
+      this.doubled = false;
+    } else if (jumpEdge && !this.onGround && this.airTime > COYOTE_TIME && this.stamina.double && !this.doubled) {
+      // Второй прыжок в воздухе: чуть слабее первого
+      if (this.spend(DOUBLE_JUMP_COST)) {
+        this.jumpBuffer = 0;
+        this.vel.y = Math.max(this.vel.y, jumpV * 0.85);
+        this.doubled = true;
+        this.highArmed = false;
+        this.jumped = this.boosted = true;
+      }
+    }
+    if (this.jumped) {
       this.onGround = false;
       this.airTime = Infinity;
       const j = hero.anim('jump');
@@ -313,7 +426,30 @@ export class Player {
         j.start(false, D.jumpRatio ?? 1.4);
       }
     }
+    // Прыжок держат дольше HIGH_JUMP_HOLD на взлёте — он становится высоким: скорость
+    // добирается до той, что донесёт до вершины в HIGH_JUMP_GAIN раз выше обычной
+    if (this.highArmed && !this.jumped) {
+      if (!input.jumpHeld || this.vel.y <= 0) this.highArmed = false;
+      else if ((this.highHold += dt) >= HIGH_JUMP_HOLD) {
+        this.highArmed = false;
+        if (this.spend(HIGH_JUMP_COST)) {
+          const apex = ((this.highV0 * this.highV0) / (-2 * GRAVITY)) * HIGH_JUMP_GAIN;
+          const left = Math.max(0, apex - (this.pos.y - this.highFrom));
+          this.vel.y = Math.max(this.vel.y, Math.sqrt(-2 * GRAVITY * left));
+          this.boosted = true;
+        }
+      }
+    }
     this.vel.y += GRAVITY * dt;
+    // Планирование: падая с зажатым прыжком, герой спускается медленно, пока есть запал
+    if (this.stamina.glide && !this.onGround && this.vel.y < -GLIDE_FALL && input.jumpHeld && this.energy > 0) {
+      this.vel.y = -GLIDE_FALL;
+      this.energy = Math.max(0, this.energy - GLIDE_COST * dt);
+      this.sinceSpend = 0;
+      this.gliding = true;
+    }
+    this.sinceSpend += dt;
+    if (this.sinceSpend > REGEN_DELAY) this.energy = Math.min(this.stamina.max, this.energy + this.stamina.regen * this.regenScale * dt);
 
     this.integrate(dt, D.height);
     this.airTime = this.onGround ? 0 : this.airTime + dt;

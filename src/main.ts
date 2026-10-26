@@ -40,7 +40,8 @@ import { AutoScale, GameEngine } from './perf';
 import { applySettings, pickPresetForDevice, settings } from './settings';
 import { Sparks } from './sparks';
 import { StarSky } from './starsky';
-import { clearCombo, endCombo, say, setComboLeft, setCrystals, setHintLevel, setLevelTitle, setQuest, setupHud, showCameraMode, showCombo, tickFps } from './ui/hud';
+import { CRYSTAL_ENERGY, DASH_COST } from './stamina';
+import { clearCombo, endCombo, say, setComboLeft, setCrystals, setEnergy, setHintLevel, setLevelTitle, setQuest, setupHud, showCameraMode, showCombo, tickFps } from './ui/hud';
 import { setupFullscreen, toggleFullscreen } from './ui/fullscreen';
 import { MainMenu } from './ui/menu';
 import { activate, navigate, sendKey } from './ui/pad-nav';
@@ -684,7 +685,13 @@ world.scene.onBeforeRenderObservable.add(() => {
   world.followSun(player.pos);
   rig.update(dt, player);
   footsteps.update(dt, player);
-  breath.update(dt, player.hero, player.running, !!layout.biome.frost);
+  // Запала почти нет — дышит часто, как на бегу
+  const tired = player.energy < player.stamina.max * 0.25;
+  breath.update(dt, player.hero, player.running || tired, !!layout.biome.frost);
+  if (player.dashed) audio.whoosh(1);
+  if (player.boosted) audio.whoosh(1.4);
+  if (player.denied) audio.thud();
+  setEnergy(player.energy, player.stamina.max, DASH_COST, dt, player.denied);
   ripples.update(dt, player.pos, layout.waterLevel, world.waterDepth(player.pos.x, player.pos.z), -player.vel.y);
 
   const ended = combo.expire(levelTime);
@@ -695,6 +702,7 @@ world.scene.onBeforeRenderObservable.add(() => {
   const got = world.collectNear(player.center);
   if (got.length > 0) {
     journal.stats.crystals += got.length;
+    player.addEnergy(CRYSTAL_ENERGY * got.length);
     const all = world.collected === world.crystals.length;
     const { count: n, reward } = combo.add(got.length, levelTime, journal.stats.bestCombo);
     journal.stats.bestCombo = Math.max(journal.stats.bestCombo, n);

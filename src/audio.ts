@@ -506,6 +506,37 @@ export class GameAudio {
     this.note(out, t, 220, 880, 1.1, 0.35, 'sine');
   }
 
+  /** Рывок или прыжок на запале: короткий шумовой «фух»; pitch выше — легче и выше. */
+  whoosh(pitch = 1): void {
+    if (!this.ac || !settings.sound) return;
+    const ac = this.ac;
+    const out = this.sfxOut();
+    const t = ac.currentTime + 0.01;
+    const src = ac.createBufferSource();
+    src.buffer = this.stepNoise;
+    src.loop = true;
+    const bp = ac.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.Q.value = 1.2;
+    bp.frequency.setValueAtTime(700 * pitch, t);
+    bp.frequency.exponentialRampToValueAtTime(2400 * pitch, t + 0.12);
+    bp.frequency.exponentialRampToValueAtTime(900 * pitch, t + 0.3);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.32, t + 0.04);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.34);
+    src.connect(bp).connect(g).connect(out);
+    src.start(t);
+    src.stop(t + 0.4);
+  }
+
+  /** Запала не хватило: тихий глухой тычок. */
+  thud(): void {
+    if (!this.ac || !settings.sound) return;
+    const out = this.sfxOut();
+    this.note(out, this.ac.currentTime + 0.01, 180, 120, 0.18, 0.18, 'sine');
+  }
+
   // ---------- Деревья ----------
 
   /**

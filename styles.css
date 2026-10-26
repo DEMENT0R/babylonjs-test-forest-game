@@ -77,14 +77,28 @@ h1{margin:0;font:700 15px/1.2 var(--f-display);letter-spacing:.02em}
 #jump{position:fixed;right:calc(max(16px,env(safe-area-inset-right,0px)) + 8px);--jump-bottom:calc(40px + env(safe-area-inset-bottom,0px));bottom:var(--jump-bottom);width:76px;height:76px;border-radius:50%;border:1px solid var(--line);background:var(--panel);font:700 12px var(--f-display);touch-action:none;transition:transform .08s,background .08s}
 /* Зона нажатия шире кнопки: влево к центру экрана и до самых краёв угла, чтобы большой палец
    не промахивался; вверх — чуть-чуть, там кнопка режима камеры */
-#jump::after{content:'';position:absolute;left:-40px;top:-8px;right:calc(-1 * (max(16px,env(safe-area-inset-right,0px)) + 8px));bottom:calc(-1 * var(--jump-bottom))}
+#jump::after{content:'';position:absolute;left:-16px;top:-8px;right:calc(-1 * (max(16px,env(safe-area-inset-right,0px)) + 8px));bottom:calc(-1 * var(--jump-bottom))}
 #jump.on{transform:scale(.9);background:var(--accent);color:var(--accent-ink)}
 /* «Шагом» — маленькая кнопка над прыжком; включённая горит, пока не выключат */
 #walk{position:fixed;right:calc(max(16px,env(safe-area-inset-right,0px)) + 8px + 14px);bottom:calc(var(--jump-bottom,40px) + 76px + 14px);--jump-bottom:calc(40px + env(safe-area-inset-bottom,0px));width:48px;height:48px;border-radius:50%;border:1px solid var(--line);background:var(--panel);font:700 9px var(--f-display);touch-action:none;padding:0}
 #walk.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+/* Рывок — слева от прыжка, под большим пальцем; без запала тускнеет */
+#dash{position:fixed;--jump-bottom:calc(40px + env(safe-area-inset-bottom,0px));right:calc(max(16px,env(safe-area-inset-right,0px)) + 8px + 76px + 22px);bottom:calc(var(--jump-bottom) + 6px);width:60px;height:60px;border-radius:50%;border:1px solid var(--line);background:var(--panel);font:700 10px var(--f-display);touch-action:none;padding:0;transition:transform .08s,background .08s,opacity .2s}
+#dash.on{transform:scale(.9);background:var(--accent);color:var(--accent-ink)}
+#dash.low{opacity:.45}
+/* Запал: тонкая полоска внизу посередине; длина — по ёмкости, видна, пока он не полный */
+#energy{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(22px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;gap:8px;pointer-events:none;opacity:0;transition:opacity .5s;text-shadow:0 1px 6px rgba(0,0,0,.6)}
+#energy.on{opacity:1;transition-duration:.15s}
+.energy-label{font:700 10px var(--f-mono);color:var(--ink);letter-spacing:.04em;text-shadow:0 1px 4px rgba(0,0,0,.9)}
+.energy-bar{display:block;width:var(--w,90px);height:6px;border-radius:3px;background:rgba(0,0,0,.35);box-shadow:0 0 0 1px var(--line);overflow:hidden;transition:width .4s}
+#energy-fill{display:block;height:100%;background:var(--combo-0);transform-origin:left}
+#energy.denied .energy-bar{animation:energy-denied .45s ease-out}
+@keyframes energy-denied{0%,60%{box-shadow:0 0 0 2px #ff8a7a}100%{box-shadow:0 0 0 1px var(--line)}}
+@media (hover:none){#energy{bottom:calc(150px + env(safe-area-inset-bottom,0px))}}
+@media (prefers-reduced-motion:reduce){#energy.denied .energy-bar{animation:none}}
 #fps{position:fixed;left:50%;transform:translateX(-50%);top:calc(10px + env(safe-area-inset-top,0px));font:600 11px var(--f-mono);font-variant-numeric:tabular-nums;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:2px 8px;pointer-events:none}
-@media (hover:hover) and (pointer:fine){#stick,#stick-zone,#jump,#walk{display:none}}
-body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump,body[data-pad] #walk{display:none}
+@media (hover:hover) and (pointer:fine){#stick,#stick-zone,#jump,#walk,#dash{display:none}}
+body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump,body[data-pad] #walk,body[data-pad] #dash{display:none}
 @media (max-width:520px){.keys{display:none}}
 /* Сенсорный экран: без подсказок клавиш и памятки по клавиатуре, кнопки крупнее,
    режим камеры — над кнопкой прыжка (с геймпадом прыжка нет — опускается в угол) */
@@ -105,6 +119,8 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump,body[data-
   .hud .card{padding:6px 10px}
   #stick{width:104px;height:104px;bottom:calc(16px + env(safe-area-inset-bottom,0px))}
   #jump{width:68px;height:68px;--jump-bottom:calc(24px + env(safe-area-inset-bottom,0px))}
+  #dash{width:54px;height:54px;--jump-bottom:calc(24px + env(safe-area-inset-bottom,0px));right:calc(max(16px,env(safe-area-inset-right,0px)) + 8px + 68px + 18px)}
+  #energy{bottom:calc(14px + env(safe-area-inset-bottom,0px))}
   #walk{--jump-bottom:calc(24px + env(safe-area-inset-bottom,0px));bottom:calc(var(--jump-bottom) + 68px + 10px);right:calc(max(16px,env(safe-area-inset-right,0px)) + 8px + 10px)}
 }
 /* Телефон в ландшафте: HUD в одну полосу сверху — слева строки уровня, справа кнопки.

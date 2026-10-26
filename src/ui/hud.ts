@@ -88,6 +88,36 @@ export function setQuest(goal: string, status: string, state: 'active' | 'failed
   questEl.classList.toggle('done', state === 'done');
 }
 
+const energyEl = byId('energy');
+const energyFill = byId('energy-fill');
+const dashBtn = byId('dash');
+/** Сколько секунд запал уже полный: полоска прячется, когда он полон дольше секунды. */
+let energyFull = 0;
+let energyShown = -1;
+
+/**
+ * Полоска запала: ширина — по ёмкости (апгрейды её удлиняют), заливка — сколько есть.
+ * low — у кнопки рывка, когда на него не хватает; denied — короткая вспышка «не хватило».
+ */
+export function setEnergy(value: number, max: number, dashCost: number, dt: number, denied: boolean): void {
+  const k = max > 0 ? value / max : 0;
+  energyFull = k >= 0.999 ? energyFull + dt : 0;
+  energyEl.classList.toggle('on', energyFull < 1);
+  energyEl.style.setProperty('--w', `${Math.round(max * 0.9)}px`);
+  const shown = Math.round(k * 200);
+  if (shown !== energyShown) {
+    energyShown = shown;
+    energyFill.style.transform = `scaleX(${shown / 200})`;
+  }
+  dashBtn.classList.toggle('low', value < dashCost);
+  if (denied) {
+    energyEl.classList.remove('denied');
+    void energyEl.offsetWidth; // перезапуск вспышки
+    energyEl.classList.add('denied', 'on');
+    energyFull = 0;
+  }
+}
+
 export function setLevelTitle(text: string): void {
   levelTitle.textContent = text;
 }
