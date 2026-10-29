@@ -82,6 +82,7 @@ import { AirParticles } from '../particles';
 import { Rng } from '../rng';
 import { addShadowCaster, createLightingContext, settings, type LightingContext } from '../settings';
 import { byId, clamp, damp, plural } from '../utils';
+import { isOpen } from '../unlocks';
 import { say } from './hud';
 
 /** Поляна у норы, свободная от деревьев. */
@@ -337,6 +338,8 @@ export class DenScreen {
     this.active = true;
     this.guest = guest !== null;
     this.root.classList.toggle('guest', this.guest);
+    // Своей норы у гостя может ещё не быть — она открывается за уровни
+    this.root.classList.toggle('no-own', !isOpen('den'));
     this.bandDirty = true;
     this.camera.attachControl(true);
     this.sel = null;
@@ -344,7 +347,7 @@ export class DenScreen {
     this.show(guest ?? snapshot(daysPlayed()));
     if (!this.guest) this.grow();
     this.render();
-    (this.guest ? byId('den-own') : this.slotsEl.querySelector<HTMLElement>('[aria-pressed="true"]'))?.focus();
+    (this.guest ? byId(isOpen('den') ? 'den-own' : 'den-back') : this.slotsEl.querySelector<HTMLElement>('[aria-pressed="true"]'))?.focus();
   }
 
   close(): void {
@@ -731,7 +734,7 @@ export class DenScreen {
     this.cardEl.innerHTML = `<div class="den-card-head"><h3>Нора друга</h3></div>
       <p>${items.length ? `Во дворе: ${items.join(', ')}.` : 'Двор пока пустой — нора только обживается.'}${
         days ? ` Поляна вокруг росла ${days} ${plural(days, 'день', 'дня', 'дней')}.` : ''
-      }</p><p>Свою нору можно обустроить за кристаллы и находки с уровней.</p>`;
+      }</p><p>${isOpen('den') ? 'Свою нору можно обустроить за кристаллы и находки с уровней.' : 'Своя нора появится, когда пройдёшь два уровня.'}</p>`;
   }
 
   /** «Сила»: апгрейды запала — следующая ступень каждого и её цена. */

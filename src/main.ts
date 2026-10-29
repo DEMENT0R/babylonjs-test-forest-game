@@ -65,6 +65,7 @@ import { DenScreen } from './ui/den';
 import { SelectScreen, starsMissing } from './ui/select';
 import { SettingsPanel } from './ui/settings-panel';
 import { continueTransition, isTransitioning, setTransitionText, transition } from './ui/transition';
+import { freshUnlocks, isOpen } from './unlocks';
 import { byId, plural, wrapAngle } from './utils';
 import { wind } from './wind';
 import { World } from './world';
@@ -480,14 +481,17 @@ function finishLevel(): void {
   else if (streak) notes.push(`🔥 ${streak} ${plural(streak, 'день', 'дня', 'дней')} подряд!`);
   // Новый день засчитан — у норы появилась новая деталь
   const grown = DECOR[daysPlayed() - 1];
-  if (streak && grown) notes.push(`🌼 У норы появилось новое: ${grown.name}`);
+  if (streak && grown && isOpen('den')) notes.push(`🌼 У норы появилось новое: ${grown.name}`);
   if (gathered) notes.push(`🧺 Для норы: ${amount(materialOf(layout.biome.id), gathered)}`);
   if (constellation) notes.push(`✦ Новое созвездие на небе: «${constellation}»`);
   if (newCoat) notes.push(`Открыт окрас «${newCoat}» — выбери его на экране героя`);
   notes.push(...almost(time, best, opened));
   if (daily) notes.push('Результатом можно поделиться — кнопка в меню под «Лесом дня»');
-  // Достижения — первыми: это самое редкое, что бывает на экране итога
-  notes.unshift(...checkAchievements().map((a) => `🏅 Достижение: «${a.name}» — ${a.desc[0].toLowerCase()}${a.desc.slice(1)}`));
+  // Достижения — первыми: это самое редкое, что бывает на экране итога; за ними — что открылось
+  // (после достижений: первое из них открывает «Дневник»)
+  const badges = checkAchievements().map((a) => `🏅 Достижение: «${a.name}» — ${a.desc[0].toLowerCase()}${a.desc.slice(1)}`);
+  const unlocked = freshUnlocks();
+  notes.unshift(...badges, ...unlocked.map((u) => `🔓 Открылось: ${u}`));
   audio.portalEnter();
   rig.releaseLock();
   clearInput();
@@ -504,6 +508,7 @@ function finishLevel(): void {
   ).then(() => {
     canvas.focus();
     if (opened.length) say(`Открыт новый герой: ${opened.map((h) => h.name).join(', ')} — смени его клавишей H`);
+    else if (unlocked.length) say(`🔓 Открылось: ${unlocked.join('; ')}`, 4000);
     else if (constellation) say(`✦ Созвездие «${constellation}» — посмотри в меню «Небо»`, 3000);
   });
 }
@@ -566,7 +571,13 @@ function openMenu(): void {
   saveJournal();
   // Достижения за то, что случилось посреди уровня или в норе: сад, записки, километры
   const fresh = checkAchievements();
-  if (fresh.length) say(`🏅 Достижение: «${fresh.map((a) => a.name).join('», «')}»`, 3500);
+  // Находка посреди уровня могла открыть «Дневник» — сказать здесь, раз уж игрок в меню
+  const unlocked = freshUnlocks();
+  const news = [
+    ...(fresh.length ? [`🏅 Достижение: «${fresh.map((a) => a.name).join('», «')}»`] : []),
+    ...(unlocked.length ? [`🔓 Открылось: ${unlocked.join('; ')}`] : []),
+  ];
+  if (news.length) say(news.join(' · '), 3500 + 1000 * unlocked.length);
   setState('menu');
   menu.update(
     gameStarted && player.hero
