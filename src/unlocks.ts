@@ -8,12 +8,12 @@ import { journal } from './journal';
 import { progress, totalStars } from './levels/progress';
 import { byId, plural } from './utils';
 
-export type Feature = 'levels' | 'sky' | 'journal' | 'share' | 'den' | 'daily';
+export type Feature = 'levels' | 'sky' | 'journal' | 'share' | 'walk' | 'den' | 'stamina' | 'daily';
 
 interface FeatureDef {
   id: Feature;
-  /** Что сказать, когда откроется. */
-  told: string;
+  /** Что сказать, когда откроется; без него открывается молча. */
+  told?: string;
   /** Пункт меню: на нём точка «новое», пока его не нажмут. */
   button?: string;
   /** Открывается за пройденный уровень с этим номером — для строки «что дальше». */
@@ -29,6 +29,8 @@ const passed = (n: number) => progress.unlocked > n;
 const FEATURES: readonly FeatureDef[] = [
   { id: 'levels', told: '«Уровни» — пройденные можно переиграть', button: 'm-levels', after: 1, open: () => passed(1) },
   { id: 'share', told: '«Поделиться» и «Установить» — внизу меню', button: 'm-share', after: 1, open: () => passed(1) },
+  // Кнопка «Шагом» на экране; на уровне с заданием «без бега» она есть и раньше
+  { id: 'walk', open: () => passed(1) },
   { id: 'sky', told: '«Небо» — звёзды складываются в созвездия', button: 'm-sky', open: () => totalStars() > 0 },
   {
     id: 'journal',
@@ -44,6 +46,13 @@ const FEATURES: readonly FeatureDef[] = [
     after: 2,
     teaser: 'своя нора',
     open: () => passed(2) || den.owned.length > 0 || den.tier > 0,
+  },
+  {
+    id: 'stamina',
+    told: 'запал — рывок (E, B на геймпаде или кнопка «Рывок») и высокий прыжок, если держать прыжок',
+    after: 2,
+    teaser: 'рывок',
+    open: () => passed(2) || Object.values(den.power).some((n) => (n ?? 0) > 0),
   },
   {
     id: 'daily',
@@ -95,12 +104,19 @@ export function freshUnlocks(): string[] {
   seen.told.push(...fresh.map((f) => f.id));
   seen.unseen.push(...fresh.filter((f) => f.button).map((f) => f.id));
   save();
-  return fresh.map((f) => f.told);
+  return fresh.flatMap((f) => (f.told ? [f.told] : []));
 }
 
-/** Закрытое прячут стили — по списку в body[data-locked]; точки «новое» — на ещё не нажатых пунктах. */
-export function syncLocks(): void {
-  document.body.dataset.locked = FEATURES.filter((f) => !f.open()).map((f) => f.id).join(' ');
+/** Что открыто на время уровня, хоть и закрыто по прогрессу: «Шагом» в задании «без бега». */
+let levelOpen: readonly Feature[] = [];
+
+/**
+ * Закрытое прячут стили — по списку в body[data-locked]; точки «новое» — на ещё не нажатых пунктах.
+ * open — что открыто на время уровня; без него остаётся прежнее.
+ */
+export function syncLocks(open?: readonly Feature[]): void {
+  if (open) levelOpen = open;
+  document.body.dataset.locked = FEATURES.filter((f) => !f.open() && !levelOpen.includes(f.id)).map((f) => f.id).join(' ');
   for (const f of FEATURES) if (f.button) byId(f.button).classList.toggle('fresh', seen.unseen.includes(f.id));
 }
 

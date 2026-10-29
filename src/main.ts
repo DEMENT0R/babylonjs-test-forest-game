@@ -65,7 +65,7 @@ import { DenScreen } from './ui/den';
 import { SelectScreen, starsMissing } from './ui/select';
 import { SettingsPanel } from './ui/settings-panel';
 import { continueTransition, isTransitioning, setTransitionText, transition } from './ui/transition';
-import { freshUnlocks, isOpen } from './unlocks';
+import { freshUnlocks, isOpen, syncLocks } from './unlocks';
 import { byId, plural, wrapAngle } from './utils';
 import { wind } from './wind';
 import { World } from './world';
@@ -274,6 +274,7 @@ function beginLevel(index: number, dailyDate: string | null = null, keepBoost = 
   wind.setScale(layout.biome.ambience.wind);
   // В задании «ни разу не побежав» шаг включается сам, на других уровнях — выключен
   setWalkLock(quest.quest.kind === 'walk');
+  syncLocks(quest.quest.kind === 'walk' ? ['walk'] : []);
   applyStamina();
   player.reset(layout.spawn);
   rig.reset();
@@ -354,8 +355,12 @@ function freeSpot(x: number, z: number): boolean {
   );
 }
 
-/** Запал с апгрейдами из норы и усилителем уровня; в Лесу дня у всех одинаковый — базовый. */
+/**
+ * Запал с апгрейдами из норы и усилителем уровня; в Лесу дня у всех одинаковый — базовый.
+ * Пока запал не открыт, особых движений нет вовсе: первые уровни — про бег, прыжок и кристаллы.
+ */
 function applyStamina(): void {
+  player.special = isOpen('stamina');
   player.stamina = daily ? { ...BASE_STAMINA } : staminaWithPowers();
   if (activeBoost === 'feather') player.stamina.glide = true;
   player.regenScale = activeBoost === 'tea' ? 2 : 1;
