@@ -8,6 +8,20 @@
 
 Разработка — [Максим Безрукавников](https://github.com/DEMENT0R), при участии Claude (Anthropic).
 
+## Скриншоты
+
+Все снимки сделаны на пресете **«Ультра»**: тени PCF с картой 4K, SSAO, MSAA 4×,
+густая трава до 70 м и дальность прорисовки 200 м.
+
+| | |
+|:--:|:--:|
+| ![Лесная поляна](docs/screenshots/meadow.webp) | ![Осенняя роща](docs/screenshots/autumn.webp) |
+| *Лесная поляна* | *Осенняя роща* |
+| ![Зимний лес](docs/screenshots/winter.webp) | ![Ночной лес](docs/screenshots/night.webp) |
+| *Зимний лес* | *Ночной лес* |
+| ![Озёрный край](docs/screenshots/lakes.webp) | ![Настройки графики](docs/screenshots/settings.webp) |
+| *Озёрный край* | *Пресет «Ультра» в настройках* |
+
 ## Запуск
 
 ```bash
@@ -61,6 +75,7 @@ src/
     fullscreen.ts       полноэкранный режим: кнопка в HUD и клавиша F
     transition.ts       затемнение и экран итога между уровнями
 public/models/          wolf.glb, fox.glb, stag.glb
+docs/screenshots/       снимки для README — пресет «Ультра»
 CREDITS.md              лицензии моделей и шрифтов
 ```
 
