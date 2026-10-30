@@ -15,6 +15,22 @@
 | `stag.glb` | Stag из пака *Ultimate Animated Animals* | [Quaternius](https://quaternius.com/) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
 | `fox.glb` | Fox из [Khronos glTF Sample Assets](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/Fox) | см. ниже | CC0 1.0 + **CC BY 4.0** |
 
+### Жители леса (`public/models/residents/`)
+
+Статичные модели без скелета; в игре они оживают за счёт кода (`src/residents/model.ts`).
+Все — [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/), взяты с [Poly Pizza](https://poly.pizza/).
+
+| Файл | Модель | Автор |
+|---|---|---|
+| `hedgehog.glb` | [Hedgehog](https://poly.pizza/m/8UNni5IvK_c) | Poly by Google |
+| `squirrel.glb` | [Lowpoly Squirrel](https://poly.pizza/m/eGdXC-5V2wM) | Tipatat Chennavasin |
+| `badger.glb` | [Badger](https://poly.pizza/m/fXBbhQr-T80) | Poly by Google |
+| `hare.glb` | [Rabbit](https://poly.pizza/m/dyeBDJxhDwP) | Poly by Google |
+| `owl.glb` | [Barn owl](https://poly.pizza/m/eSEv3rCMKbg) | Poly by Google |
+| `beaver.glb` | [Beaver](https://poly.pizza/m/fwtA7VLrXPr) | Poly by Google |
+
+CC BY 3.0 требует указывать автора: жители перечислены в разделе «Авторы» главного меню.
+
 ### Лиса — составная лицензия
 
 - Модель: **PixelMannen** — [Fox and Shiba](https://opengameart.org/content/fox-and-shiba), CC0 1.0.

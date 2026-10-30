@@ -109,6 +109,7 @@
       <div class="score">Кристаллы: <b id="got">0</b> / <span id="total">0</span> <span id="portal-hint"></span></div>
       <div class="quest" id="quest">Задание: <span id="quest-goal"></span> <span id="quest-status"></span></div>
       <div class="boost-line" id="boost-line" hidden></div>
+      <div class="request-line" id="request-line" hidden></div>
       <!-- Серия: под карточкой, чтобы растущее число не двигало HUD -->
       <div id="combo" aria-hidden="true"><div class="combo-row"><span class="combo-label">серия</span> <b class="combo-x">×<span id="combo-n">2</span></b></div><i class="combo-bar"><i id="combo-fill"></i></i><div id="combo-note"></div></div>
     </div>
@@ -132,6 +133,9 @@
   <div id="cross" class="play-ui"></div>
   <!-- Светлячок из котелка: стрелка к ближайшему кристаллу -->
   <div id="firefly" class="play-ui" hidden aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28"><path d="M12 2 L20 20 L12 15 L4 20 Z" fill="currentColor"/></svg></div>
+  <!-- Житель леса: значок над головой издалека и реплика вблизи (src/residents) -->
+  <div id="resident-mark" class="play-ui" hidden aria-hidden="true">!</div>
+  <div id="bubble" class="play-ui" hidden role="status"></div>
   <div id="stick" class="play-ui"><div id="knob"></div></div>
   <button id="jump" class="play-ui" type="button">Прыжок</button>
   <button id="walk" class="play-ui" type="button" aria-pressed="false" title="Шагом: не переходить на бег">Шагом</button>

@@ -138,6 +138,7 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump,body[data-
 
 #portal-hint{color:var(--muted)}
 .boost-line{font:600 11px var(--f-mono);color:var(--accent);margin-top:3px}
+.request-line{font:600 11px var(--f-mono);color:var(--ink);margin-top:3px}
 #firefly{position:fixed;left:50%;top:26%;width:28px;height:28px;color:#e8ff9a;filter:drop-shadow(0 0 6px rgba(220,255,120,.9)) drop-shadow(0 1px 3px rgba(0,0,0,.6));pointer-events:none;transform:translateX(-50%)}
 #firefly[hidden]{display:none}
 #portal-hint.open{color:var(--accent)}
@@ -515,3 +516,10 @@ body[data-locked~="levels"][data-locked~="sky"][data-locked~="journal"] .menu-ti
 .atlas td{color:var(--muted)}
 .atlas td.got{color:var(--accent);font-size:14px}
 .atlas td.na{opacity:.35}
+
+/* Житель леса: облачко с репликой и значок «!» над головой */
+#bubble{position:fixed;left:0;top:0;max-width:min(320px,80vw);padding:9px 12px;border-radius:12px;background:var(--sheet);color:var(--ink);
+  border:1px solid var(--line);font:500 12px/1.45 var(--f-mono);box-shadow:0 6px 24px rgba(0,0,0,.3);pointer-events:none;z-index:4}
+#bubble::after{content:"";position:absolute;left:50%;bottom:-7px;width:12px;height:12px;background:inherit;border:inherit;border-top:0;border-left:0;transform:translateX(-50%) rotate(45deg)}
+#resident-mark{position:fixed;left:0;top:0;width:24px;height:24px;border-radius:50%;background:var(--accent);color:var(--accent-ink);
+  font:800 15px/24px var(--f-display);text-align:center;pointer-events:none;box-shadow:0 2px 10px rgba(0,0,0,.35);z-index:4}

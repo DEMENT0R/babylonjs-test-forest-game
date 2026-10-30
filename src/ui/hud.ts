@@ -118,6 +118,31 @@ export function setEnergy(value: number, max: number, dashCost: number, dt: numb
   }
 }
 
+const requestEl = byId('request-line');
+
+/** Строка просьбы жителя под заданием; null — просьб нет. */
+export function setRequestLine(text: string | null): void {
+  requestEl.hidden = !text;
+  if (requestEl.textContent !== (text ?? '')) requestEl.textContent = text ?? '';
+}
+
+const bubbleEl = byId('bubble');
+const markEl = byId('resident-mark');
+
+/**
+ * Реплика жителя в облачке над его головой; mark — значок «!» вместо реплики, пока герой далеко.
+ * x, y — где голова на экране, px; null — житель за кадром или молчит.
+ */
+export function setBubble(text: string | null, mark: boolean, x: number | null, y: number): void {
+  const show = x !== null;
+  bubbleEl.hidden = !show || !text;
+  markEl.hidden = !show || !!text || !mark;
+  if (!show) return;
+  const el = text ? bubbleEl : markEl;
+  if (text && bubbleEl.textContent !== text) bubbleEl.textContent = text;
+  el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px) translate(-50%, -100%)`;
+}
+
 const boostEl = byId('boost-line');
 const fireflyEl = byId('firefly');
 let fireflyAngle: number | null = null;

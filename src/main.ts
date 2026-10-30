@@ -2,7 +2,7 @@
 // а внутри игры — смена уровней через портал.
 
 import './fonts';
-import { Color3, Vector3 } from '@babylonjs/core';
+import { Color3, Matrix, Vector3 } from '@babylonjs/core';
 import { Footsteps, GameAudio } from './audio';
 import { Breath } from './breath';
 import { checkAchievements } from './achievements';
@@ -34,6 +34,10 @@ import { addMaterial, staminaWithPowers, takePacked } from './den/state';
 import { completeDaily, completeLevel, dailyBest, daysPlayed, formatTime, markPlayedToday, progress, setCurrentLevel, todayKey, totalStars } from './levels/progress';
 import { QuestMarkers } from './levels/markers';
 import { LevelSecrets, type Opened } from './levels/secrets';
+import { RESIDENTS } from './residents/catalog';
+import { ResidentModel } from './residents/model';
+import { currentStep, stateOf } from './residents/state';
+import { LostItemSpot, requestLine, ResidentVisit } from './residents/visit';
 import { EVENT_CHANCE, EVENT_INTRO, eventFor, LevelEvent, type EventKind } from './levels/events';
 import type { SecretKind, SecretSpot } from './levels/generator';
 import { fitQuest, QuestRun } from './levels/quests';
@@ -52,6 +56,8 @@ import {
   endCombo,
   say,
   setBoostLine,
+  setBubble,
+  setRequestLine,
   setComboLeft,
   setCrystals,
   setEnergy,
@@ -129,6 +135,13 @@ let activeBoost: BoostId | null = null;
 let boostPending = false;
 /** Тайники уровня. */
 let secrets: LevelSecrets | null = null;
+/** Житель леса на этом уровне и потерянная вещь, которую он просил найти. */
+let visit: ResidentVisit | null = null;
+let lostItem: LostItemSpot | null = null;
+/** Номер уровня для загрузки модели жителя: модель, пришедшая к уже другому уровню, выбрасывается. */
+let visitToken = 0;
+/** О жителе, который ждёт знакомства, ещё не сказали. */
+let visitIntro = false;
 /** Редкое событие уровня: радуга, звездопад или белка с кристаллом. */
 let levelEvent: LevelEvent | null = null;
 /** О событии ещё не сказали — скажут через пару секунд после старта, после названия уровня. */
@@ -289,6 +302,7 @@ function beginLevel(index: number, dailyDate: string | null = null, keepBoost = 
   const spot = welcomeNote ? welcomeSpot() : journal.notes < NOTES.length && Math.random() < NOTE_CHANCE ? noteSpot() : null;
   if (spot) world.placeNote(spot.x, spot.z);
   placePickups();
+  placeResidents();
   secrets?.dispose();
   secrets = new LevelSecrets(world.scene, layout);
   secretHints.clear();
@@ -426,6 +440,85 @@ function dropSpot(from: Vector3, turn: number): { x: number; z: number } {
     if (freeSpot(x, z)) return { x, z };
   }
   return { x: from.x + 1.5, z: from.z };
+}
+
+/**
+ * Жители — с тех пор как открылась нора, кроме Леса дня. Знакомиться житель приходит
+ * на любой уровень и ждёт у тропинки от старта; потом его встречают на полянах его биома.
+ * Потерянная вещь лежит на вершине цепочки платформ уровня нужного биома.
+ */
+function placeResidents(): void {
+  visit?.dispose();
+  lostItem?.dispose();
+  visit = lostItem = null;
+  visitIntro = false;
+  const token = ++visitToken;
+  if (daily || !isOpen('den')) return;
+  for (const def of RESIDENTS) {
+    const st = stateOf(def);
+    if (!visit && (!st.met || layout.biome.id === def.biome)) {
+      const spot = st.met ? clearingSpot() : pathSpot(7.5);
+      if (spot) {
+        const v = (visit = new ResidentVisit(def, new Vector3(spot.x, world.terrainAt(spot.x, spot.z), spot.z)));
+        visitIntro = !st.met;
+        ResidentModel.load(def, world.lighting)
+          .then((m) => (token === visitToken ? v.attach(m) : m.dispose()))
+          .catch((err) => console.error(err));
+      }
+    }
+  }
+  placeLostItem();
+}
+
+/** Потерянная вещь — на вершине цепочки платформ уровня того биома, где её обронили. */
+function placeLostItem(): void {
+  if (lostItem || daily) return;
+  for (const def of RESIDENTS) {
+    const step = currentStep(def);
+    if (step?.kind !== 'find' || stateOf(def).carrying || step.biome !== layout.biome.id) continue;
+    const tops = layout.crystals.filter((c) => c.kind === 'top');
+    const top = tops[Math.floor(Math.random() * tops.length)];
+    // Рядом с кристаллом на вершине, но не в нём
+    if (top) lostItem = new LostItemSpot(world.scene, def, step.item, new Vector3(top.x + 0.6, top.y, top.z + 0.4));
+    return;
+  }
+}
+
+/** Место на боковой поляне, свободное от деревьев, воды и кристаллов. */
+function clearingSpot(): { x: number; z: number } | null {
+  const side = layout.clearings.slice(1);
+  for (let t = 0; t < 40 && side.length; t++) {
+    const c = side[Math.floor(Math.random() * side.length)];
+    const a = Math.random() * Math.PI * 2, r = Math.random() * c.r * 0.5;
+    const x = c.x + Math.cos(a) * r, z = c.z + Math.sin(a) * r;
+    if (freeSpot(x, z)) return { x, z };
+  }
+  return null;
+}
+
+/** Место у тропинки впереди от старта, на расстоянии dist, — где житель ждёт знакомства. */
+function pathSpot(dist: number): { x: number; z: number } | null {
+  const { x: sx, z: sz } = layout.spawn;
+  const ahead = Math.atan2(layout.portal.z - sz, layout.portal.x - sx);
+  for (let t = 0; t < 16; t++) {
+    const a = ahead + (t % 2 ? 1 : -1) * (0.5 + Math.floor(t / 2) * 0.2);
+    const x = sx + Math.cos(a) * dist, z = sz + Math.sin(a) * dist;
+    if (freeSpot(x, z)) return { x, z };
+  }
+  return clearingSpot();
+}
+
+/** Облачко или значок «!» над жителем: голова на экране; за кадром и далеко — ничего. */
+function updateBubble(): void {
+  if (!visit) {
+    setBubble(null, false, null, 0);
+    return;
+  }
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const p = Vector3.Project(visit.head, Matrix.Identity(), world.scene.getTransformMatrix(), world.camera.viewport.toGlobal(w, h));
+  const far = Vector3.Distance(visit.head, player.pos) > 40;
+  const seen = p.z > 0 && p.z < 1 && p.x > -40 && p.x < w + 40 && p.y > -40 && p.y < h + 40 && !far;
+  setBubble(visit.bubble, visit.waiting, seen ? p.x : null, p.y);
 }
 
 /** Место для записки, которая ждала игрока: впереди от старта, по пути к порталу. */
@@ -869,6 +962,21 @@ world.scene.onBeforeRenderObservable.add(() => {
       if (shaken) openSecret(shaken);
     }
     for (const o of secrets?.update(dt, player.pos) ?? []) openSecret(o);
+    const talk = visit?.update(dt, player.pos);
+    if (talk === 'thanks') {
+      audio.chime(true, 2);
+      // Следующая просьба может звать на этот же уровень
+      placeLostItem();
+      if (!currentStep(visit!.def)) say(`${visit!.def.icon} ${visit!.def.name}: все просьбы выполнены`, 3000);
+    } else if (talk === 'met') {
+      audio.chime(false, 1);
+    }
+    if (visitIntro && levelTime > 3 && !eventIntro) {
+      visitIntro = false;
+      say('У тропинки кто-то ждёт — подойди познакомиться', 3500);
+    }
+    setRequestLine(daily ? null : RESIDENTS.map(requestLine).find(Boolean) ?? null);
+    updateBubble();
     if (eventIntro && levelTime > 2.5) {
       eventIntro = false;
       say(EVENT_INTRO[levelEvent!.kind], 3500);
@@ -959,6 +1067,11 @@ world.scene.onBeforeRenderObservable.add(() => {
     takeWelcome();
     say(`${where}, ${journal.notes + 1} из ${NOTES.length}: «${addNote()}»`, 6000);
   }
+  // Потерянная вещь лежит у кристалла на вершине — весть о ней после надписи о кристалле
+  if (active && lostItem?.update(dt, player.center)) {
+    audio.chime(true, 3);
+    say(`Нашлось: ${lostItem.item.name} — отнеси ${lostItem.def.dative}`, 3200);
+  }
   // После надписи о кристалле — чтобы весть о задании её перекрыла, а не наоборот
   if (active) tickQuest(dt, got);
   if (active && world.inPortal(player.pos)) finishLevel();
@@ -988,15 +1101,15 @@ menu.update(null);
 byId('m-new').focus();
 void select.load();
 // Ссылка «в гости»: сразу в нору друга; из неё — в своё меню
-const visit = snapshotFromUrl();
-if (visit) {
+const denLink = snapshotFromUrl();
+if (denLink) {
   den.setBiome(world.layout.biome);
   setState('den');
-  den.open(visit);
-} else if (visit === null) {
+  den.open(denLink);
+} else if (denLink === null) {
   clearUrl();
   say('Ссылка на нору не открылась — похоже, она обрезана', 3500);
 }
 
 // Для отладки из консоли браузера; в production-сборку не попадает
-if (import.meta.env.DEV) Object.assign(window, { __game: { world, player, rig, select, den, beginLevel, get layout() { return layout; }, get quest() { return quest; }, get secrets() { return secrets; }, get event() { return levelEvent; }, openSecret, forceEvent: (k: EventKind) => (forcedEvent = k) } });
+if (import.meta.env.DEV) Object.assign(window, { __game: { world, player, rig, select, den, beginLevel, get layout() { return layout; }, get quest() { return quest; }, get secrets() { return secrets; }, get visit() { return visit; }, get lostItem() { return lostItem; }, addMaterial, get event() { return levelEvent; }, openSecret, forceEvent: (k: EventKind) => (forcedEvent = k) } });

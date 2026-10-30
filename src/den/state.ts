@@ -149,6 +149,13 @@ function pay(cost: Cost): boolean {
   return true;
 }
 
+/** Отдать материалы жителю леса; false — не хватило, ничего не отдано. */
+export function give(cost: Cost): boolean {
+  if (!pay(cost)) return false;
+  save();
+  return true;
+}
+
 /** Материал подобран на уровне (n штук); возвращает, сколько его теперь. */
 export function addMaterial(id: MaterialId, n = 1): number {
   den.mats[id] = matCount(id) + n;
