@@ -233,6 +233,8 @@ export class Player {
   stamina: Stamina = { ...BASE_STAMINA };
   /** Множитель восстановления запала (усилитель уровня). */
   regenScale = 1;
+  /** Особые движения открыты: рывок и высокий прыжок (двойной и планирование — по stamina). */
+  special = true;
   /** Запал сейчас. */
   energy = BASE_STAMINA.max;
   /** Сколько секунд назад запал тратился. */
@@ -341,7 +343,7 @@ export class Player {
     const dir = fwd.scale(input.z).add(right.scale(input.x));
     this.moving = dir.lengthSquared() > 0.01;
     // Рывок — по ходу движения, а стоя — куда смотрит герой; «Шагом» его не пускает
-    if (dashEdge && this.dashLeft <= 0 && !walkLock && this.spend(DASH_COST)) {
+    if (dashEdge && this.special && this.dashLeft <= 0 && !walkLock && this.spend(DASH_COST)) {
       this.dashLeft = DASH_TIME;
       if (this.moving) this.dashDir.copyFrom(dir).normalize();
       else this.dashDir.set(Math.sin(this.facing), 0, Math.cos(this.facing));
@@ -402,7 +404,7 @@ export class Player {
     if (this.jumped) {
       this.jumpBuffer = 0;
       this.vel.y = jumpV;
-      this.highArmed = true;
+      this.highArmed = this.special;
       this.highFrom = this.pos.y;
       this.highV0 = jumpV;
       this.highHold = 0;

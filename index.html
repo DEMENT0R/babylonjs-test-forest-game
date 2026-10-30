@@ -36,6 +36,8 @@
       <nav class="menu-list" aria-label="Главное меню">
         <button type="button" id="m-continue" class="primary" hidden>Продолжить <span class="key-only">Esc</span></button>
         <button type="button" id="m-new">Играть</button>
+        <!-- Что откроется дальше (src/unlocks.ts) -->
+        <p class="menu-next" id="menu-next" hidden></p>
         <button type="button" id="m-daily" title="Одна раскладка на день — у всех одинаковая">Лес дня <span id="m-daily-best">новый</span></button>
         <button type="button" class="link" id="m-daily-share" hidden>Поделиться результатом дня ⧉</button>
         <button type="button" id="m-den">Нора <span id="m-den-info">✦ 0</span></button>
@@ -120,8 +122,8 @@
       </div>
       <details class="card keys" id="keys" hidden>
         <summary>Кнопки</summary>
-        <div class="keys-body key-only"><kbd>WASD</kbd>ходьба · <kbd>Shift</kbd>бег · <kbd>X</kbd>шагом<br><kbd>Space</kbd>прыжок, держать — выше · <kbd>E</kbd>рывок · <kbd>мышь</kbd>камера · <kbd>колесо</kbd>зум<br><kbd>C</kbd>режим камеры · <kbd>M</kbd>звук · <kbd>F</kbd>весь экран · <kbd>Esc</kbd>пауза и меню</div>
-        <div class="keys-body pad-only"><kbd>L</kbd>ходьба, до упора — бег · <kbd>LB</kbd>бег · <kbd>L3</kbd>шагом<br><kbd>A</kbd>прыжок, держать — выше · <kbd>B</kbd>рывок · <kbd>R</kbd>камера · <kbd>↑↓</kbd>зум<br><kbd>Y</kbd>режим камеры · <kbd>View</kbd>настройки · <kbd>Start</kbd>пауза</div>
+        <div class="keys-body key-only"><kbd>WASD</kbd>ходьба · <kbd>Shift</kbd>бег · <kbd>Space</kbd>прыжок<br><kbd>мышь</kbd>камера · <kbd>колесо</kbd>зум<br><kbd>C</kbd>режим камеры · <kbd>M</kbd>звук · <kbd>F</kbd>весь экран · <kbd>Esc</kbd>пауза и меню</div>
+        <div class="keys-body pad-only"><kbd>L</kbd>ходьба, до упора — бег · <kbd>LB</kbd>бег · <kbd>A</kbd>прыжок<br><kbd>R</kbd>камера · <kbd>↑↓</kbd>зум<br><kbd>Y</kbd>режим камеры · <kbd>View</kbd>настройки · <kbd>Start</kbd>пауза</div>
       </details>
     </div>
   </div>

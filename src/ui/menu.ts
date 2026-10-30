@@ -13,6 +13,7 @@ import { growGarden, welcomeNote } from '../journal';
 import { crystals } from '../den/state';
 import { copyText, dailyShareText, gameUrl } from '../share';
 import { qrSvg } from '../qr';
+import { isOpen, nextUnlock, seenButton, syncLocks } from '../unlocks';
 import { JOURNAL_TABS } from './journal-panel';
 import { seenStars, skyHtml } from './sky-panel';
 
@@ -164,6 +165,11 @@ export class MainMenu {
       actions.onPickLevel(Number(b.dataset.level));
     });
     this.changesDot.hidden = !hasUnseenChanges();
+    // Нажатый новый пункт больше не помечен точкой
+    this.root.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLElement>('.fresh');
+      if (b) seenButton(b.id);
+    });
   }
 
   get isInfoOpen(): boolean {
@@ -193,6 +199,10 @@ export class MainMenu {
     byId('m-daily-best').textContent = best === undefined ? 'новый' : `рекорд ${formatTime(best)}`;
     byId('m-daily-share').hidden = best === undefined;
     byId('m-den-info').textContent = `✦ ${crystals()}`;
+    syncLocks();
+    const next = nextUnlock();
+    byId('menu-next').hidden = !next;
+    byId('menu-next').textContent = next ?? '';
     this.syncNews();
   }
 
@@ -213,8 +223,9 @@ export class MainMenu {
     const items: string[] = [];
     const link = (tab: string, html: string) => `<li><button type="button" class="link" data-tab="${tab}">${html}</button></li>`;
     if (welcomeNote) items.push(link('finds', '✉ Пока тебя не было, у каменного круга оставили записку'));
+    // Сад растёт и до того, как нора откроется, — к открытию в нём уже будут кристаллы
     const ready = growGarden();
-    if (ready) {
+    if (ready && isOpen('den')) {
       items.push(
         `<li><button type="button" class="link" data-den>✦ В саду у норы ${plural(ready, 'вырос', 'выросло', 'выросло')} ${ready} ${plural(ready, 'кристалл', 'кристалла', 'кристаллов')}</button></li>`,
       );

@@ -266,7 +266,7 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump,body[data-
 .den-slots button:is(:hover,:focus-visible){border-color:var(--accent)}
 .den-slots button[aria-pressed="true"]{border-color:var(--accent);background:var(--panel-hi)}
 .den-slots button.locked{opacity:.55}
-#den:not(.guest) #den-own,#den.guest :is(.den-wallet,.den-slots,#den-harvest,#den-share,.sel-hint){display:none}
+#den.no-own #den-own,#den:not(.guest) #den-own,#den.guest :is(.den-wallet,.den-slots,#den-harvest,#den-share,.sel-hint){display:none}
 .den-foot .primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .den-foot{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center}
 @media (hover:none){#den .sel-hint{display:none}}
@@ -335,6 +335,14 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump,body[data-
 .menu-foot{display:flex;align-items:center;gap:18px;margin-top:14px}
 .menu-version{font:400 11px var(--f-mono);color:var(--muted);opacity:.7}
 #menu #m-daily-share{margin:-2px 0 4px}
+/* Закрытые пока функции (src/unlocks.ts) и точка «новое» на только что открытых */
+body[data-locked~="levels"] #m-levels,body[data-locked~="sky"] #m-sky,body[data-locked~="journal"] #m-journal,
+body[data-locked~="share"] :is(#m-share,#m-install),body[data-locked~="den"] #m-den,body[data-locked~="daily"] :is(#m-daily,#m-daily-share){display:none!important}
+body[data-locked~="stamina"] :is(#dash,#energy),body[data-locked~="walk"] #walk{display:none!important}
+body[data-locked~="levels"][data-locked~="sky"][data-locked~="journal"] .menu-tiles{display:none}
+.menu-list button.fresh::after{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px rgba(255,207,90,.2);flex:none}
+.menu-list button.tile.fresh::after{position:absolute;top:10px;right:10px}
+.menu-next{margin:0 0 6px;font:600 12px/1.4 var(--f-mono);color:var(--muted)}
 @media (hover:none){#menu .key-only{display:none}}
 
 .menu-info{width:420px;max-width:100%;max-height:100%;min-width:0;display:flex;flex-direction:column;background:var(--panel-hi);border:1px solid var(--line);border-radius:12px;backdrop-filter:blur(8px);overflow:hidden}
@@ -424,6 +432,7 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump,body[data-
   .menu-list:has(#m-continue[hidden]) #m-settings{grid-column:1/-1}
   .menu-tiles,.menu-foot{grid-column:1/-1;margin:0}
   #menu #m-daily-share{grid-column:1/-1;justify-self:center;margin:0}
+  .menu-next{grid-column:1/-1;text-align:center;margin:0}
   .menu-tiles{order:0}
   .menu-foot{order:2;justify-content:center;padding-top:4px}
   .menu-list button.tile{align-items:center;font-size:14px;padding:8px 6px}
