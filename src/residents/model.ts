@@ -23,7 +23,8 @@ export class ResidentModel {
     private readonly meshes: AbstractMesh[],
   ) {}
 
-  static async load(def: ResidentDef, ctx: LightingContext): Promise<ResidentModel> {
+  /** pick — метаданные мешей, чтобы по жителю можно было кликнуть (у норы); без них он не кликается. */
+  static async load(def: ResidentDef, ctx: LightingContext, pick?: object): Promise<ResidentModel> {
     const scene = ctx.scene;
     const res = await ImportMeshAsync(`${import.meta.env.BASE_URL}models/residents/${def.file}`, scene);
     const root = new TransformNode(`resident-${def.id}`, scene);
@@ -47,7 +48,8 @@ export class ResidentModel {
         mat.metallic = 0;
         mat.roughness = Math.max(mat.roughness ?? 0.8, 0.8);
       }
-      m.isPickable = false;
+      m.isPickable = !!pick;
+      if (pick) m.metadata = pick;
       if (m.getTotalVertices() > 0) {
         addShadowCaster(ctx, m);
         m.receiveShadows = true;
@@ -57,8 +59,10 @@ export class ResidentModel {
     return new ResidentModel(root, body, res.meshes);
   }
 
-  place(x: number, y: number, z: number): void {
+  /** yaw — куда смотреть, пока героя рядом нет. */
+  place(x: number, y: number, z: number, yaw = this.yaw): void {
     this.root.position.set(x, y, z);
+    this.yaw = yaw;
   }
 
   /** Обрадоваться: попрыгать на месте. */

@@ -23,6 +23,12 @@ export type RequestStep = { ask: string; thanks: string } & (
   | { kind: 'secret'; biome: BiomeId; secret: SecretKind }
 );
 
+/**
+ * Польза от жителя, переехавшего к норе, — только бытовая, без бонусов к движению.
+ * crop — запас урожая этого куста больше на один; gift — раз в день приносит материалы.
+ */
+export type Perk = { kind: 'crop'; crop: CropId } | { kind: 'gift'; mat: MaterialId; n: number };
+
 /** Потерянная вещь: имя в винительном падеже («отнеси ежу яблоко») и вид модели. */
 export interface LostItem { name: string; look: 'apple' | 'acorn' | 'button' }
 
@@ -42,8 +48,13 @@ export interface ResidentDef {
   /** Что он говорит при первой встрече — перед первой просьбой. */
   hello: string;
   steps: readonly RequestStep[];
-  /** Цепочка пройдена. */
+  /** Цепочка пройдена — житель просится жить у норы. */
   done: string;
+  perk: Perk;
+  /** Что даёт польза — для «Дневника». */
+  perkText: string;
+  /** Реплики у норы: по одной на день. */
+  daily: readonly string[];
 }
 
 export const RESIDENTS: readonly ResidentDef[] = [
@@ -84,7 +95,16 @@ export const RESIDENTS: readonly ResidentDef[] = [
         thanks: 'И правда с ладонь! Ты настоящий друг.',
       },
     ],
-    done: 'Заходи ещё — у меня всегда найдётся сушёный гриб к чаю.',
+    done: 'Слушай… а можно я поселюсь у твоей норы? Буду сторожить шиповник!',
+    perk: { kind: 'crop', crop: 'rosehip' },
+    perkText: 'шиповника созревает на горсть больше',
+    daily: [
+      'Шиповник сегодня — загляденье. Я пересчитал каждую ягодку.',
+      'Ночью кто-то шуршал у грядки. Наверное, ветер. Или я сам.',
+      'Заходи на чай — у меня есть сушёный гриб, совсем немного погрызенный.',
+      'Знаешь, отсюда звёзды видно лучше, чем из-под старого пня.',
+      'Я нашёл у норы гладкий камешек. Положил его в кладовую — пусть будет.',
+    ],
   },
 ];
 

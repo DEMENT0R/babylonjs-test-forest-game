@@ -460,7 +460,7 @@ function placeResidents(): void {
   if (daily || !isOpen('den')) return;
   // Сначала — знакомый житель этого леса; если такого нет, новый приходит знакомиться,
   // но не больше двух просьб сразу, чтобы игра не превращалась в список дел
-  const home = RESIDENTS.find((r) => stateOf(r).met && r.biome === layout.biome.id);
+  const home = RESIDENTS.find((r) => isActive(r) && r.biome === layout.biome.id);
   const fresh = RESIDENTS.filter(isActive).length < MAX_REQUESTS ? RESIDENTS.find((r) => !stateOf(r).met) : undefined;
   const def = home ?? fresh;
   const spot = def && (home ? clearingSpot() : pathSpot(7.5));
@@ -981,7 +981,7 @@ world.scene.onBeforeRenderObservable.add(() => {
       audio.chime(true, 2);
       // Следующая просьба может звать на этот же уровень
       placeLostItem();
-      if (!currentStep(visit!.def)) say(`${visit!.def.icon} ${visit!.def.name}: все просьбы выполнены`, 3000);
+      if (!currentStep(visit!.def)) say(`${visit!.def.icon} ${visit!.def.name} переезжает к твоей норе — загляни к нему туда`, 3500);
     } else if (talk === 'met') {
       audio.chime(false, 1);
     }

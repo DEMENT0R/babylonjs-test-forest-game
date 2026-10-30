@@ -89,7 +89,7 @@ function residentsHtml(): string {
     const st = stateOf(r);
     if (!st.met) return `<li class="badge off"><b>○ ???</b><span>Кто-то ещё живёт в лесу · ${BIOMES[r.biome].name}</span></li>`;
     const line = requestLine(r);
-    const now = line ? line.slice(line.indexOf(':') + 2) : 'все просьбы выполнены';
+    const now = line ? line.slice(line.indexOf(':') + 2) : `живёт у норы — ${r.perkText}`;
     return `<li class="badge${line ? ' off' : ''}"><b>${r.icon} ${r.name}</b><span>${BIOMES[r.biome].name} · просьб ${st.step} из ${r.steps.length} · ${now}</span></li>`;
   });
   return `<h5>Жители леса · ${met.length} из ${RESIDENTS.length}</h5>

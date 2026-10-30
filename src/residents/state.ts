@@ -57,6 +57,12 @@ export function markReady(r: ResidentDef): void {
   save();
 }
 
+/** Все просьбы выполнены — житель живёт у норы. */
+export const isMoved = (r: ResidentDef): boolean => stateOf(r).step >= r.steps.length;
+
+/** Кто живёт у норы. */
+export const movedIn = (): ResidentDef[] => RESIDENTS.filter(isMoved);
+
 /** Знакомы, и просьба ещё не выполнена до конца. */
 export const isActive = (r: ResidentDef): boolean => stateOf(r).met && currentStep(r) !== null;
 

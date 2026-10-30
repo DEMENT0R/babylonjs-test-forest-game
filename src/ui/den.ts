@@ -52,7 +52,6 @@ import {
   buyPower,
   canAfford,
   clearSlot,
-  cropCap,
   cropOpen,
   cropReady,
   crystals,
@@ -85,6 +84,8 @@ import { addShadowCaster, createLightingContext, settings, type LightingContext 
 import { byId, clamp, damp, plural } from '../utils';
 import { isOpen } from '../unlocks';
 import { say } from './hud';
+import { RESIDENTS, residentById, type ResidentId } from '../residents/catalog';
+import { ResidentModel } from '../residents/model';
 
 /** Поляна у норы, свободная от деревьев. */
 const CLEARING_R = 13;
@@ -93,6 +94,8 @@ const HOME_TREE = { x: 0.4, z: 8.6 };
 const BASE_ALPHA = -Math.PI / 2;
 /** Сад кристаллов: каменное кольцо слева от норы. */
 const GARDEN = { x: -3.6, z: 4.2 };
+/** Во сколько раз жители у норы крупнее, чем на уровнях. */
+const RESIDENT_SCALE = 1.7;
 /** Двор — утоптанный эллипс; деталям поляны — кольцо по его краю. */
 const YARD = { z: 0.6, rx: 5.2, rz: 4.6 };
 
@@ -142,6 +145,8 @@ export class DenScreen {
   private decor: ClearingDecor | null = null;
   private decorCount = -1;
   private garden: GardenCrystal[] = [];
+  /** Жители, переехавшие к норе, которая сейчас во дворе; модели грузятся асинхронно. */
+  private readonly residents = new Map<ResidentId, ResidentModel | null>();
   /** Кусты и улей у той норы, что сейчас во дворе. */
   private readonly crops = new Map<CropId, Built & { fruits: Mesh[] }>();
   private readonly harvestBtn = byId<HTMLButtonElement>('den-harvest');
@@ -226,6 +231,11 @@ export class DenScreen {
     scene.onPointerObservable.add((pi) => {
       if (pi.type !== PointerEventTypes.POINTERTAP || !this.active || this.guest) return;
       const picked = pi.pickInfo?.pickedMesh;
+      const who = (picked?.metadata as { resident?: string } | null)?.resident;
+      if (who) {
+        this.talkTo(who);
+        return;
+      }
       const g = this.garden.findIndex((c) => c.mesh === picked);
       if (g >= 0) {
         this.harvest(g);
@@ -374,6 +384,47 @@ export class DenScreen {
     }
     // Чужой сад не собрать — в гостях грядка пустая
     for (const c of this.garden) c.mesh.setEnabled(!this.guest);
+    this.syncResidents(view.residents ?? []);
+  }
+
+  /** Жители во дворе: лишних убрать, новых привести — каждого на своё место по краю двора. */
+  private syncResidents(ids: readonly ResidentId[]): void {
+    for (const [id, m] of this.residents) {
+      if (ids.includes(id)) continue;
+      m?.dispose();
+      this.residents.delete(id);
+    }
+    for (const id of ids) {
+      if (this.residents.has(id)) continue;
+      const def = residentById(id)!;
+      this.residents.set(id, null);
+      const spot = this.residentSpot(RESIDENTS.indexOf(def));
+      ResidentModel.load(def, this.lighting, { resident: id })
+        .then((m) => {
+          // Пока грузилась, жителя могло уже не быть во дворе (ушли из гостей)
+          if (!this.residents.has(id) || this.residents.get(id)) {
+            m.dispose();
+            return;
+          }
+          m.place(spot.x, 0, spot.z, Math.atan2(-spot.x, -10 - spot.z));
+          // Камера двора далеко: в настоящий рост ёж — точка в траве
+          m.root.scaling.setAll(RESIDENT_SCALE);
+          this.residents.set(id, m);
+        })
+        .catch((err) => console.error(err));
+    }
+  }
+
+  /** Место жителя по краю двора — по бокам и спереди, чтобы его было видно; i — номер в каталоге. */
+  private residentSpot(i: number): { x: number; z: number } {
+    const base = [-1.6, 1.6, -2.2, 2.2, -2.7, 2.7][i % 6];
+    for (let t = 0; t < 24; t++) {
+      const a = base + (t % 2 ? 1 : -1) * Math.floor((t + 1) / 2) * 0.12;
+      const k = 0.88 - (t % 3) * 0.05;
+      const x = Math.sin(a) * YARD.rx * k, z = YARD.z + Math.cos(a) * YARD.rz * k;
+      if (this.free(x, z)) return { x, z };
+    }
+    return { x: Math.sin(base) * YARD.rx, z: YARD.z + Math.cos(base) * YARD.rz };
   }
 
   /** «Позвать в гости»: карточка с QR-кодом ссылки на нору; второе нажатие её закрывает. */
@@ -393,6 +444,16 @@ export class DenScreen {
     const ok = await copyText(shareUrl(snapshot(daysPlayed())));
     btn.textContent = ok ? 'Скопировано ✓' : 'Не удалось скопировать';
     setTimeout(() => (btn.textContent = COPY_LABEL), 2500);
+  }
+
+  /** Клик по жителю у норы: реплика дня — каждый день новая — и чем он помогает. */
+  private talkTo(id: string): void {
+    const def = residentById(id);
+    const m = def && this.residents.get(def.id);
+    if (!def || !m) return;
+    m.cheer();
+    const day = Math.floor(Date.now() / 86_400_000);
+    say(`${def.icon} ${def.name}: «${def.daily[day % def.daily.length]}» · ${def.perkText}`, 4500);
   }
 
   /** Место открыто в той норе, что сейчас во дворе. */
@@ -504,7 +565,7 @@ export class DenScreen {
         continue;
       }
       if (!b) {
-        b = this.kit.crop(c.id, c.color, 4);
+        b = this.kit.crop(c.id, c.color, 5);
         b.root.position.set(c.x, 0, c.z);
         b.root.rotation.y = c.x < 0 ? 0.3 : -0.3;
         for (const m of b.meshes) m.metadata = { crop: c.id };
@@ -526,7 +587,7 @@ export class DenScreen {
     const got = Object.entries(harvestCrops()).map(([id, n]) => amount(cropById(id)!, n));
     if (!got.length) {
       const growing = CROPS.filter(cropOpen).map((c) => c.source.toLowerCase());
-      say(`Урожай ещё растёт: ${growing.join(', ')} — по одному за пару часов, до ${cropCap()}`, 2500);
+      say(`Урожай ещё растёт: ${growing.join(', ')} — по одному за пару часов`, 2500);
       return;
     }
     this.actions.chime();
@@ -851,6 +912,7 @@ export class DenScreen {
     this.grass?.update(cam.position, null, 0);
     this.particles?.follow(cam.position);
     for (const b of this.built.values()) b.tick?.(this.t);
+    for (const r of this.residents.values()) r?.update(dt, null, false);
     this.decor?.update(dt);
     for (const c of this.garden) {
       c.phase += dt;

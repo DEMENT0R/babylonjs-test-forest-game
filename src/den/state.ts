@@ -3,6 +3,7 @@
 // поэтому старым сохранениям не нужен перенос.
 
 import { atlasCount, journal } from '../journal';
+import { movedIn } from '../residents/state';
 import { BASE_STAMINA, type Stamina } from '../stamina';
 import { clamp } from '../utils';
 import {
@@ -231,8 +232,9 @@ export const stockOf = (id: CropId): number => den.stock[id] ?? 0;
 /** Урожай растёт у нынешней норы. */
 export const cropOpen = (c: CropDef): boolean => c.tier <= den.tier;
 
-/** Сколько урожая помещается на кусте: у большой норы — на один больше. */
-export const cropCap = (): number => CROP_CAP + (den.tier >= 3 ? 1 : 0);
+/** Сколько урожая помещается на кусте: у большой норы — на один больше, и ещё на один, если за кустом смотрит житель. */
+export const cropCap = (id: CropId): number =>
+  CROP_CAP + (den.tier >= 3 ? 1 : 0) + (movedIn().some((r) => r.perk.kind === 'crop' && r.perk.crop === id) ? 1 : 0);
 
 /**
  * Досчитать, что выросло на кустах с прошлого раза, — как сад кристаллов:
@@ -240,9 +242,9 @@ export const cropCap = (): number => CROP_CAP + (den.tier >= 3 ? 1 : 0);
  */
 export function growCrops(): void {
   const now = Date.now();
-  const cap = cropCap();
   for (const c of CROPS) {
     if (!cropOpen(c)) continue;
+    const cap = cropCap(c.id);
     const g = (den.crops[c.id] ??= { ready: 0, since: now });
     if (g.ready >= cap) {
       g.since = now;
@@ -262,11 +264,10 @@ export const cropReady = (id: CropId): number => den.crops[id]?.ready ?? 0;
 /** Собрать весь урожай; возвращает, сколько чего собрано. */
 export function harvestCrops(): Partial<Record<CropId, number>> {
   const got: Partial<Record<CropId, number>> = {};
-  const cap = cropCap();
   for (const c of CROPS) {
     const g = den.crops[c.id];
     if (!g?.ready) continue;
-    if (g.ready >= cap) g.since = Date.now();
+    if (g.ready >= cropCap(c.id)) g.since = Date.now();
     got[c.id] = g.ready;
     den.stock[c.id] = stockOf(c.id) + g.ready;
     g.ready = 0;
