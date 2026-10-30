@@ -1,15 +1,17 @@
 // Житель на уровне: стоит на поляне, а когда герой подходит — говорит. Просьба принимается
-// сама: подошёл — услышал, что нужно. Материалы житель забирает при встрече, если они есть
-// в норе; потерянную вещь герой находит на уровне её биома и приносит хозяину.
+// сама: подошёл — услышал, что нужно. Материалы и урожай житель забирает при встрече, если
+// они есть в норе; остальное делается на уровнях (найти вещь, пройти задание, собрать серию,
+// раскрыть тайник), а потом надо прийти к жителю и рассказать.
 
 import { Color3, Color4, MeshBuilder, ParticleSystem, StandardMaterial, TransformNode, Vector3, type DynamicTexture, type Mesh, type Scene } from '@babylonjs/core';
-import { amount, materialById, type MaterialId } from '../den/catalog';
-import { give, matCount } from '../den/state';
-import { BIOMES } from '../levels/biomes';
+import { amount, cropById, materialById, type Cost, type CropId, type MaterialId } from '../den/catalog';
+import { canAfford, give, matCount, stockOf } from '../den/state';
+import { BIOMES, type BiomeId } from '../levels/biomes';
+import type { SecretKind } from '../levels/generator';
 import { dotTexture } from '../particles';
-import type { LostItem, RequestStep, ResidentDef } from './catalog';
+import { RESIDENTS, type LostItem, type RequestStep, type ResidentDef } from './catalog';
 import type { ResidentModel } from './model';
-import { advance, carry, currentStep, meet, stateOf } from './state';
+import { advance, currentStep, markReady, meet, stateOf } from './state';
 
 /** Ближе этого житель заговаривает, м; дальше этого — замолкает. */
 const TALK_R = 3;
@@ -17,25 +19,70 @@ const QUIET_R = 6;
 /** Подобрать потерянную вещь, м. */
 const PICK_R = 1.4;
 
+/** Тайник в просьбе — винительный падеж. */
+const SECRET_NAMES: Record<SecretKind, string> = {
+  tree: 'мерцающее дерево',
+  stone: 'тайник под камнем',
+  ring: 'грибной круг',
+  ledge: 'гнездо на уступе',
+  pearl: 'жемчужину',
+};
+
+/** Что житель просит принести: материалы и урожай одной ценой. */
+const bringCost = (step: Extract<RequestStep, { kind: 'bring' }>): Cost => ({ crystals: 0, mats: step.mats, crops: step.crops });
+
 /** Строка просьбы в HUD; null — просьбы нет (не знакомы или всё выполнено). */
 export function requestLine(def: ResidentDef): string | null {
   const st = stateOf(def);
   const step = currentStep(def);
   if (!st.met || !step) return null;
-  return `${def.icon} ${def.name}: ${stepText(def, step, st.carrying)}`;
+  return `${def.icon} ${def.name}: ${stepText(def, step, st.ready)}`;
 }
 
-/** Что сделать для просьбы; когда всё готово — кому и куда отнести (житель живёт в своём биоме). */
-function stepText(def: ResidentDef, step: RequestStep, carrying: boolean): string {
+/** Что сделать для просьбы; когда всё готово — к кому и куда прийти (житель живёт в своём биоме). */
+function stepText(def: ResidentDef, step: RequestStep, ready: boolean): string {
   const where = BIOMES[def.biome].name;
-  if (step.kind === 'bring') {
-    const ready = Object.entries(step.mats).every(([id, n]) => matCount(id as MaterialId) >= n!);
-    const parts = Object.entries(step.mats).map(([id, n]) => amount(materialById(id)!, n!));
-    if (ready) return `отнеси ${parts.join(', ')} · ${where}`;
-    const have = Object.entries(step.mats).map(([id, n]) => `${Math.min(matCount(id as MaterialId), n!)}/${n}`);
-    return `принеси ${parts.join(', ')} (есть ${have.join(', ')})`;
+  const back = `загляни к нему · ${where}`;
+  const biome = (b: BiomeId) => BIOMES[b].name;
+  switch (step.kind) {
+    case 'bring': {
+      const items = [
+        ...Object.entries(step.mats ?? {}).map(([id, n]) => ({ name: amount(materialById(id)!, n!), have: matCount(id as MaterialId), n: n! })),
+        ...Object.entries(step.crops ?? {}).map(([id, n]) => ({ name: amount(cropById(id)!, n!), have: stockOf(id as CropId), n: n! })),
+      ];
+      const list = items.map((i) => i.name).join(', ');
+      if (canAfford(bringCost(step))) return `отнеси ${list} · ${where}`;
+      return `${step.crops ? 'угости' : 'принеси'}: ${list} (есть ${items.map((i) => `${Math.min(i.have, i.n)}/${i.n}`).join(', ')})`;
+    }
+    case 'find':
+      return ready ? `отнеси ${step.item.name} · ${where}` : `найди ${step.item.name} на вершине · ${biome(step.biome)}`;
+    case 'quest':
+      return ready ? back : `выполни задание уровня · ${biome(step.biome)}`;
+    case 'combo':
+      return ready ? back : `собери серию ×${step.n}`;
+    case 'secret':
+      return ready ? back : `найди ${SECRET_NAMES[step.secret]} · ${biome(step.biome)}`;
   }
-  return carrying ? `отнеси ${step.item.name} · ${where}` : `найди ${step.item.name} на вершине · ${BIOMES[step.biome].name}`;
+}
+
+/** Что случилось на уровне — может выполнить чью-то просьбу. */
+export type RequestEvent = { kind: 'quest'; biome: BiomeId } | { kind: 'combo'; n: number } | { kind: 'secret'; biome: BiomeId; secret: SecretKind };
+
+/** Отметить просьбы, которые это событие выполнило; возвращает жителей, к которым теперь прийти. */
+export function progressRequests(ev: RequestEvent): ResidentDef[] {
+  const done: ResidentDef[] = [];
+  for (const def of RESIDENTS) {
+    const step = currentStep(def);
+    if (!step || !stateOf(def).met || stateOf(def).ready || step.kind !== ev.kind) continue;
+    const hit =
+      (step.kind === 'quest' && ev.kind === 'quest' && step.biome === ev.biome) ||
+      (step.kind === 'combo' && ev.kind === 'combo' && ev.n >= step.n) ||
+      (step.kind === 'secret' && ev.kind === 'secret' && step.biome === ev.biome && step.secret === ev.secret);
+    if (!hit) continue;
+    markReady(def);
+    done.push(def);
+  }
+  return done;
 }
 
 /** Что случилось при разговоре — для звука и надписей. */
@@ -98,8 +145,7 @@ export class ResidentVisit {
       result = 'met';
     }
     const step = currentStep(def);
-    const st = stateOf(def);
-    const fulfilled = step && ((step.kind === 'bring' && give({ crystals: 0, mats: step.mats })) || (step.kind === 'find' && st.carrying));
+    const fulfilled = step && (step.kind === 'bring' ? give(bringCost(step)) : stateOf(def).ready);
     if (step && fulfilled) {
       advance(def);
       lines.push(step.thanks);
@@ -190,7 +236,7 @@ export class LostItemSpot {
     this.taken = true;
     this.root.setEnabled(false);
     this.glint.emitRate = 0;
-    carry(this.def);
+    markReady(this.def);
     return true;
   }
 

@@ -4,6 +4,9 @@ import { ACHIEVEMENTS, isDone, progressText } from '../achievements';
 import { ATLAS_KINDS, ATLAS_TOTAL, atlasCount, journal, NOTES, SHADES } from '../journal';
 import { BIOMES, type BiomeId } from '../levels/biomes';
 import { ITEMS } from '../den/catalog';
+import { RESIDENTS } from '../residents/catalog';
+import { stateOf } from '../residents/state';
+import { requestLine } from '../residents/visit';
 import { DECOR } from '../den/decor';
 import type { SecretKind } from '../levels/generator';
 import { daysPlayed } from '../levels/progress';
@@ -79,6 +82,21 @@ function atlasHtml(): string {
     ${next ? `<p>Ещё ${next.atlas! - n} — и для норы откроется «${next.name}».</p>` : '<p>Все вещи из тайников для норы открыты.</p>'}`;
 }
 
+/** Жители: с кем знаком, о чём просит и сколько просьб выполнено; незнакомые — силуэтом. */
+function residentsHtml(): string {
+  const met = RESIDENTS.filter((r) => stateOf(r).met);
+  const rows = RESIDENTS.map((r) => {
+    const st = stateOf(r);
+    if (!st.met) return `<li class="badge off"><b>○ ???</b><span>Кто-то ещё живёт в лесу · ${BIOMES[r.biome].name}</span></li>`;
+    const line = requestLine(r);
+    const now = line ? line.slice(line.indexOf(':') + 2) : 'все просьбы выполнены';
+    return `<li class="badge${line ? ' off' : ''}"><b>${r.icon} ${r.name}</b><span>${BIOMES[r.biome].name} · просьб ${st.step} из ${r.steps.length} · ${now}</span></li>`;
+  });
+  return `<h5>Жители леса · ${met.length} из ${RESIDENTS.length}</h5>
+    <p>Подойди к жителю — он расскажет, о чём просит. Встретить его можно на полянах его леса.</p>
+    <ul class="badge-list">${rows.join('')}</ul>`;
+}
+
 /** Достижения: заработанные сверху, у остальных — прогресс полоской. */
 function achievementsHtml(): string {
   const done = ACHIEVEMENTS.filter(isDone);
@@ -98,6 +116,7 @@ export const JOURNAL_TABS: InfoTab[] = [
   { id: 'achievements', name: 'Достижения', html: achievementsHtml },
   { id: 'finds', name: 'Находки', html: () => shadesHtml() + notesHtml() },
   { id: 'secrets', name: 'Тайны', html: atlasHtml },
+  { id: 'residents', name: 'Жители', html: residentsHtml },
   { id: 'clearing', name: 'Поляна', html: clearingHtml },
   { id: 'stats', name: 'В пути', html: statsHtml },
 ];

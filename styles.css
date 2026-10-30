@@ -138,7 +138,7 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump,body[data-
 
 #portal-hint{color:var(--muted)}
 .boost-line{font:600 11px var(--f-mono);color:var(--accent);margin-top:3px}
-.request-line{font:600 11px var(--f-mono);color:var(--ink);margin-top:3px}
+.request-line{font:600 11px var(--f-mono);color:var(--ink);margin-top:3px;white-space:pre-line}
 #firefly{position:fixed;left:50%;top:26%;width:28px;height:28px;color:#e8ff9a;filter:drop-shadow(0 0 6px rgba(220,255,120,.9)) drop-shadow(0 1px 3px rgba(0,0,0,.6));pointer-events:none;transform:translateX(-50%)}
 #firefly[hidden]{display:none}
 #portal-hint.open{color:var(--accent)}

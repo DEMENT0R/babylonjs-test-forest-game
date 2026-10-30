@@ -1,20 +1,27 @@
 // Жители леса: кто они, где живут и о чём просят. Просьба — шаг цепочки: житель говорит
 // пару строк, а выполняется она на уровнях. Цепочки короткие и написаны вручную.
 
-import type { MaterialId } from '../den/catalog';
+import type { CropId, MaterialId } from '../den/catalog';
 import type { BiomeId } from '../levels/biomes';
+import type { SecretKind } from '../levels/generator';
 
 export type ResidentId = 'hedgehog';
 
 /**
- * Шаг цепочки просьб.
- * bring — принести материалы для норы: житель забирает их при встрече;
- * find — найти потерянную вещь на уровне биома (на вершине цепочки платформ или у камня)
- * и отнести хозяину.
+ * Шаг цепочки просьб. Житель говорит ask, а когда просьба выполнена и герой пришёл — thanks.
+ * bring — принести материалы или урожай из норы: житель забирает их при встрече;
+ * find — найти потерянную вещь на вершине цепочки платформ уровня биома и отнести хозяину;
+ * quest — выполнить задание уровня в биоме; combo — собрать серию не меньше n;
+ * secret — раскрыть тайник такого вида в биоме.
+ * Кроме bring, всё делается на уровнях, а потом надо прийти к жителю и рассказать.
  */
-export type RequestStep =
-  | { kind: 'bring'; mats: Partial<Record<MaterialId, number>>; ask: string; thanks: string }
-  | { kind: 'find'; biome: BiomeId; item: LostItem; ask: string; thanks: string };
+export type RequestStep = { ask: string; thanks: string } & (
+  | { kind: 'bring'; mats?: Partial<Record<MaterialId, number>>; crops?: Partial<Record<CropId, number>> }
+  | { kind: 'find'; biome: BiomeId; item: LostItem }
+  | { kind: 'quest'; biome: BiomeId }
+  | { kind: 'combo'; n: number }
+  | { kind: 'secret'; biome: BiomeId; secret: SecretKind }
+);
 
 /** Потерянная вещь: имя в винительном падеже («отнеси ежу яблоко») и вид модели. */
 export interface LostItem { name: string; look: 'apple' | 'acorn' | 'button' }
@@ -63,6 +70,12 @@ export const RESIDENTS: readonly ResidentDef[] = [
         item: { name: 'красное яблоко', look: 'apple' },
         ask: 'Нёс домой яблоко и уронил его, когда лез на уступы. Оно где-то наверху, на нашей поляне.',
         thanks: 'Моё яблоко! Целое, даже не помялось.',
+      },
+      {
+        kind: 'combo',
+        n: 4,
+        ask: 'Люблю, когда кристаллы звенят подряд, будто колокольчики. Собери серию из четырёх и расскажи мне!',
+        thanks: 'Четыре подряд! Я отсюда слышал — дзынь-дзынь-дзынь-дзынь.',
       },
       {
         kind: 'bring',

@@ -36,10 +36,11 @@ import { QuestMarkers } from './levels/markers';
 import { LevelSecrets, type Opened } from './levels/secrets';
 import { RESIDENTS } from './residents/catalog';
 import { ResidentModel } from './residents/model';
-import { currentStep, stateOf } from './residents/state';
-import { LostItemSpot, requestLine, ResidentVisit } from './residents/visit';
+import { currentStep, isActive, stateOf } from './residents/state';
+import { LostItemSpot, progressRequests, requestLine, ResidentVisit, type RequestEvent } from './residents/visit';
 import { EVENT_CHANCE, EVENT_INTRO, eventFor, LevelEvent, type EventKind } from './levels/events';
 import type { SecretKind, SecretSpot } from './levels/generator';
+import { BIOMES } from './levels/biomes';
 import { fitQuest, QuestRun } from './levels/quests';
 import { dailyRecipe, recipeFor } from './levels/recipes';
 import { clearInput, keys, Player, setupTouchControls, setWalkLock, walkLocked } from './player';
@@ -140,6 +141,8 @@ let visit: ResidentVisit | null = null;
 let lostItem: LostItemSpot | null = null;
 /** Номер уровня для загрузки модели жителя: модель, пришедшая к уже другому уровню, выбрасывается. */
 let visitToken = 0;
+/** Сколько просьб жителей может быть сразу. */
+const MAX_REQUESTS = 2;
 /** О жителе, который ждёт знакомства, ещё не сказали. */
 let visitIntro = false;
 /** Редкое событие уровня: радуга, звездопад или белка с кристаллом. */
@@ -399,6 +402,7 @@ const SECRET_FOUND: Record<SecretKind, string> = {
  */
 function openSecret({ spot, at }: Opened): void {
   journal.stats.secrets++;
+  residentNews({ kind: 'secret', biome: layout.biome.id, secret: spot.kind });
   const atlas = addAtlas(layout.biome.id, spot.kind) ? ` · ✦ новое в атласе тайн, ${atlasCount()} из ${ATLAS_TOTAL}` : '';
   const m = materialOf(layout.biome.id);
   const n = level >= 6 ? 3 : 2;
@@ -454,18 +458,18 @@ function placeResidents(): void {
   visitIntro = false;
   const token = ++visitToken;
   if (daily || !isOpen('den')) return;
-  for (const def of RESIDENTS) {
-    const st = stateOf(def);
-    if (!visit && (!st.met || layout.biome.id === def.biome)) {
-      const spot = st.met ? clearingSpot() : pathSpot(7.5);
-      if (spot) {
-        const v = (visit = new ResidentVisit(def, new Vector3(spot.x, world.terrainAt(spot.x, spot.z), spot.z)));
-        visitIntro = !st.met;
-        ResidentModel.load(def, world.lighting)
-          .then((m) => (token === visitToken ? v.attach(m) : m.dispose()))
-          .catch((err) => console.error(err));
-      }
-    }
+  // Сначала — знакомый житель этого леса; если такого нет, новый приходит знакомиться,
+  // но не больше двух просьб сразу, чтобы игра не превращалась в список дел
+  const home = RESIDENTS.find((r) => stateOf(r).met && r.biome === layout.biome.id);
+  const fresh = RESIDENTS.filter(isActive).length < MAX_REQUESTS ? RESIDENTS.find((r) => !stateOf(r).met) : undefined;
+  const def = home ?? fresh;
+  const spot = def && (home ? clearingSpot() : pathSpot(7.5));
+  if (def && spot) {
+    const v = (visit = new ResidentVisit(def, new Vector3(spot.x, world.terrainAt(spot.x, spot.z), spot.z)));
+    visitIntro = !home;
+    ResidentModel.load(def, world.lighting)
+      .then((m) => (token === visitToken ? v.attach(m) : m.dispose()))
+      .catch((err) => console.error(err));
   }
   placeLostItem();
 }
@@ -475,12 +479,21 @@ function placeLostItem(): void {
   if (lostItem || daily) return;
   for (const def of RESIDENTS) {
     const step = currentStep(def);
-    if (step?.kind !== 'find' || stateOf(def).carrying || step.biome !== layout.biome.id) continue;
+    if (step?.kind !== 'find' || stateOf(def).ready || step.biome !== layout.biome.id) continue;
     const tops = layout.crystals.filter((c) => c.kind === 'top');
     const top = tops[Math.floor(Math.random() * tops.length)];
     // Рядом с кристаллом на вершине, но не в нём
     if (top) lostItem = new LostItemSpot(world.scene, def, step.item, new Vector3(top.x + 0.6, top.y, top.z + 0.4));
     return;
+  }
+}
+
+/** Событие уровня выполнило чью-то просьбу — сказать, к кому теперь идти; в Лесе дня просьб нет. */
+function residentNews(ev: RequestEvent): void {
+  if (daily) return;
+  for (const def of progressRequests(ev)) {
+    audio.chime(true, 2);
+    say(`${def.icon} Просьба выполнена — загляни к ${def.dative} · ${BIOMES[def.biome].name}`, 3000);
   }
 }
 
@@ -656,6 +669,7 @@ function finishLevel(): void {
   } else {
     const star = world.collected === world.crystals.length;
     const questDone = quest.passed();
+    if (questDone) residentNews({ kind: 'quest', biome: layout.biome.id });
     best = progress.records[level]?.time;
     const lockedBefore = HEROES.filter((h) => starsMissing(h) > 0);
     const coatsBefore = openCoats().length;
@@ -975,7 +989,7 @@ world.scene.onBeforeRenderObservable.add(() => {
       visitIntro = false;
       say('У тропинки кто-то ждёт — подойди познакомиться', 3500);
     }
-    setRequestLine(daily ? null : RESIDENTS.map(requestLine).find(Boolean) ?? null);
+    setRequestLine(daily ? null : RESIDENTS.map(requestLine).filter(Boolean).join('\n') || null);
     updateBubble();
     if (eventIntro && levelTime > 2.5) {
       eventIntro = false;
@@ -1033,6 +1047,7 @@ world.scene.onBeforeRenderObservable.add(() => {
     const { count: n, reward } = combo.add(got.length, levelTime, journal.stats.bestCombo);
     journal.stats.bestCombo = Math.max(journal.stats.bestCombo, n);
     quest.onCombo(n);
+    residentNews({ kind: 'combo', n });
     if (reward) {
       const m = materialOf(layout.biome.id);
       gathered += reward;
@@ -1112,4 +1127,4 @@ if (denLink) {
 }
 
 // Для отладки из консоли браузера; в production-сборку не попадает
-if (import.meta.env.DEV) Object.assign(window, { __game: { world, player, rig, select, den, beginLevel, get layout() { return layout; }, get quest() { return quest; }, get secrets() { return secrets; }, get visit() { return visit; }, get lostItem() { return lostItem; }, addMaterial, get event() { return levelEvent; }, openSecret, forceEvent: (k: EventKind) => (forcedEvent = k) } });
+if (import.meta.env.DEV) Object.assign(window, { __game: { world, player, rig, select, den, beginLevel, get layout() { return layout; }, get quest() { return quest; }, get secrets() { return secrets; }, get visit() { return visit; }, get lostItem() { return lostItem; }, addMaterial, residentNews, get event() { return levelEvent; }, openSecret, forceEvent: (k: EventKind) => (forcedEvent = k) } });
