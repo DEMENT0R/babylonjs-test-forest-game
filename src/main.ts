@@ -34,6 +34,7 @@ import { addMaterial, staminaWithPowers, takePacked } from './den/state';
 import { completeDaily, completeLevel, dailyBest, daysPlayed, formatTime, markPlayedToday, progress, setCurrentLevel, todayKey, totalStars } from './levels/progress';
 import { QuestMarkers } from './levels/markers';
 import { LevelSecrets, type Opened } from './levels/secrets';
+import { EVENT_CHANCE, EVENT_INTRO, eventFor, LevelEvent, type EventKind } from './levels/events';
 import type { SecretKind, SecretSpot } from './levels/generator';
 import { fitQuest, QuestRun } from './levels/quests';
 import { dailyRecipe, recipeFor } from './levels/recipes';
@@ -128,6 +129,16 @@ let activeBoost: BoostId | null = null;
 let boostPending = false;
 /** Тайники уровня. */
 let secrets: LevelSecrets | null = null;
+/** Редкое событие уровня: радуга, звездопад или белка с кристаллом. */
+let levelEvent: LevelEvent | null = null;
+/** О событии ещё не сказали — скажут через пару секунд после старта, после названия уровня. */
+let eventIntro = false;
+/** До какого времени уровня дует ветер в спину от радуги, с. */
+let rainbowWind = 0;
+/** Для отладки: какое событие будет на следующем уровне. */
+let forcedEvent: EventKind | null = null;
+/** Ветер в спину от радуги, с. */
+const RAINBOW_WIND = 20;
 /** Записей в атласе тайн на начало уровня — чтобы сказать, какие вещи для норы открылись. */
 let atlasBefore = 0;
 /** О каких тайниках уже подсказали на этом уровне. */
@@ -282,6 +293,16 @@ function beginLevel(index: number, dailyDate: string | null = null, keepBoost = 
   secrets = new LevelSecrets(world.scene, layout);
   secretHints.clear();
   atlasBefore = atlasCount();
+  // Перезапуск не перебрасывает событие, пока оно не состоялось, — и не даёт получить награду дважды;
+  // в Лесе дня и на первых уровнях событий нет
+  const kept = keepBoost && levelEvent?.active ? levelEvent.kind : null;
+  levelEvent?.dispose();
+  levelEvent = null;
+  const kind = kept ?? forcedEvent ?? (!daily && index >= 3 && Math.random() < EVENT_CHANCE ? eventFor(layout.biome.id, Math.random()) : null);
+  forcedEvent = null;
+  if (kind && !daily) levelEvent = new LevelEvent(world.scene, kind, layout, { heightAt: (x, z) => world.terrainAt(x, z), waterDepth: (x, z) => world.waterDepth(x, z) });
+  eventIntro = levelEvent !== null;
+  rainbowWind = 0;
   placeMarkers();
   starSky.show(!!layout.biome.starSky, totalStars());
   audio.setAmbience(layout.biome.ambience);
@@ -834,7 +855,7 @@ world.scene.onBeforeRenderObservable.add(() => {
   const wasAir = !player.onGround, fallSpeed = -player.vel.y;
   // Ветер в спину — от длинной серии или от медовых сот в начале уровня
   const honey = activeBoost === 'honeycomb' && levelTime < HONEY_WIND;
-  player.boost = combo.count >= WIND_FROM || honey ? WIND_BOOST : 1;
+  player.boost = combo.count >= WIND_FROM || honey || levelTime < rainbowWind ? WIND_BOOST : 1;
   player.update(dt, { yaw: rig.yaw, modeId: rig.mode.id }, active);
   if (active) {
     // Врезался в ствол или приземлился рядом — дерево вздрагивает и шелестит
@@ -848,6 +869,20 @@ world.scene.onBeforeRenderObservable.add(() => {
       if (shaken) openSecret(shaken);
     }
     for (const o of secrets?.update(dt, player.pos) ?? []) openSecret(o);
+    if (eventIntro && levelTime > 2.5) {
+      eventIntro = false;
+      say(EVENT_INTRO[levelEvent!.kind], 3500);
+    }
+    const reward = levelEvent?.update(dt, player.pos);
+    levelEvent?.fade(dt);
+    if (reward === 'wind') {
+      rainbowWind = levelTime + RAINBOW_WIND;
+      wind.gustNow(1.1, 0.5);
+      audio.chime(true, 4);
+      say(`Под радугой — ветер в спину на ${RAINBOW_WIND} секунд`, 3000);
+    } else if (reward === 'rare') {
+      foundRare();
+    }
     // Подойдя к тайнику, подсказать, что с ним делать; дерево видно издалека — подсказка раньше
     const close = secrets?.near(player.pos, 14);
     const hint = close && !secretHints.has(close.kind) && (close.kind === 'tree' || Math.hypot(close.x - player.pos.x, close.z - player.pos.z) < 4) ? secretHint(close) : null;
@@ -964,4 +999,4 @@ if (visit) {
 }
 
 // Для отладки из консоли браузера; в production-сборку не попадает
-if (import.meta.env.DEV) Object.assign(window, { __game: { world, player, rig, select, den, beginLevel, get layout() { return layout; }, get quest() { return quest; }, get secrets() { return secrets; }, openSecret } });
+if (import.meta.env.DEV) Object.assign(window, { __game: { world, player, rig, select, den, beginLevel, get layout() { return layout; }, get quest() { return quest; }, get secrets() { return secrets; }, get event() { return levelEvent; }, openSecret, forceEvent: (k: EventKind) => (forcedEvent = k) } });
