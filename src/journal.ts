@@ -48,6 +48,8 @@ export interface Stats {
   time: number;
   /** Самая длинная серия быстро собранных кристаллов. */
   bestCombo: number;
+  /** Раскрыто тайников, вместе с повторными на перепройденных уровнях. */
+  secrets: number;
 }
 
 /** Сад у норы: кристалл вырастает раз в GARDEN_GROW_MS реального времени, не больше GARDEN_CAP. */
@@ -68,7 +70,7 @@ interface Journal {
   badges: string[];
 }
 
-const emptyStats = (): Stats => ({ distance: 0, jumps: 0, crystals: 0, levels: 0, time: 0, bestCombo: 0 });
+const emptyStats = (): Stats => ({ distance: 0, jumps: 0, crystals: 0, levels: 0, time: 0, bestCombo: 0, secrets: 0 });
 
 const KEY = 'tihaya-polyana-journal';
 

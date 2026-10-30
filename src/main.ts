@@ -30,6 +30,7 @@ import { clearUrl, snapshotFromUrl } from './den/snapshot';
 import { addMaterial, staminaWithPowers, takePacked } from './den/state';
 import { completeDaily, completeLevel, dailyBest, daysPlayed, formatTime, markPlayedToday, progress, setCurrentLevel, todayKey, totalStars } from './levels/progress';
 import { QuestMarkers } from './levels/markers';
+import { LevelSecrets } from './levels/secrets';
 import { fitQuest, QuestRun } from './levels/quests';
 import { dailyRecipe, recipeFor } from './levels/recipes';
 import { clearInput, keys, Player, setupTouchControls, setWalkLock, walkLocked } from './player';
@@ -121,6 +122,10 @@ let markers: QuestMarkers | null = null;
 let activeBoost: BoostId | null = null;
 /** Уровень ещё не начали играть: усилитель возьмётся с первым кадром игры, а не когда уровень построен для фона меню. */
 let boostPending = false;
+/** Тайники уровня. */
+let secrets: LevelSecrets | null = null;
+/** Подсказку про мерцающее дерево уже показывали на этом уровне. */
+let secretHinted = false;
 /** Материалов для норы подобрано на этом уровне. */
 let gathered = 0;
 /** Сколько материалов разложить на уровне: от и до. */
@@ -267,6 +272,9 @@ function beginLevel(index: number, dailyDate: string | null = null, keepBoost = 
   const spot = welcomeNote ? welcomeSpot() : journal.notes < NOTES.length && Math.random() < NOTE_CHANCE ? noteSpot() : null;
   if (spot) world.placeNote(spot.x, spot.z);
   placePickups();
+  secrets?.dispose();
+  secrets = new LevelSecrets(world.scene, layout);
+  secretHinted = false;
   placeMarkers();
   starSky.show(!!layout.biome.starSky, totalStars());
   audio.setAmbience(layout.biome.ambience);
@@ -331,6 +339,33 @@ function placePickups(): void {
     world.placePickup(x, z, id);
     placed.push({ x, z });
   }
+}
+
+/**
+ * Тайник раскрыт: находка — горсть материалов биома — разлетается вокруг и ждёт, пока её соберут.
+ * stone — выскакивает из-под камня подскоком, иначе падает из кроны.
+ */
+function openSecret(from: Vector3, stone: boolean): void {
+  journal.stats.secrets++;
+  const m = materialOf(layout.biome.id);
+  const n = level >= 6 ? 3 : 2;
+  for (let i = 0; i < n; i++) {
+    const spot = dropSpot(from, i / n);
+    world.placePickup(spot.x, spot.z, m.id, from, stone ? 1.4 : 0);
+  }
+  audio.chime(true, 3);
+  say(`${stone ? 'Тайник под камнем' : 'Из кроны что-то выпало'}: ${amount(m, n)} — собери`, 2600);
+}
+
+/** Куда упадёт часть находки: вокруг тайника, на свободное место; turn — доля круга, чтобы не кучей. */
+function dropSpot(from: Vector3, turn: number): { x: number; z: number } {
+  for (let t = 0; t < 24; t++) {
+    const a = (turn + t * 0.13) * Math.PI * 2 + Math.random() * 0.5;
+    const r = 1.9 + Math.random() * 1.2 + t * 0.15;
+    const x = from.x + Math.cos(a) * r, z = from.z + Math.sin(a) * r;
+    if (freeSpot(x, z)) return { x, z };
+  }
+  return { x: from.x + 1.5, z: from.z };
 }
 
 /** Место для записки, которая ждала игрока: впереди от старта, по пути к порталу. */
@@ -488,6 +523,7 @@ function finishLevel(): void {
   const grown = DECOR[daysPlayed() - 1];
   if (streak && grown && isOpen('den')) notes.push(`🌼 У норы появилось новое: ${grown.name}`);
   if (gathered) notes.push(`🧺 Для норы: ${amount(materialOf(layout.biome.id), gathered)}`);
+  if (secrets?.total) notes.push(`✨ Тайников: ${secrets.found} из ${secrets.total}`);
   if (constellation) notes.push(`✦ Новое созвездие на небе: «${constellation}»`);
   if (newCoat) notes.push(`Открыт окрас «${newCoat}» — выбери его на экране героя`);
   notes.push(...almost(time, best, opened));
@@ -762,6 +798,16 @@ world.scene.onBeforeRenderObservable.add(() => {
       const dx = h.x - player.pos.x, dz = h.z - player.pos.z;
       const pan = (dx * Math.cos(rig.yaw) - dz * Math.sin(rig.yaw)) / Math.max(Math.hypot(dx, dz), 0.1);
       audio.rustle(h.strength, !!layout.biome.frost, pan);
+      const from = secrets?.shake(h.tree);
+      if (from) openSecret(from, false);
+    }
+    const stone = secrets?.reach(player.pos);
+    if (stone) openSecret(stone, true);
+    secrets?.update(dt, player.pos);
+    // Первый раз в жизни видит мерцающее дерево — подсказать, что с ним делать
+    if (!secretHinted && journal.stats.secrets === 0 && secrets?.treeNear(player.pos, 14)) {
+      secretHinted = true;
+      say('В кроне дерева что-то блестит — толкни его с разбега', 3500);
     }
   }
   if (active) {
@@ -872,4 +918,4 @@ if (visit) {
 }
 
 // Для отладки из консоли браузера; в production-сборку не попадает
-if (import.meta.env.DEV) Object.assign(window, { __game: { world, player, rig, select, den, beginLevel, get layout() { return layout; }, get quest() { return quest; } } });
+if (import.meta.env.DEV) Object.assign(window, { __game: { world, player, rig, select, den, beginLevel, get layout() { return layout; }, get quest() { return quest; }, get secrets() { return secrets; } } });

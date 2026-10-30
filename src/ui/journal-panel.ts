@@ -43,6 +43,7 @@ function statsHtml(): string {
     <dt>В лесу</dt><dd>${time}</dd>
     <dt>Прыжков</dt><dd>${n(s.jumps)}</dd>
     <dt>Кристаллов</dt><dd>${n(s.crystals)}</dd>
+    <dt>Тайников</dt><dd>${n(s.secrets)}</dd>
     <dt>Порталов</dt><dd>${n(s.levels)} ${plural(s.levels, 'раз', 'раза', 'раз')}</dd></dl>`;
 }
 

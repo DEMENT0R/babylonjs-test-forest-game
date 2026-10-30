@@ -48,6 +48,11 @@ export interface CrystalSpot {
   /** На вершине цепочки платформ или спрятан у камня либо дерева — для заданий. */
   kind?: 'top' | 'hidden';
 }
+/**
+ * Тайник: мерцающее дерево (номер в trees) роняет находку, если его тряхнуть;
+ * тайник под камнем виден только вблизи. y — земля у тайника.
+ */
+export type SecretSpot = { x: number; z: number; y: number } & ({ kind: 'tree'; tree: number } | { kind: 'stone' });
 /** Озеро — котловина, залитая водой. */
 export interface Lake { x: number; z: number; r: number }
 
@@ -67,6 +72,7 @@ export interface LevelLayout {
   pillars: PillarSpot[];
   platforms: Platform[];
   crystals: CrystalSpot[];
+  secrets: SecretSpot[];
   obstacles: Obstacle[];
   required: number;
   /** Сколько попыток понадобилось (для отладки). */
@@ -348,6 +354,34 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
     if (Math.hypot(x - spawn.x, z - spawn.z) > 12 && free(x, z)) crystals.push({ x, z, y: at(x, z) });
   }
 
+  // Тайники: свой поток — раскладка остального не сдвигается, а на перепрохождении они на тех же местах
+  const rs = Rng.stream(seed, 'secrets');
+  const secrets: SecretSpot[] = [];
+  const wantSecrets = secretCount(recipe, rs);
+  const away = (x: number, z: number) =>
+    Math.max(Math.abs(x), Math.abs(z)) < half - 6 &&
+    Math.hypot(x, z) > CENTER_R + 4 &&
+    Math.hypot(x - spawn.x, z - spawn.z) > 15 &&
+    secrets.every((q) => Math.hypot(q.x - x, q.z - z) > 20) &&
+    depth(x, z) === 0;
+  // Деревья, к стволу которых можно подбежать; стена леса по краю не годится
+  const treeIds = trees.flatMap((tr, i) => (Math.max(Math.abs(tr.x), Math.abs(tr.z)) < half - 6 && nav.reachableNear(tr.x, tr.z, 1.2 + tr.s) ? [i] : []));
+  // На первых уровнях — только деревья: их видно издалека, так проще научиться
+  const stonesFrom = 3;
+  for (let t = 0; secrets.length < wantSecrets && t < 200; t++) {
+    if (recipe.index >= stonesFrom && rs.chance(0.5)) {
+      const o = rs.pick(hideBehind);
+      if (!o) continue;
+      const a = rs.range(0, Math.PI * 2);
+      const x = o.x + Math.cos(a) * (o.r + HERO_R + 0.3), z = o.z + Math.sin(a) * (o.r + HERO_R + 0.3);
+      if (away(x, z) && free(x, z)) secrets.push({ kind: 'stone', x, z, y: at(x, z) });
+    } else {
+      const i = rs.pick(treeIds);
+      const tr = trees[i];
+      if (tr && away(tr.x, tr.z)) secrets.push({ kind: 'tree', tree: i, x: tr.x, z: tr.z, y: at(tr.x, tr.z) });
+    }
+  }
+
   return {
     recipe,
     biome,
@@ -363,10 +397,18 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
     pillars,
     platforms,
     crystals,
+    secrets,
     obstacles,
     required: requiredCrystals(crystals.length),
     attempts: attempt + 1,
   };
+}
+
+/** Сколько тайников на уровне: на первых — один, дальше больше; в Лесе дня их нет — награды там не нужны. */
+function secretCount(recipe: LevelRecipe, rng: Rng): number {
+  if (recipe.index === 0) return 0;
+  if (recipe.index <= 2) return 1;
+  return recipe.index <= 5 ? rng.int(1, 2) : rng.int(2, 3);
 }
 
 /** Цепочка ступеней, каждая следующая выше предыдущей не больше чем на MAX_STEP. */
