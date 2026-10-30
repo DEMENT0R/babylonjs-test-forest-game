@@ -8,9 +8,9 @@ import { CHANGELOG, GAME_VERSION, hasUnseenChanges, markChangesSeen, versionOf }
 import { BIOMES } from '../levels/biomes';
 import { currentStreak, dailyBest, formatTime, progress as saved, todayKey, totalStars } from '../levels/progress';
 import { recipeFor } from '../levels/recipes';
-import { FAR_FOREST, regionOf } from '../levels/regions';
+import { CAMPAIGN_LENGTH, FAR_FOREST, REGION_LEVELS, REGIONS, regionOf } from '../levels/regions';
 import { byId, plural } from '../utils';
-import { growGarden, journal, welcomeNote } from '../journal';
+import { ATLAS_KINDS, growGarden, journal, welcomeNote } from '../journal';
 import { crystals } from '../den/state';
 import { copyText, dailyShareText, gameUrl } from '../share';
 import { qrSvg } from '../qr';
@@ -58,7 +58,7 @@ export interface InfoTab { id: string; name: string; html: () => string }
 
 type InfoKey = 'levels' | 'sky' | 'journal' | 'about' | 'share';
 
-const TITLES: Record<InfoKey, string> = { levels: 'Уровни', sky: 'Звёздное небо', journal: 'Дневник', about: 'Об игре', share: 'Поделиться игрой' };
+const TITLES: Record<InfoKey, string> = { levels: 'Карта', sky: 'Звёздное небо', journal: 'Дневник', about: 'Об игре', share: 'Поделиться игрой' };
 /** Пункт меню, который открывает панель, — на него возвращается фокус при закрытии. */
 const OPENERS: Record<InfoKey, string> = { levels: 'm-levels', sky: 'm-sky', journal: 'm-journal', about: 'm-about', share: 'm-share' };
 
@@ -379,18 +379,50 @@ export class MainMenu {
     return getComputedStyle(this.root.querySelector('.menu-col')!).display === 'none';
   }
 
-  /** Открытые уровни: регион, звёзды за кристаллы и задание, лучшее время. */
+  /**
+   * Карта: регионы по порядку вдоль тропы, в каждом — шесть уровней (последний особый),
+   * звёзды, тайники атласа и житель этого леса. Ещё не открытые регионы — в тумане.
+   * После кампании — список уровней Дальнего леса.
+   */
   private levelsHtml(): string {
-    const rows: string[] = [];
-    for (let i = 1; i <= saved.unlocked; i++) {
+    const cards = REGIONS.map((region, k) => {
+      const first = k * REGION_LEVELS + 1;
+      const color = BIOMES[region.biome].ground;
+      const style = `--c:rgb(${color.r * 255} ${color.g * 255} ${color.b * 255})`;
+      if (first > saved.unlocked) {
+        return `<section class="map-region fog" style="${style}"><h5>${region.name}</h5><p>В тумане — откроется после ${first - 1}-го уровня</p></section>`;
+      }
+      let stars = 0;
+      const dots: string[] = [];
+      for (let n = 0; n < REGION_LEVELS; n++) {
+        const i = first + n;
+        const r = saved.records[i];
+        stars += (r?.star ? 1 : 0) + (r?.quest ? 1 : 0);
+        const special = n === REGION_LEVELS - 1;
+        const label = `Уровень ${i}${special ? ', особый' : ''}${r ? `: ${r.star ? '★' : '☆'}${r.quest ? '★' : '☆'}${r.time !== undefined ? ` · ${formatTime(r.time)}` : ''}` : i <= saved.unlocked ? ': не пройден' : ': ещё закрыт'}`;
+        dots.push(
+          i <= saved.unlocked
+            ? `<button type="button" class="map-dot${special ? ' special' : ''}${r ? ' done' : ''}" data-level="${i}" aria-current="${i === saved.current}" title="${label}" aria-label="${label}"><b>${i}</b><i>${r ? `${starHtml(r.star, 'все кристаллы')}${starHtml(r.quest ?? false, 'задание')}` : ''}</i></button>`
+            : `<span class="map-dot locked${special ? ' special' : ''}" title="${label}"><b>${i}</b></span>`,
+        );
+      }
+      const atlas = journal.atlas[region.biome]?.length ?? 0;
+      const who = RESIDENTS.find((r) => r.biome === region.biome);
+      const st = who && stateOf(who);
+      const resident = !who || !st?.met ? '' : ` · ${who.icon} ${st.step >= who.steps.length ? 'у норы' : `просьб ${st.step}/${who.steps.length}`}`;
+      return `<section class="map-region" style="${style}"><h5>${region.name}</h5>
+        <p>★ ${stars}/${REGION_LEVELS * 2} · тайны ${atlas}/${ATLAS_KINDS[region.biome].length}${resident}</p>
+        <div class="map-dots">${dots.join('')}</div></section>`;
+    });
+    const far: string[] = [];
+    for (let i = CAMPAIGN_LENGTH + 1; i <= saved.unlocked; i++) {
       const r = saved.records[i];
-      const stars = r ? `${starHtml(r.star, 'все кристаллы')}${starHtml(r.quest ?? false, 'задание')} ` : '';
-      const meta = r ? `${stars}${r.time !== undefined ? formatTime(r.time) : ''}` : 'не пройден';
-      rows.push(
-        `<button type="button" data-level="${i}" aria-current="${i === saved.current}"><b>${i}</b>${levelName(i)}<span>${meta}</span></button>`,
-      );
+      const meta = r ? `${starHtml(r.star, 'все кристаллы')}${starHtml(r.quest ?? false, 'задание')} ${r.time !== undefined ? formatTime(r.time) : ''}` : 'не пройден';
+      far.push(`<button type="button" data-level="${i}" aria-current="${i === saved.current}"><b>${i}</b>${levelName(i)}<span>${meta}</span></button>`);
     }
-    return `<p>Две звезды за уровень: за все кристаллы и за задание.</p><div class="level-list">${rows.join('')}</div>`;
+    return `<p>Две звезды за уровень: за все кристаллы и за задание. Шестой уровень каждого леса — особый.</p>
+      <div class="map">${cards.join('')}</div>
+      ${far.length ? `<h5>${FAR_FOREST}</h5><div class="level-list">${far.join('')}</div>` : ''}`;
   }
 
   /**
@@ -409,9 +441,9 @@ export class MainMenu {
       this.switchTab(e.code === 'KeyQ' || e.code === 'ArrowLeft' ? -1 : 1);
       return true;
     }
-    // Влево-вправо — только по соседним плиткам или ссылкам в одном ряду
+    // Влево-вправо — по соседним плиткам или ссылкам в одном ряду и по уровням на карте
     if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
-      const row = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>('.menu-tiles, .menu-foot');
+      const row = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>('.menu-tiles, .menu-foot, .map');
       if (!row) return false;
       e.preventDefault();
       const items = [...row.querySelectorAll<HTMLElement>('button')].filter((b) => b.getClientRects().length > 0);
