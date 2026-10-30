@@ -1,9 +1,13 @@
-// Рецепты уровней: первые восемь заданы вручную — так проще выстроить кривую сложности,
-// дальше бесконечный режим, где параметры растут до потолка, а биом выбирается по сиду.
+// Рецепты уровней. Кампания — шесть регионов по шесть уровней (src/levels/regions.ts):
+// биом задаёт регион, а размер и сложность плавно растут от первого уровня к последнему.
+// Дальше — бесконечный «Дальний лес», где параметры растут до потолка, а биом выбирается по сиду.
 
 import { Rng } from '../rng';
 import { BIOMES, type BiomeId } from './biomes';
 import type { Quest } from './quests';
+import { CAMPAIGN_LENGTH, regionOf } from './regions';
+
+export { CAMPAIGN_LENGTH } from './regions';
 
 export interface LevelRecipe {
   /** Номер уровня, с 1; 0 — «Лес дня». */
@@ -29,38 +33,45 @@ export interface LevelRecipe {
 
 /** Доля кристаллов, после которой открывается портал. */
 export const PORTAL_SHARE = 0.8;
-export const CAMPAIGN_LENGTH = 8;
 
-const CAMPAIGN: readonly Omit<LevelRecipe, 'index' | 'seed' | 'quest'>[] = [
-  { biome: 'meadow', half: 42, crystals: 8, chains: 1, steps: [2, 2], hidden: 0, clearings: 2, relief: 0.35 },
-  { biome: 'meadow', half: 50, crystals: 10, chains: 1, steps: [2, 3], hidden: 0.1, clearings: 3, relief: 0.6 },
-  { biome: 'autumn', half: 55, crystals: 12, chains: 2, steps: [2, 3], hidden: 0.2, clearings: 3, relief: 0.8 },
-  { biome: 'winter', half: 62, crystals: 13, chains: 2, steps: [3, 3], hidden: 0.3, clearings: 4, relief: 1 },
-  { biome: 'rocky', half: 60, crystals: 14, chains: 3, steps: [3, 4], hidden: 0.3, clearings: 4, relief: 1 },
-  { biome: 'night', half: 72, crystals: 16, chains: 3, steps: [3, 4], hidden: 0.4, clearings: 5, relief: 1.1 },
-  { biome: 'lakes', half: 80, crystals: 18, chains: 3, steps: [3, 5], hidden: 0.45, clearings: 5, relief: 1.2 },
-  { biome: 'rocky', half: 85, crystals: 20, chains: 4, steps: [4, 5], hidden: 0.5, clearings: 6, relief: 1.3 },
-];
+type Shape = Omit<LevelRecipe, 'index' | 'seed' | 'quest' | 'biome'>;
 
-// У каждого уровня кампании своё задание; лимиты времени и прыжков считаются по раскладке уровня
-const CAMPAIGN_QUESTS: readonly Quest[] = [
+/** Первый и последний уровень кампании; между ними параметры растут плавно. */
+const FIRST: Shape = { half: 42, crystals: 8, chains: 1, steps: [2, 2], hidden: 0, clearings: 2, relief: 0.35 };
+const LAST: Shape = { half: 85, crystals: 20, chains: 4, steps: [4, 5], hidden: 0.5, clearings: 6, relief: 1.3 };
+
+/** Первые два уровня учат: успеть до заката и пройти шагом («Шагом» открывается к второму уровню). */
+const OPENING_QUESTS: readonly Quest[] = [
   { kind: 'time', intro: 'Солнце клонится к лесу — успей до заката' },
   { kind: 'walk', intro: 'Совы спят до вечера — не разбуди их топотом' },
-  { kind: 'hop', intro: 'Опавшие листья пружинят — скачи, не останавливаясь' },
-  { kind: 'jumps', intro: 'Снег глубокий — береги силы' },
-  { kind: 'hidden', intro: 'Кристаллы попрятались за камнями и деревьями' },
-  { kind: 'tops', intro: 'С вершин видно светлячков' },
-  { kind: 'swim', intro: 'Вода в озёрах тёплая' },
-  { kind: 'explore', intro: 'Кто-то оставил следы на полянах' },
 ];
 
 const BIOME_IDS = Object.keys(BIOMES) as BiomeId[];
 
 export function recipeFor(index: number): LevelRecipe {
   const seed = 1000 + index * 7919;
-  const base = CAMPAIGN[index - 1];
-  if (base) return { ...base, index, seed, quest: CAMPAIGN_QUESTS[index - 1] };
-  // Бесконечный режим: каждый следующий уровень немного больше, но с потолком
+  const place = regionOf(index);
+  if (place) {
+    // Сложность растёт быстрее в начале: первые регионы учат, последние — проверяют
+    const t = Math.pow((index - 1) / (CAMPAIGN_LENGTH - 1), 0.8);
+    const lerp = (a: number, b: number) => a + (b - a) * t;
+    const stepsMax = Math.round(lerp(FIRST.steps[1], LAST.steps[1]));
+    const biome = place.region.biome;
+    return {
+      index,
+      seed,
+      biome,
+      half: Math.round(lerp(FIRST.half, LAST.half)),
+      crystals: Math.round(lerp(FIRST.crystals, LAST.crystals)),
+      chains: Math.round(lerp(FIRST.chains, LAST.chains)),
+      steps: [Math.min(stepsMax, Math.round(lerp(FIRST.steps[0], LAST.steps[0]))), stepsMax],
+      hidden: +lerp(FIRST.hidden, LAST.hidden).toFixed(2),
+      clearings: Math.round(lerp(FIRST.clearings, LAST.clearings)),
+      relief: +lerp(FIRST.relief, LAST.relief).toFixed(2),
+      quest: OPENING_QUESTS[index - 1] ?? campaignQuest(index, biome, seed),
+    };
+  }
+  // Дальний лес: каждый следующий уровень немного больше, но с потолком
   const extra = index - CAMPAIGN_LENGTH;
   const rng = Rng.stream(seed, 'recipe');
   const biome = rng.pick(BIOME_IDS);
@@ -68,15 +79,29 @@ export function recipeFor(index: number): LevelRecipe {
     index,
     seed,
     biome,
-    half: Math.min(100, 70 + extra * 3 + rng.int(0, 10)),
-    crystals: Math.min(26, 16 + extra),
-    chains: Math.min(6, 3 + Math.floor(extra / 2)),
-    steps: [3, Math.min(6, 4 + Math.floor(extra / 3))],
-    hidden: Math.min(0.6, 0.4 + extra * 0.02),
-    clearings: Math.min(8, 5 + Math.floor(extra / 2)),
-    relief: Math.min(1.5, 1.2 + extra * 0.03),
+    half: Math.min(100, LAST.half - 3 + extra * 2 + rng.int(0, 8)),
+    crystals: Math.min(26, LAST.crystals + Math.floor(extra / 2)),
+    chains: Math.min(6, LAST.chains + Math.floor(extra / 3)),
+    steps: [LAST.steps[0] - 1, Math.min(6, LAST.steps[1] + Math.floor(extra / 4))],
+    hidden: Math.min(0.6, LAST.hidden + extra * 0.01),
+    clearings: Math.min(8, LAST.clearings + Math.floor(extra / 3)),
+    relief: Math.min(1.5, LAST.relief + extra * 0.02),
     quest: maybeCombo(rng.pick(endlessQuests(biome)), seed),
   };
+}
+
+/** Задание уровня кампании: по сиду, но не такое же, как на предыдущем уровне. */
+function campaignQuest(index: number, biome: BiomeId, seed: number): Quest {
+  const pool = endlessQuests(biome);
+  const prev = index > 1 ? recipeFor(index - 1).quest.kind : null;
+  const rng = Rng.stream(seed, 'quest');
+  let q = rng.pick(pool);
+  // Серия — изредка и тоже не два раза подряд
+  for (let t = 0; t < 8; t++) {
+    q = rng.chance(COMBO_SHARE) ? COMBO_QUEST : rng.pick(pool);
+    if (q.kind !== prev) break;
+  }
+  return q;
 }
 
 /**
@@ -111,9 +136,10 @@ const COMBO_SHARE = 1 / 8;
  * не меняется, и прочие уровни и Леса дня остаются с теми же заданиями, что были.
  */
 function maybeCombo(quest: Quest, seed: number): Quest {
-  if (!Rng.stream(seed, 'combo-quest').chance(COMBO_SHARE)) return quest;
-  return { kind: 'combo', intro: 'Кристаллы звенят в лад — собери их одним махом' };
+  return Rng.stream(seed, 'combo-quest').chance(COMBO_SHARE) ? COMBO_QUEST : quest;
 }
+
+const COMBO_QUEST: Quest = { kind: 'combo', intro: 'Кристаллы звенят в лад — собери их одним махом' };
 
 /** Задания бесконечного режима; про озёра — только там, где есть вода. */
 function endlessQuests(biome: BiomeId): Quest[] {

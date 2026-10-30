@@ -41,6 +41,7 @@ import { LostItemSpot, progressRequests, requestLine, ResidentVisit, type Reques
 import { EVENT_CHANCE, EVENT_INTRO, eventFor, LevelEvent, type EventKind } from './levels/events';
 import type { SecretKind, SecretSpot } from './levels/generator';
 import { BIOMES } from './levels/biomes';
+import { FAR_FOREST, REGION_LEVELS, regionOf } from './levels/regions';
 import { fitQuest, QuestRun } from './levels/quests';
 import { dailyRecipe, recipeFor } from './levels/recipes';
 import { clearInput, keys, Player, setupTouchControls, setWalkLock, walkLocked } from './player';
@@ -239,7 +240,11 @@ setupPwa();
 
 // ---------- Уровни ----------
 
-const levelLabel = (i: number, l: LevelLayout) => `Уровень ${i} · ${l.biome.name}`;
+/** «Уровень 9 · Осенняя роща 3/6»; после кампании — Дальний лес и биом уровня. */
+const levelLabel = (i: number, l: LevelLayout) => {
+  const r = regionOf(i);
+  return `Уровень ${i} · ${r ? `${r.region.name} ${r.n + 1}/${REGION_LEVELS}` : `${FAR_FOREST}, ${l.biome.name.toLowerCase()}`}`;
+};
 const currentLabel = () => (daily ? `Лес дня · ${layout.biome.name}` : levelLabel(level, layout));
 
 function updateCrystalsHud(): void {

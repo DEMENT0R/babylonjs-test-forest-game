@@ -27,7 +27,7 @@ const count = <T>(xs: readonly T[], f: (x: T) => unknown) => xs.filter(f).length
 
 export const ACHIEVEMENTS: readonly Achievement[] = [
   { id: 'first', name: 'Первый портал', desc: 'Пройди уровень', progress: () => [s().levels, 1] },
-  { id: 'campaign', name: 'Сквозь восемь лесов', desc: 'Пройди кампанию', progress: () => [progress.unlocked - 1, CAMPAIGN_LENGTH] },
+  { id: 'campaign', name: 'Сквозь шесть лесов', desc: 'Пройди все шесть регионов', progress: () => [progress.unlocked - 1, CAMPAIGN_LENGTH] },
   { id: 'daily', name: 'Лес дня', desc: 'Пройди Лес дня', progress: () => [progress.daily ? 1 : 0, 1] },
   { id: 'walk1', name: 'Лесная тропа', desc: 'Пройди километр', progress: () => [s().distance / 1000, 1], unit: 'km' },
   { id: 'walk10', name: 'Дальняя дорога', desc: 'Пройди 10 км', progress: () => [s().distance / 1000, 10], unit: 'km' },

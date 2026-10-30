@@ -5,11 +5,13 @@ export interface LevelRecord {
   star: boolean;
   /** Выполнено задание уровня; в старых сохранениях поля нет. */
   quest?: boolean;
-  /** Лучшее время прохождения, с. */
-  time: number;
+  /** Лучшее время прохождения, с; нет — уровень пройден до перехода на регионы, раскладка была другой. */
+  time?: number;
 }
 
 export interface Progress {
+  /** Версия сохранения: 2 — кампания из регионов; без неё — прежние восемь уровней. */
+  v?: number;
   /** Уровень, с которого продолжать. */
   current: number;
   /** Самый дальний открытый уровень. */
@@ -24,17 +26,22 @@ export interface Progress {
 }
 
 const KEY = 'tihaya-polyana-progress';
+const VERSION = 2;
 
 function load(): Progress {
   try {
     const p = JSON.parse(localStorage.getItem(KEY) ?? 'null') as Partial<Progress> | null;
     if (p && typeof p === 'object' && Number.isInteger(p.current) && Number.isInteger(p.unlocked)) {
-      return { current: p.current!, unlocked: Math.max(p.unlocked!, p.current!), records: p.records ?? {}, daily: p.daily, streak: p.streak, daysPlayed: p.daysPlayed };
+      const records = p.records ?? {};
+      // До регионов уровни были другими: пройденные засчитываются со звёздами, а рекорды времени
+      // сбрасываются — раскладки теперь другие
+      if (p.v !== VERSION) for (const r of Object.values(records)) delete r.time;
+      return { v: VERSION, current: p.current!, unlocked: Math.max(p.unlocked!, p.current!), records, daily: p.daily, streak: p.streak, daysPlayed: p.daysPlayed };
     }
   } catch {
     // Повреждённые данные — начинаем сначала
   }
-  return { current: 1, unlocked: 1, records: {} };
+  return { v: VERSION, current: 1, unlocked: 1, records: {} };
 }
 
 export const progress: Progress = load();
@@ -58,7 +65,7 @@ export function completeLevel(index: number, star: boolean, quest: boolean, time
   progress.records[index] = {
     star: star || (prev?.star ?? false),
     quest: quest || (prev?.quest ?? false),
-    time: prev ? Math.min(prev.time, time) : time,
+    time: prev?.time !== undefined ? Math.min(prev.time, time) : time,
   };
   progress.unlocked = Math.max(progress.unlocked, index + 1);
   progress.current = index + 1;

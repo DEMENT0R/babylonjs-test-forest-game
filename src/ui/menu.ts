@@ -8,6 +8,7 @@ import { CHANGELOG, GAME_VERSION, hasUnseenChanges, markChangesSeen, versionOf }
 import { BIOMES } from '../levels/biomes';
 import { currentStreak, dailyBest, formatTime, progress as saved, todayKey, totalStars } from '../levels/progress';
 import { recipeFor } from '../levels/recipes';
+import { FAR_FOREST, regionOf } from '../levels/regions';
 import { byId, plural } from '../utils';
 import { growGarden, journal, welcomeNote } from '../journal';
 import { crystals } from '../den/state';
@@ -31,6 +32,8 @@ const CREDITS = `
 /** Начинается с описания игры из шапки меню — его там видит только тот, кто ещё не играл. */
 const howtoHtml = (): string => `
     <p>${byId('menu-sub').textContent}</p>
+    <h5>Шесть лесов</h5>
+    <p>Путь лежит через шесть лесов — Опушку, Осеннюю рощу, Зимний перевал, Каменное плато, Ночной лес и Озёрный край, — по шесть уровней в каждом. За ними начинается бесконечный Дальний лес.</p>
     <h5>Звёзды</h5>
     <p>За уровень — две звезды: за все кристаллы и за задание. Звёзды открывают новых героев и окрасы и зажигают созвездия на «Небе».</p>
     <h5>Запал</h5>
@@ -102,7 +105,8 @@ export interface MenuActions {
 /** Прогресс текущей игры; null — игра ещё не начата. */
 export interface MenuProgress { heroName: string; place: string; got: number; total: number }
 
-const levelName = (i: number) => BIOMES[recipeFor(i).biome].name;
+/** Регион уровня, а после кампании — Дальний лес и его биом. */
+const levelName = (i: number) => regionOf(i)?.region.name ?? `${FAR_FOREST} · ${BIOMES[recipeFor(i).biome].name.toLowerCase()}`;
 const starHtml = (got: boolean, what: string) =>
   `<span class="star${got ? '' : ' off'}" title="${what}${got ? '' : ' — нет'}">★</span>`;
 
@@ -375,13 +379,13 @@ export class MainMenu {
     return getComputedStyle(this.root.querySelector('.menu-col')!).display === 'none';
   }
 
-  /** Открытые уровни: биом, звёзды за кристаллы и задание, лучшее время. */
+  /** Открытые уровни: регион, звёзды за кристаллы и задание, лучшее время. */
   private levelsHtml(): string {
     const rows: string[] = [];
     for (let i = 1; i <= saved.unlocked; i++) {
       const r = saved.records[i];
       const stars = r ? `${starHtml(r.star, 'все кристаллы')}${starHtml(r.quest ?? false, 'задание')} ` : '';
-      const meta = r ? `${stars}${formatTime(r.time)}` : 'не пройден';
+      const meta = r ? `${stars}${r.time !== undefined ? formatTime(r.time) : ''}` : 'не пройден';
       rows.push(
         `<button type="button" data-level="${i}" aria-current="${i === saved.current}"><b>${i}</b>${levelName(i)}<span>${meta}</span></button>`,
       );
