@@ -1,6 +1,7 @@
 // Дневник игрока: находки на уровнях, отдельно от прогресса кампании, в localStorage.
 
 import type { BiomeId } from './levels/biomes';
+import type { SecretKind } from './levels/generator';
 
 /** Оттенок редкого кристалла — у каждого биома свой. */
 export interface Shade { name: string; color: readonly [r: number, g: number, b: number] }
@@ -68,6 +69,8 @@ interface Journal {
   seen?: number;
   /** Заработанные достижения (id). */
   badges: string[];
+  /** Атлас тайн: какие виды тайников уже раскрыты в каждом биоме. */
+  atlas: Partial<Record<BiomeId, SecretKind[]>>;
 }
 
 const emptyStats = (): Stats => ({ distance: 0, jumps: 0, crystals: 0, levels: 0, time: 0, bestCombo: 0, secrets: 0 });
@@ -85,12 +88,13 @@ function load(): Journal {
         garden: j.garden ?? { since: Date.now(), ready: 0 },
         seen: j.seen,
         badges: Array.isArray(j.badges) ? j.badges : [],
+        atlas: j.atlas && typeof j.atlas === 'object' ? j.atlas : {},
       };
     }
   } catch {
     // Повреждённые данные — дневник начинается заново
   }
-  return { shades: {}, notes: 0, stats: emptyStats(), garden: { since: Date.now(), ready: 0 }, badges: [] };
+  return { shades: {}, notes: 0, stats: emptyStats(), garden: { since: Date.now(), ready: 0 }, badges: [], atlas: {} };
 }
 
 export const journal: Journal = load();
@@ -161,6 +165,29 @@ export function addNote(): string {
   journal.notes = Math.min(NOTES.length, journal.notes + 1);
   save();
   return text;
+}
+
+/** Клетки атласа тайн: какие тайники бывают в каждом биоме — жемчужина только там, где озёра. */
+export const ATLAS_KINDS: Record<BiomeId, readonly SecretKind[]> = {
+  meadow: ['tree', 'stone', 'ring', 'ledge'],
+  autumn: ['tree', 'stone', 'ring', 'ledge'],
+  rocky: ['tree', 'stone', 'ring', 'ledge'],
+  winter: ['tree', 'stone', 'ring', 'ledge'],
+  night: ['tree', 'stone', 'ring', 'ledge'],
+  lakes: ['tree', 'stone', 'ring', 'ledge', 'pearl'],
+};
+export const ATLAS_TOTAL = Object.values(ATLAS_KINDS).reduce((n, k) => n + k.length, 0);
+
+/** Сколько клеток атласа заполнено. */
+export const atlasCount = (): number => Object.values(journal.atlas).reduce((n, k) => n + (k?.length ?? 0), 0);
+
+/** Тайник раскрыт: true — это первая такая находка в биоме, в атласе новая запись. */
+export function addAtlas(biome: BiomeId, kind: SecretKind): boolean {
+  const got = (journal.atlas[biome] ??= []);
+  if (got.includes(kind)) return false;
+  got.push(kind);
+  save();
+  return true;
 }
 
 /** Записывает редкий кристалл биома; возвращает, сколько их теперь найдено в этом биоме. */

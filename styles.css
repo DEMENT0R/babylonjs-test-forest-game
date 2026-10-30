@@ -506,3 +506,12 @@ body[data-locked~="levels"][data-locked~="sky"][data-locked~="journal"] .menu-ti
 .note{font:400 11px/1.5 var(--f-mono);color:var(--muted);margin-top:10px}
 @media (max-width:480px){.row{grid-template-columns:1fr}.seg{justify-content:flex-start}.range input{flex:1}}
 @media (prefers-reduced-motion:reduce){.hero,.switch,.switch::after{transition:none}.hero[aria-pressed="true"]{transform:none}}
+
+/* Атлас тайн в «Дневнике» */
+.atlas{width:100%;border-collapse:collapse;font:600 12px var(--f-mono);margin-block:8px}
+.atlas th,.atlas td{padding:5px 4px;text-align:center;border-bottom:1px solid var(--line)}
+.atlas th{font-weight:400;color:var(--muted)}
+.atlas tr th:first-child{text-align:left;color:var(--ink)}
+.atlas td{color:var(--muted)}
+.atlas td.got{color:var(--accent);font-size:14px}
+.atlas td.na{opacity:.35}

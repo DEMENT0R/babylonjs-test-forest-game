@@ -5,7 +5,7 @@ import { skyFor } from './constellations';
 import { TIERS } from './den/catalog';
 import { den } from './den/state';
 import { HEROES } from './heroes';
-import { journal, NOTES, save, SHADES } from './journal';
+import { ATLAS_TOTAL, atlasCount, journal, NOTES, save, SHADES } from './journal';
 import { DECOR } from './den/decor';
 import { currentStreak, daysPlayed, progress, totalStars } from './levels/progress';
 import { CAMPAIGN_LENGTH } from './levels/recipes';
@@ -45,6 +45,9 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
     desc: 'Собери все оттенки',
     progress: () => [count(Object.values(journal.shades), Boolean), Object.keys(SHADES).length],
   },
+  { id: 'secret', name: 'Первая тайна', desc: 'Раскрой тайник', progress: () => [s().secrets, 1] },
+  { id: 'atlas', name: 'Полатласа', desc: 'Заполни половину атласа тайн', progress: () => [atlasCount(), Math.ceil(ATLAS_TOTAL / 2)] },
+  { id: 'atlasAll', name: 'Знаток тайн', desc: 'Заполни атлас тайн целиком', progress: () => [atlasCount(), ATLAS_TOTAL] },
   { id: 'notes', name: 'Летописец', desc: 'Прочти все записки путника', progress: () => [journal.notes, NOTES.length] },
   { id: 'week', name: 'Неделя в лесу', desc: 'Проходи уровень 7 дней подряд', progress: () => [currentStreak().days, 7] },
   { id: 'home', name: 'Новоселье', desc: 'Поставь у норы первую вещь', progress: () => [den.owned.length, 1] },

@@ -12,8 +12,11 @@ import { skyFor } from './constellations';
 import { BTN, gamepad } from './gamepad';
 import { applyCoat, coatFor, COATS, HEROES, loadHero, openCoats, type HeroDef } from './heroes';
 import {
+  addAtlas,
   addNote,
   addShade,
+  ATLAS_TOTAL,
+  atlasCount,
   journal,
   NOTE_CHANCE,
   NOTES,
@@ -24,7 +27,7 @@ import {
   welcomeNote,
 } from './journal';
 import type { LevelLayout } from './levels/generator';
-import { amount, boostById, HONEY_WIND, materialOf, type BoostId } from './den/catalog';
+import { amount, boostById, HONEY_WIND, ITEMS, materialOf, type BoostId } from './den/catalog';
 import { DECOR } from './den/decor';
 import { clearUrl, snapshotFromUrl } from './den/snapshot';
 import { addMaterial, staminaWithPowers, takePacked } from './den/state';
@@ -125,6 +128,8 @@ let activeBoost: BoostId | null = null;
 let boostPending = false;
 /** Тайники уровня. */
 let secrets: LevelSecrets | null = null;
+/** Записей в атласе тайн на начало уровня — чтобы сказать, какие вещи для норы открылись. */
+let atlasBefore = 0;
 /** О каких тайниках уже подсказали на этом уровне. */
 const secretHints = new Set<SecretKind>();
 /** Материалов для норы подобрано на этом уровне. */
@@ -276,6 +281,7 @@ function beginLevel(index: number, dailyDate: string | null = null, keepBoost = 
   secrets?.dispose();
   secrets = new LevelSecrets(world.scene, layout);
   secretHints.clear();
+  atlasBefore = atlasCount();
   placeMarkers();
   starSky.show(!!layout.biome.starSky, totalStars());
   audio.setAmbience(layout.biome.ambience);
@@ -358,20 +364,21 @@ const SECRET_FOUND: Record<SecretKind, string> = {
  */
 function openSecret({ spot, at }: Opened): void {
   journal.stats.secrets++;
+  const atlas = addAtlas(layout.biome.id, spot.kind) ? ` · ✦ новое в атласе тайн, ${atlasCount()} из ${ATLAS_TOTAL}` : '';
   const m = materialOf(layout.biome.id);
   const n = level >= 6 ? 3 : 2;
   audio.chime(true, 3);
   if (spot.kind === 'ledge' || spot.kind === 'pearl') {
     addMaterial(m.id, n);
     gathered += n;
-    say(`${SECRET_FOUND[spot.kind]}: ${amount(m, n)} — уже в норе`, 2600);
+    say(`${SECRET_FOUND[spot.kind]}: ${amount(m, n)} — уже в норе${atlas}`, 3200);
     return;
   }
   for (let i = 0; i < n; i++) {
     const p = dropSpot(at, i / n);
     world.placePickup(p.x, p.z, m.id, at, spot.kind === 'tree' ? 0 : 1.4);
   }
-  say(`${SECRET_FOUND[spot.kind]}: ${amount(m, n)} — собери`, 2600);
+  say(`${SECRET_FOUND[spot.kind]}: ${amount(m, n)} — собери${atlas}`, 3200);
 }
 
 /** Подсказка у тайника — по разу на уровне для каждого вида; про дерево — пока ни одного тайника не найдено. */
@@ -556,6 +563,9 @@ function finishLevel(): void {
   if (streak && grown && isOpen('den')) notes.push(`🌼 У норы появилось новое: ${grown.name}`);
   if (gathered) notes.push(`🧺 Для норы: ${amount(materialOf(layout.biome.id), gathered)}`);
   if (secrets?.total) notes.push(`✨ Тайников: ${secrets.found} из ${secrets.total}`);
+  for (const item of ITEMS.filter((i) => i.atlas && i.atlas > atlasBefore && i.atlas <= atlasCount())) {
+    notes.push(`🔓 За атлас тайн для норы открыта вещь «${item.name}»`);
+  }
   // Уступ, на который не хватило прыжка, — повод вернуться
   if (secrets?.left.some((q) => q.kind === 'ledge' && q.needs === 'double') && !player.stamina.double) {
     notes.push('⛰ Один тайник — на уступе, куда без двойного прыжка не забраться. Купи его в «Силе» в норе и возвращайся');
@@ -954,4 +964,4 @@ if (visit) {
 }
 
 // Для отладки из консоли браузера; в production-сборку не попадает
-if (import.meta.env.DEV) Object.assign(window, { __game: { world, player, rig, select, den, beginLevel, get layout() { return layout; }, get quest() { return quest; }, get secrets() { return secrets; } } });
+if (import.meta.env.DEV) Object.assign(window, { __game: { world, player, rig, select, den, beginLevel, get layout() { return layout; }, get quest() { return quest; }, get secrets() { return secrets; }, openSecret } });

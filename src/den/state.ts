@@ -2,7 +2,7 @@
 // Кристаллы не копятся отдельно: счёт — все собранные за игру минус потраченные на нору,
 // поэтому старым сохранениям не нужен перенос.
 
-import { journal } from '../journal';
+import { atlasCount, journal } from '../journal';
 import { BASE_STAMINA, type Stamina } from '../stamina';
 import { clamp } from '../utils';
 import {
@@ -172,8 +172,11 @@ export function upgrade(): boolean {
 }
 
 /** Купить вещь и сразу поставить её на место; false — не хватило или место закрыто. */
+/** Вещь из тайников ещё не открыта: в атласе мало записей. */
+export const atlasLocked = (item: ItemDef): boolean => (item.atlas ?? 0) > atlasCount();
+
 export function buy(item: ItemDef): boolean {
-  if (!slotOpen(item.slot)) return false;
+  if (!slotOpen(item.slot) || atlasLocked(item)) return false;
   if (den.owned.includes(item.id)) {
     place(item);
     return true;

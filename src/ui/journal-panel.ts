@@ -1,9 +1,11 @@
 // Панель «Дневник» в главном меню: что игрок нашёл в лесу, по вкладкам.
 
 import { ACHIEVEMENTS, isDone, progressText } from '../achievements';
-import { journal, NOTES, SHADES } from '../journal';
+import { ATLAS_KINDS, ATLAS_TOTAL, atlasCount, journal, NOTES, SHADES } from '../journal';
 import { BIOMES, type BiomeId } from '../levels/biomes';
+import { ITEMS } from '../den/catalog';
 import { DECOR } from '../den/decor';
+import type { SecretKind } from '../levels/generator';
 import { daysPlayed } from '../levels/progress';
 import { plural } from '../utils';
 import type { InfoTab } from './menu';
@@ -56,6 +58,27 @@ function clearingHtml(): string {
     ${next ? '<p>Что будет дальше — увидишь завтра.</p>' : '<p>Поляна расцвела целиком.</p>'}`;
 }
 
+const KIND_NAMES: Record<SecretKind, string> = { tree: 'Дерево', stone: 'Камень', ring: 'Круг', ledge: 'Уступ', pearl: 'Жемчуг' };
+
+/** Атлас тайн: биомы по строкам, виды тайников по столбцам; жемчужина — только у озёр. */
+function atlasHtml(): string {
+  const kinds = Object.keys(KIND_NAMES) as SecretKind[];
+  const n = atlasCount();
+  const head = `<tr><th></th>${kinds.map((k) => `<th>${KIND_NAMES[k]}</th>`).join('')}</tr>`;
+  const rows = (Object.keys(ATLAS_KINDS) as BiomeId[]).map((b) => {
+    const cells = kinds.map((k) => {
+      if (!ATLAS_KINDS[b].includes(k)) return '<td class="na">—</td>';
+      return journal.atlas[b]?.includes(k) ? '<td class="got">✦</td>' : '<td>·</td>';
+    });
+    return `<tr><th>${BIOMES[b].name}</th>${cells.join('')}</tr>`;
+  });
+  const next = ITEMS.filter((i) => i.atlas && i.atlas > n).sort((a, b) => a.atlas! - b.atlas!)[0];
+  return `<h5>Атлас тайн · ${n} из ${ATLAS_TOTAL}</h5>
+    <p>Первый тайник каждого вида в каждом лесу — новая запись. Всего раскрыто тайников: ${journal.stats.secrets}.</p>
+    <table class="atlas">${head}${rows.join('')}</table>
+    ${next ? `<p>Ещё ${next.atlas! - n} — и для норы откроется «${next.name}».</p>` : '<p>Все вещи из тайников для норы открыты.</p>'}`;
+}
+
 /** Достижения: заработанные сверху, у остальных — прогресс полоской. */
 function achievementsHtml(): string {
   const done = ACHIEVEMENTS.filter(isDone);
@@ -74,6 +97,7 @@ function achievementsHtml(): string {
 export const JOURNAL_TABS: InfoTab[] = [
   { id: 'achievements', name: 'Достижения', html: achievementsHtml },
   { id: 'finds', name: 'Находки', html: () => shadesHtml() + notesHtml() },
+  { id: 'secrets', name: 'Тайны', html: atlasHtml },
   { id: 'clearing', name: 'Поляна', html: clearingHtml },
   { id: 'stats', name: 'В пути', html: statsHtml },
 ];
