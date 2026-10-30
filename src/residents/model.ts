@@ -30,17 +30,21 @@ export class ResidentModel {
     const root = new TransformNode(`resident-${def.id}`, scene);
     const body = new TransformNode(`resident-${def.id}-body`, scene);
     body.parent = root;
+    // fit подгоняет рост и ставит на землю, orient поворачивает модель мордой вдоль +Z
+    // (а лежащую на боку — ставит на лапы)
+    const fit = new TransformNode(`resident-${def.id}-fit`, scene);
+    fit.parent = body;
     const orient = new TransformNode(`resident-${def.id}-orient`, scene);
-    orient.parent = body;
-    orient.rotation.y = def.yaw;
+    orient.parent = fit;
+    orient.rotation.set(def.pitch ?? 0, def.yaw, 0);
     const model = res.meshes[0];
     model.parent = orient;
-    // Модели разного масштаба и с началом координат где придётся: по габаритам ставим на землю,
-    // по центру и подгоняем рост
+    // Модели разного масштаба и с началом координат где придётся: габариты уже повёрнутой
+    // модели (корень пока в начале координат) — по ним рост, земля и середина
     const { min, max } = model.getHierarchyBoundingVectors(true);
     const k = def.height / Math.max(max.y - min.y, 1e-3);
-    model.scaling.scaleInPlace(k);
-    model.position.set((-(min.x + max.x) / 2) * k, -min.y * k, (-(min.z + max.z) / 2) * k);
+    fit.scaling.setAll(k);
+    fit.position.set((-(min.x + max.x) / 2) * k, -min.y * k, (-(min.z + max.z) / 2) * k);
     for (const m of res.meshes) {
       // Матовая шерсть и перья, как у героев
       const mat = m.material as PBRMaterial | null;

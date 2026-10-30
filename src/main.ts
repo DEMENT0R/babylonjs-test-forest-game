@@ -36,7 +36,7 @@ import { QuestMarkers } from './levels/markers';
 import { LevelSecrets, type Opened } from './levels/secrets';
 import { RESIDENTS } from './residents/catalog';
 import { ResidentModel } from './residents/model';
-import { currentStep, isActive, stateOf } from './residents/state';
+import { currentStep, isActive, movedIn, stateOf } from './residents/state';
 import { LostItemSpot, progressRequests, requestLine, ResidentVisit, type RequestEvent } from './residents/visit';
 import { EVENT_CHANCE, EVENT_INTRO, eventFor, LevelEvent, type EventKind } from './levels/events';
 import type { SecretKind, SecretSpot } from './levels/generator';
@@ -155,6 +155,11 @@ let rainbowWind = 0;
 let forcedEvent: EventKind | null = null;
 /** Ветер в спину от радуги, с. */
 const RAINBOW_WIND = 20;
+/** Заяц у норы подсказывает, где тайник: стрелка светлячка в первые HINT_TIME секунд уровня. */
+let hintSecret = false;
+/** О подсказке зайца ещё не сказали на этом уровне. */
+let hintIntro = false;
+const HINT_TIME = 10;
 /** Записей в атласе тайн на начало уровня — чтобы сказать, какие вещи для норы открылись. */
 let atlasBefore = 0;
 /** О каких тайниках уже подсказали на этом уровне. */
@@ -310,6 +315,7 @@ function beginLevel(index: number, dailyDate: string | null = null, keepBoost = 
   secrets = new LevelSecrets(world.scene, layout);
   secretHints.clear();
   atlasBefore = atlasCount();
+  hintSecret = hintIntro = !daily && secrets.total > 0 && movedIn().some((r) => r.perk.kind === 'hint');
   // Перезапуск не перебрасывает событие, пока оно не состоялось, — и не даёт получить награду дважды;
   // в Лесе дня и на первых уровнях событий нет
   const kept = keepBoost && levelEvent?.active ? levelEvent.kind : null;
@@ -587,7 +593,14 @@ function startBoost(): void {
 
 /** Светлячок: направление на ближайший несобранный кристалл относительно камеры. */
 function updateFirefly(): void {
-  if (activeBoost !== 'firefly') return;
+  if (activeBoost !== 'firefly') {
+    // Без светлячка стрелка — подсказка зайца: первые секунды уровня показывает на ближайший тайник
+    if (!hintSecret) return;
+    const spot = levelTime < HINT_TIME ? secrets?.near(player.pos, Infinity) : null;
+    if (!spot) hintSecret = false;
+    setFirefly(spot ? wrapAngle(Math.atan2(spot.x - player.pos.x, spot.z - player.pos.z) - rig.yaw) : null);
+    return;
+  }
   let best: Vector3 | null = null;
   let bestD = Infinity;
   for (const c of world.crystals) {
@@ -984,6 +997,10 @@ world.scene.onBeforeRenderObservable.add(() => {
       if (!currentStep(visit!.def)) say(`${visit!.def.icon} ${visit!.def.name} переезжает к твоей норе — загляни к нему туда`, 3500);
     } else if (talk === 'met') {
       audio.chime(false, 1);
+    }
+    if (hintIntro && levelTime > 1.5) {
+      hintIntro = false;
+      say('🐇 Заяц шепнул, в какой стороне тайник, — смотри на стрелку', 3000);
     }
     if (visitIntro && levelTime > 3 && !eventIntro) {
       visitIntro = false;

@@ -45,6 +45,7 @@ import {
   type SlotDef,
 } from '../den/catalog';
 import {
+  addMaterial,
   atlasLocked,
   boostCount,
   brew,
@@ -86,6 +87,7 @@ import { isOpen } from '../unlocks';
 import { say } from './hud';
 import { RESIDENTS, residentById, type ResidentId } from '../residents/catalog';
 import { ResidentModel } from '../residents/model';
+import { dayNumber, takeGifts } from '../residents/state';
 
 /** Поляна у норы, свободная от деревьев. */
 const CLEARING_R = 13;
@@ -356,7 +358,10 @@ export class DenScreen {
     this.sel = null;
     this.page = null;
     this.show(guest ?? snapshot(daysPlayed()));
-    if (!this.guest) this.grow();
+    if (!this.guest) {
+      this.grow();
+      this.collectGifts();
+    }
     this.render();
     (this.guest ? byId(isOpen('den') ? 'den-own' : 'den-back') : this.slotsEl.querySelector<HTMLElement>('[aria-pressed="true"]'))?.focus();
   }
@@ -417,7 +422,7 @@ export class DenScreen {
 
   /** Место жителя по краю двора — по бокам и спереди, чтобы его было видно; i — номер в каталоге. */
   private residentSpot(i: number): { x: number; z: number } {
-    const base = [-1.6, 1.6, -2.2, 2.2, -2.7, 2.7][i % 6];
+    const base = [-1.35, 1.35, -2.05, 2.05, -2.75, 2.75][i % 6];
     for (let t = 0; t < 24; t++) {
       const a = base + (t % 2 ? 1 : -1) * Math.floor((t + 1) / 2) * 0.12;
       const k = 0.88 - (t % 3) * 0.05;
@@ -446,14 +451,24 @@ export class DenScreen {
     setTimeout(() => (btn.textContent = COPY_LABEL), 2500);
   }
 
+  /** Подарки жителей, пока тебя не было, — сразу в кладовую. */
+  private collectGifts(): void {
+    const got = takeGifts().flatMap(({ def, days }) => {
+      if (def.perk.kind !== 'gift') return [];
+      const m = materialById(def.perk.mat)!;
+      addMaterial(m.id, def.perk.n * days);
+      return [`${def.icon} ${amount(m, def.perk.n * days)}`];
+    });
+    if (got.length) say(`Жители принесли: ${got.join(', ')}`, 3500);
+  }
+
   /** Клик по жителю у норы: реплика дня — каждый день новая — и чем он помогает. */
   private talkTo(id: string): void {
     const def = residentById(id);
     const m = def && this.residents.get(def.id);
     if (!def || !m) return;
     m.cheer();
-    const day = Math.floor(Date.now() / 86_400_000);
-    say(`${def.icon} ${def.name}: «${def.daily[day % def.daily.length]}» · ${def.perkText}`, 4500);
+    say(`${def.icon} ${def.name}: «${def.daily[dayNumber() % def.daily.length]}» · ${def.perkText}`, 4500);
   }
 
   /** Место открыто в той норе, что сейчас во дворе. */

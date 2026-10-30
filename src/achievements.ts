@@ -9,6 +9,8 @@ import { ATLAS_TOTAL, atlasCount, journal, NOTES, save, SHADES } from './journal
 import { DECOR } from './den/decor';
 import { currentStreak, daysPlayed, progress, totalStars } from './levels/progress';
 import { CAMPAIGN_LENGTH } from './levels/recipes';
+import { RESIDENTS } from './residents/catalog';
+import { movedIn } from './residents/state';
 
 export interface Achievement {
   id: string;
@@ -50,6 +52,8 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   { id: 'atlasAll', name: 'Знаток тайн', desc: 'Заполни атлас тайн целиком', progress: () => [atlasCount(), ATLAS_TOTAL] },
   { id: 'notes', name: 'Летописец', desc: 'Прочти все записки путника', progress: () => [journal.notes, NOTES.length] },
   { id: 'week', name: 'Неделя в лесу', desc: 'Проходи уровень 7 дней подряд', progress: () => [currentStreak().days, 7] },
+  { id: 'neighbor', name: 'Добрый сосед', desc: 'Помоги жителю леса переехать к твоей норе', progress: () => [movedIn().length, 1] },
+  { id: 'yard', name: 'Полный двор', desc: 'Пусть у норы поселятся все жители леса', progress: () => [movedIn().length, RESIDENTS.length] },
   { id: 'home', name: 'Новоселье', desc: 'Поставь у норы первую вещь', progress: () => [den.owned.length, 1] },
   { id: 'burrow', name: 'Большая нора', desc: 'Дорасти нору до второй комнаты', progress: () => [den.tier, TIERS.length - 1] },
   { id: 'bloom', name: 'Поляна в цвету', desc: 'Вырасти на поляне у норы всё', progress: () => [daysPlayed(), DECOR.length] },

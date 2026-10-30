@@ -167,8 +167,16 @@ export function addMaterial(id: MaterialId, n = 1): number {
 /** Место открыто на нынешнем уровне норы. */
 export const slotOpen = (slot: SlotId): boolean => (slotById(slot)?.tier ?? Infinity) <= den.tier;
 
-/** Следующий уровень норы; null — нора уже самая большая. */
-export const nextTier = (): (typeof TIERS)[number] | null => TIERS[den.tier + 1] ?? null;
+/** Улучшения норы дешевле в кристаллах, когда рядом живёт барсук. */
+const DISCOUNT = 0.8;
+
+/** Следующий уровень норы с ценой, какая она сейчас; null — нора уже самая большая. */
+export function nextTier(): (typeof TIERS)[number] | null {
+  const t = TIERS[den.tier + 1];
+  if (!t) return null;
+  const off = movedIn().some((r) => r.perk.kind === 'discount');
+  return off ? { ...t, cost: { ...t.cost, crystals: Math.round(t.cost.crystals * DISCOUNT) } } : t;
+}
 
 /** Перейти на следующий уровень норы; false — не хватило или расти некуда. */
 export function upgrade(): boolean {
