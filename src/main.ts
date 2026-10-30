@@ -30,7 +30,8 @@ import { clearUrl, snapshotFromUrl } from './den/snapshot';
 import { addMaterial, staminaWithPowers, takePacked } from './den/state';
 import { completeDaily, completeLevel, dailyBest, daysPlayed, formatTime, markPlayedToday, progress, setCurrentLevel, todayKey, totalStars } from './levels/progress';
 import { QuestMarkers } from './levels/markers';
-import { LevelSecrets } from './levels/secrets';
+import { LevelSecrets, type Opened } from './levels/secrets';
+import type { SecretKind, SecretSpot } from './levels/generator';
 import { fitQuest, QuestRun } from './levels/quests';
 import { dailyRecipe, recipeFor } from './levels/recipes';
 import { clearInput, keys, Player, setupTouchControls, setWalkLock, walkLocked } from './player';
@@ -124,8 +125,8 @@ let activeBoost: BoostId | null = null;
 let boostPending = false;
 /** Тайники уровня. */
 let secrets: LevelSecrets | null = null;
-/** Подсказку про мерцающее дерево уже показывали на этом уровне. */
-let secretHinted = false;
+/** О каких тайниках уже подсказали на этом уровне. */
+const secretHints = new Set<SecretKind>();
 /** Материалов для норы подобрано на этом уровне. */
 let gathered = 0;
 /** Сколько материалов разложить на уровне: от и до. */
@@ -274,7 +275,7 @@ function beginLevel(index: number, dailyDate: string | null = null, keepBoost = 
   placePickups();
   secrets?.dispose();
   secrets = new LevelSecrets(world.scene, layout);
-  secretHinted = false;
+  secretHints.clear();
   placeMarkers();
   starSky.show(!!layout.biome.starSky, totalStars());
   audio.setAmbience(layout.biome.ambience);
@@ -341,20 +342,51 @@ function placePickups(): void {
   }
 }
 
+/** Что сказать, когда тайник раскрыт. */
+const SECRET_FOUND: Record<SecretKind, string> = {
+  tree: 'Из кроны что-то выпало',
+  stone: 'Тайник под камнем',
+  ring: 'Грибной круг раскрылся',
+  ledge: 'Гнездо на уступе',
+  pearl: 'Жемчужина на дне',
+};
+
 /**
- * Тайник раскрыт: находка — горсть материалов биома — разлетается вокруг и ждёт, пока её соберут.
- * stone — выскакивает из-под камня подскоком, иначе падает из кроны.
+ * Тайник раскрыт: находка — горсть материалов биома. Из кроны она падает, из-под камня
+ * и из грибного круга выскакивает и ждёт, пока её соберут; с уступа и со дна озера
+ * разлетаться ей некуда — она сразу идёт в нору.
  */
-function openSecret(from: Vector3, stone: boolean): void {
+function openSecret({ spot, at }: Opened): void {
   journal.stats.secrets++;
   const m = materialOf(layout.biome.id);
   const n = level >= 6 ? 3 : 2;
-  for (let i = 0; i < n; i++) {
-    const spot = dropSpot(from, i / n);
-    world.placePickup(spot.x, spot.z, m.id, from, stone ? 1.4 : 0);
-  }
   audio.chime(true, 3);
-  say(`${stone ? 'Тайник под камнем' : 'Из кроны что-то выпало'}: ${amount(m, n)} — собери`, 2600);
+  if (spot.kind === 'ledge' || spot.kind === 'pearl') {
+    addMaterial(m.id, n);
+    gathered += n;
+    say(`${SECRET_FOUND[spot.kind]}: ${amount(m, n)} — уже в норе`, 2600);
+    return;
+  }
+  for (let i = 0; i < n; i++) {
+    const p = dropSpot(at, i / n);
+    world.placePickup(p.x, p.z, m.id, at, spot.kind === 'tree' ? 0 : 1.4);
+  }
+  say(`${SECRET_FOUND[spot.kind]}: ${amount(m, n)} — собери`, 2600);
+}
+
+/** Подсказка у тайника — по разу на уровне для каждого вида; про дерево — пока ни одного тайника не найдено. */
+function secretHint(spot: SecretSpot): string | null {
+  switch (spot.kind) {
+    case 'tree':
+      return journal.stats.secrets === 0 ? 'В кроне дерева что-то блестит — толкни его с разбега' : null;
+    case 'ring':
+      return 'Грибной круг — постой в нём немного';
+    case 'ledge':
+      if (spot.needs === 'double' && !player.stamina.double) return 'Высоко! С двойным прыжком из «Силы» в норе сюда можно забраться';
+      return player.special ? 'Высокий уступ — держи прыжок, чтобы прыгнуть выше' : null;
+    default:
+      return null;
+  }
 }
 
 /** Куда упадёт часть находки: вокруг тайника, на свободное место; turn — доля круга, чтобы не кучей. */
@@ -524,6 +556,10 @@ function finishLevel(): void {
   if (streak && grown && isOpen('den')) notes.push(`🌼 У норы появилось новое: ${grown.name}`);
   if (gathered) notes.push(`🧺 Для норы: ${amount(materialOf(layout.biome.id), gathered)}`);
   if (secrets?.total) notes.push(`✨ Тайников: ${secrets.found} из ${secrets.total}`);
+  // Уступ, на который не хватило прыжка, — повод вернуться
+  if (secrets?.left.some((q) => q.kind === 'ledge' && q.needs === 'double') && !player.stamina.double) {
+    notes.push('⛰ Один тайник — на уступе, куда без двойного прыжка не забраться. Купи его в «Силе» в норе и возвращайся');
+  }
   if (constellation) notes.push(`✦ Новое созвездие на небе: «${constellation}»`);
   if (newCoat) notes.push(`Открыт окрас «${newCoat}» — выбери его на экране героя`);
   notes.push(...almost(time, best, opened));
@@ -798,16 +834,16 @@ world.scene.onBeforeRenderObservable.add(() => {
       const dx = h.x - player.pos.x, dz = h.z - player.pos.z;
       const pan = (dx * Math.cos(rig.yaw) - dz * Math.sin(rig.yaw)) / Math.max(Math.hypot(dx, dz), 0.1);
       audio.rustle(h.strength, !!layout.biome.frost, pan);
-      const from = secrets?.shake(h.tree);
-      if (from) openSecret(from, false);
+      const shaken = secrets?.shake(h.tree);
+      if (shaken) openSecret(shaken);
     }
-    const stone = secrets?.reach(player.pos);
-    if (stone) openSecret(stone, true);
-    secrets?.update(dt, player.pos);
-    // Первый раз в жизни видит мерцающее дерево — подсказать, что с ним делать
-    if (!secretHinted && journal.stats.secrets === 0 && secrets?.treeNear(player.pos, 14)) {
-      secretHinted = true;
-      say('В кроне дерева что-то блестит — толкни его с разбега', 3500);
+    for (const o of secrets?.update(dt, player.pos) ?? []) openSecret(o);
+    // Подойдя к тайнику, подсказать, что с ним делать; дерево видно издалека — подсказка раньше
+    const close = secrets?.near(player.pos, 14);
+    const hint = close && !secretHints.has(close.kind) && (close.kind === 'tree' || Math.hypot(close.x - player.pos.x, close.z - player.pos.z) < 4) ? secretHint(close) : null;
+    if (close && hint) {
+      secretHints.add(close.kind);
+      say(hint, 3500);
     }
   }
   if (active) {
