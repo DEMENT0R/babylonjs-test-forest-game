@@ -10,7 +10,7 @@ import type { BiomeId } from './biomes';
  * ascent — одна огромная цепочка платформ, кристаллы на ступенях по пути вверх;
  * night — свет биома приглушён, путь освещает фонарь героя, и чем больше собрано, тем он ярче.
  */
-export type SpecialKind = 'trail' | 'gather' | 'ascent' | 'night';
+export type SpecialKind = 'trail' | 'gather' | 'ascent' | 'night' | 'finale';
 
 /** Что сказать об особом уровне в начале. */
 export const SPECIAL_INTRO: Record<SpecialKind, string> = {
@@ -18,6 +18,7 @@ export const SPECIAL_INTRO: Record<SpecialKind, string> = {
   gather: 'Особый уровень: портал откроется, только когда соберёшь все кристаллы',
   ascent: 'Особый уровень: одна высокая лестница до самого неба — кристаллы на ступенях',
   night: 'Особый уровень: темно — каждый собранный кристалл делает твой фонарь ярче',
+  finale: 'Старый круг: огоньки ведут к последней стоянке путника',
 };
 
 export interface Region {
@@ -44,6 +45,9 @@ export const REGION_LEVELS = 6;
 export const CAMPAIGN_LENGTH = REGIONS.length * REGION_LEVELS;
 /** Как зовётся бесконечный режим после кампании. */
 export const FAR_FOREST = 'Дальний лес';
+/** Финал — уровень сразу после последнего региона: Старый круг, где путник оставил последнюю записку. */
+export const FINALE = CAMPAIGN_LENGTH + 1;
+export const FINALE_NAME = 'Старый круг';
 
 /** Где уровень в кампании: регион, номер в нём с нуля и особый ли; null — уже Дальний лес. */
 export function regionOf(index: number): { region: Region; n: number; special: boolean } | null {
@@ -55,5 +59,5 @@ export function regionOf(index: number): { region: Region; n: number; special: b
 /** Подпись места: «Осенняя роща · 3 из 6» или «Дальний лес». */
 export function placeName(index: number): string {
   const r = regionOf(index);
-  return r ? `${r.region.name} · ${r.n + 1} из ${REGION_LEVELS}` : FAR_FOREST;
+  return r ? `${r.region.name} · ${r.n + 1} из ${REGION_LEVELS}` : index === FINALE ? FINALE_NAME : FAR_FOREST;
 }

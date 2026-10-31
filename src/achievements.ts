@@ -9,6 +9,7 @@ import { ATLAS_TOTAL, atlasCount, journal, NOTE_TOTAL, save, SHADES } from './jo
 import { DECOR } from './den/decor';
 import { currentStreak, daysPlayed, progress, totalStars } from './levels/progress';
 import { CAMPAIGN_LENGTH } from './levels/recipes';
+import { FINALE } from './levels/regions';
 import { RESIDENTS } from './residents/catalog';
 import { movedIn } from './residents/state';
 
@@ -27,6 +28,7 @@ const count = <T>(xs: readonly T[], f: (x: T) => unknown) => xs.filter(f).length
 
 export const ACHIEVEMENTS: readonly Achievement[] = [
   { id: 'first', name: 'Первый портал', desc: 'Пройди уровень', progress: () => [s().levels, 1] },
+  { id: 'keeper', name: 'Новый хранитель', desc: 'Дойди до Старого круга', progress: () => [progress.unlocked > FINALE ? 1 : 0, 1] },
   { id: 'campaign', name: 'Сквозь шесть лесов', desc: 'Пройди все шесть регионов', progress: () => [progress.unlocked - 1, CAMPAIGN_LENGTH] },
   { id: 'daily', name: 'Лес дня', desc: 'Пройди Лес дня', progress: () => [progress.daily ? 1 : 0, 1] },
   { id: 'walk1', name: 'Лесная тропа', desc: 'Пройди километр', progress: () => [s().distance / 1000, 1], unit: 'km' },

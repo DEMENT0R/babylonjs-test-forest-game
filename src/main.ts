@@ -44,7 +44,7 @@ import { LostItemSpot, progressRequests, requestLine, ResidentVisit, type Reques
 import { EVENT_CHANCE, EVENT_INTRO, eventFor, LevelEvent, type EventKind } from './levels/events';
 import type { SecretKind, SecretSpot } from './levels/generator';
 import { BIOMES } from './levels/biomes';
-import { FAR_FOREST, REGION_LEVELS, REGIONS, regionOf, SPECIAL_INTRO } from './levels/regions';
+import { FAR_FOREST, FINALE, FINALE_NAME, REGION_LEVELS, REGIONS, regionOf, SPECIAL_INTRO } from './levels/regions';
 import { TrailLanterns, TravelerCamp } from './levels/camp';
 import { fitQuest, QuestRun } from './levels/quests';
 import { dailyRecipe, recipeFor } from './levels/recipes';
@@ -258,7 +258,8 @@ setupPwa();
 /** «Уровень 9 · Осенняя роща 3/6»; после кампании — Дальний лес и биом уровня. */
 const levelLabel = (i: number, l: LevelLayout) => {
   const r = regionOf(i);
-  return `Уровень ${i} · ${r ? `${r.region.name} ${r.n + 1}/${REGION_LEVELS}` : `${FAR_FOREST}, ${l.biome.name.toLowerCase()}`}`;
+  const where = r ? `${r.region.name} ${r.n + 1}/${REGION_LEVELS}` : i === FINALE ? FINALE_NAME : `${FAR_FOREST}, ${l.biome.name.toLowerCase()}`;
+  return `Уровень ${i} · ${where}`;
 };
 const currentLabel = () => (daily ? `Лес дня · ${layout.biome.name}` : levelLabel(level, layout));
 
@@ -334,7 +335,8 @@ function beginLevel(index: number, dailyDate: string | null = null, keepBoost = 
   const spot = levelNote === null ? null : welcomeNote ? welcomeSpot() : Math.random() < NOTE_CHANCE ? noteSpot() : null;
   if (spot) world.placeNote(spot.x, spot.z);
   else levelNote = null;
-  placeCamp(place?.special && regionIdx !== null ? regionIdx : null);
+  // Стоянка — на особом уровне региона; у Старого круга — последняя, с прощальной запиской
+  placeCamp(place?.special && regionIdx !== null ? regionIdx : recipe.special === 'finale' ? REGIONS.length : null);
   trailLights?.dispose();
   trailLights = layout.trail.length ? new TrailLanterns(world.scene, layout.trail.map((p) => ({ ...p, y: world.terrainAt(p.x, p.z) }))) : null;
   const night = recipe.special === 'night';
@@ -722,6 +724,7 @@ function timeText(time: number, best: number | undefined): string {
  */
 function finishLevel(): void {
   const time = levelTime;
+  let keeper = false;
   journal.stats.levels++;
   saveJournal();
   let eyebrow: string;
@@ -740,6 +743,8 @@ function finishLevel(): void {
     const questDone = quest.passed();
     if (questDone) residentNews({ kind: 'quest', biome: layout.biome.id });
     best = progress.records[level]?.time;
+    // Старый круг пройден впервые — путь окончен
+    keeper = level === FINALE && progress.unlocked <= FINALE;
     const lockedBefore = HEROES.filter((h) => starsMissing(h) > 0);
     const coatsBefore = openCoats().length;
     const skyBefore = skyFor(totalStars()).done;
@@ -769,6 +774,13 @@ function finishLevel(): void {
   }
   if (constellation) notes.push(`✦ Новое созвездие на небе: «${constellation}»`);
   if (newCoat) notes.push(`Открыт окрас «${newCoat}» — выбери его на экране героя`);
+  if (keeper) {
+    notes.unshift(
+      '🌟 Путь пройден: все каменные круги снова горят, и теперь хранитель — ты',
+      '🔓 У норы ждёт посох хранителя — поставь его у входа',
+      `Дальше — бесконечный ${FAR_FOREST}. Там тоже нужен свет`,
+    );
+  }
   notes.push(...almost(time, best, opened));
   if (daily) notes.push('Результатом можно поделиться — кнопка в меню под «Лесом дня»');
   // Достижения — первыми: это самое редкое, что бывает на экране итога; за ними — что открылось

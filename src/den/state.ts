@@ -4,6 +4,8 @@
 
 import { atlasCount, journal } from '../journal';
 import { movedIn } from '../residents/state';
+import { progress } from '../levels/progress';
+import { FINALE } from '../levels/regions';
 import { BASE_STAMINA, type Stamina } from '../stamina';
 import { clamp } from '../utils';
 import {
@@ -188,8 +190,8 @@ export function upgrade(): boolean {
 }
 
 /** Купить вещь и сразу поставить её на место; false — не хватило или место закрыто. */
-/** Вещь из тайников ещё не открыта: в атласе мало записей. */
-export const atlasLocked = (item: ItemDef): boolean => (item.atlas ?? 0) > atlasCount();
+/** Вещь ещё не открыта: из тайников — в атласе мало записей, посох — Старый круг не пройден. */
+export const atlasLocked = (item: ItemDef): boolean => (item.atlas ?? 0) > atlasCount() || (!!item.finale && progress.unlocked <= FINALE);
 
 export function buy(item: ItemDef): boolean {
   if (!slotOpen(item.slot) || atlasLocked(item)) return false;

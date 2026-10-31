@@ -5,7 +5,7 @@
 import { Rng } from '../rng';
 import { BIOMES, type BiomeId } from './biomes';
 import type { Quest } from './quests';
-import { CAMPAIGN_LENGTH, regionOf, type SpecialKind } from './regions';
+import { CAMPAIGN_LENGTH, FINALE, regionOf, type SpecialKind } from './regions';
 
 export { CAMPAIGN_LENGTH } from './regions';
 
@@ -79,8 +79,12 @@ export function recipeFor(index: number): LevelRecipe {
     if (special === 'ascent') return { ...recipe, special, chains: 1, steps: [9, 11] };
     return { ...recipe, special };
   }
+  // Старый круг: тихая поляна, тропа к последней стоянке — без спешки
+  if (index === FINALE) {
+    return { ...LAST, index, seed, biome: 'meadow', special: 'finale', hidden: 0.2, quest: { kind: 'explore', intro: 'Здесь всё началось — обойди поляны' } };
+  }
   // Дальний лес: каждый следующий уровень немного больше, но с потолком
-  const extra = index - CAMPAIGN_LENGTH;
+  const extra = index - FINALE;
   const rng = Rng.stream(seed, 'recipe');
   const biome = rng.pick(BIOME_IDS);
   return {

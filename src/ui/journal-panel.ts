@@ -2,7 +2,7 @@
 
 import { ACHIEVEMENTS, isDone, progressText } from '../achievements';
 import { ATLAS_KINDS, ATLAS_TOTAL, atlasCount, campNote, isNoteRead, journal, NOTE_TOTAL, noteText, REGION_NOTES, SHADES } from '../journal';
-import { REGIONS } from '../levels/regions';
+import { FINALE_NAME, REGIONS } from '../levels/regions';
 import { BIOMES, type BiomeId } from '../levels/biomes';
 import { ITEMS } from '../den/catalog';
 import { RESIDENTS } from '../residents/catalog';
@@ -40,6 +40,8 @@ function notesHtml(): string {
     const items = ids.map((id) => (isNoteRead(id) ? `<li class="note${id === campNote(k) ? ' camp' : ''}">${noteText(id)}</li>` : '<li class="note off">…</li>'));
     return `<h6>${r.name}</h6><ul>${items.join('')}</ul>`;
   });
+  const last = campNote(REGIONS.length);
+  if (isNoteRead(last)) groups.push(`<h6>${FINALE_NAME}</h6><ul><li class="note camp">${noteText(last)}</li></ul>`);
   const hint = read < NOTE_TOTAL ? '<p>Записки лежат на светящихся камнях на полянах, а в конце каждого леса — у стоянки путника.</p>' : '';
   return `<h5>Записки путника · ${read} из ${NOTE_TOTAL}</h5>
     ${read ? groups.join('') : '<p>Кто-то прошёл этот лес раньше и оставил на полянах камни с записками.</p>'}${hint}`;

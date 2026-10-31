@@ -511,6 +511,19 @@ export class DenKit {
         tick = (t) => (egg.rotation.z = Math.sin(t * 0.7) * 0.08);
         break;
       }
+      case 'staff': {
+        // Посох хранителя воткнут в землю: сучковатое древко и кристалл в развилке, он медленно светится
+        const shaft = add(MeshBuilder.CreateCylinder('staff', { diameterTop: 0.06, diameterBottom: 0.09, height: 1.7, tessellation: 7 }, s), [0.42, 0.28, 0.16], 0, 0.85, 0);
+        shaft.rotation.z = 0.06;
+        for (const side of [-1, 1]) {
+          const fork = add(MeshBuilder.CreateCylinder('staff-fork', { diameterTop: 0.02, diameterBottom: 0.05, height: 0.3, tessellation: 5 }, s), [0.42, 0.28, 0.16], side * 0.07, 1.8, 0);
+          fork.rotation.z = -side * 0.5;
+        }
+        const gem = add(MeshBuilder.CreatePolyhedron('staff-gem', { type: 1, size: 0.09 }, s), [1, 0.84, 0.42], 0.05, 1.85, 0, 0.8);
+        gem.scaling.y = 1.6;
+        tick = (t) => (gem.rotation.y = t * 0.7);
+        break;
+      }
       case 'pearl': {
         add(MeshBuilder.CreateCylinder('bowl', { diameterTop: 0.95, diameterBottom: 0.6, height: 0.32, tessellation: 16 }, s), STONE, 0, 0.16, 0);
         const water = add(MeshBuilder.CreateDisc('bowl-water', { radius: 0.4, tessellation: 20 }, s), [0.3, 0.55, 0.7], 0, 0.3, 0, 0.15);

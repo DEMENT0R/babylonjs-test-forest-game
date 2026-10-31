@@ -365,7 +365,7 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
   // Тропа: от старта к самой дальней поляне — там стоянка путника; огоньки по пути
   // и больше половины кристаллов вдоль неё
   const trail: { x: number; z: number }[] = [];
-  const goal = recipe.special === 'trail' ? [...clearings.slice(1)].sort((a, b) => Math.hypot(b.x - spawn.x, b.z - spawn.z) - Math.hypot(a.x - spawn.x, a.z - spawn.z))[0] : undefined;
+  const goal = recipe.special === 'trail' || recipe.special === 'finale' ? [...clearings.slice(1)].sort((a, b) => Math.hypot(b.x - spawn.x, b.z - spawn.z) - Math.hypot(a.x - spawn.x, a.z - spawn.z))[0] : undefined;
   if (goal) {
     const rt = Rng.stream(seed, 'trail');
     const len = Math.hypot(goal.x - spawn.x, goal.z - spawn.z);

@@ -8,7 +8,7 @@ import { CHANGELOG, GAME_VERSION, hasUnseenChanges, markChangesSeen, versionOf }
 import { BIOMES } from '../levels/biomes';
 import { currentStreak, dailyBest, formatTime, progress as saved, todayKey, totalStars } from '../levels/progress';
 import { recipeFor } from '../levels/recipes';
-import { CAMPAIGN_LENGTH, FAR_FOREST, REGION_LEVELS, REGIONS, regionOf } from '../levels/regions';
+import { FAR_FOREST, FINALE, FINALE_NAME, REGION_LEVELS, REGIONS, regionOf } from '../levels/regions';
 import { byId, plural } from '../utils';
 import { ATLAS_KINDS, growGarden, journal, welcomeNote } from '../journal';
 import { crystals } from '../den/state';
@@ -33,7 +33,7 @@ const CREDITS = `
 const howtoHtml = (): string => `
     <p>${byId('menu-sub').textContent}</p>
     <h5>Шесть лесов</h5>
-    <p>Путь лежит через шесть лесов — Опушку, Осеннюю рощу, Зимний перевал, Каменное плато, Ночной лес и Озёрный край, — по шесть уровней в каждом. За ними начинается бесконечный Дальний лес. В каждом лесу на полянах лежат две записки путника, а на шестом, особом уровне — его стоянка с ещё тёплыми углями и длинной запиской: из них складывается его история. Особые уровни непохожи на обычные: то огоньки ведут по тропе к стоянке, то портал откроется только за все кристаллы, то путь лежит вверх по одной высокой лестнице, а в Ночном лесу светит только твой фонарь — и тем ярче, чем больше кристаллов собрано.</p>
+    <p>Путь лежит через шесть лесов — Опушку, Осеннюю рощу, Зимний перевал, Каменное плато, Ночной лес и Озёрный край, — по шесть уровней в каждом. За ними — Старый круг, где путь путника заканчивается, а потом бесконечный Дальний лес. В каждом лесу на полянах лежат две записки путника, а на шестом, особом уровне — его стоянка с ещё тёплыми углями и длинной запиской: из них складывается его история. Особые уровни непохожи на обычные: то огоньки ведут по тропе к стоянке, то портал откроется только за все кристаллы, то путь лежит вверх по одной высокой лестнице, а в Ночном лесу светит только твой фонарь — и тем ярче, чем больше кристаллов собрано.</p>
     <h5>Звёзды</h5>
     <p>За уровень — две звезды: за все кристаллы и за задание. Звёзды открывают новых героев и окрасы и зажигают созвездия на «Небе».</p>
     <h5>Запал</h5>
@@ -414,8 +414,14 @@ export class MainMenu {
         <p>★ ${stars}/${REGION_LEVELS * 2} · тайны ${atlas}/${ATLAS_KINDS[region.biome].length}${resident}</p>
         <div class="map-dots">${dots.join('')}</div></section>`;
     });
+    // Старый круг — после последнего леса
+    if (saved.unlocked >= FINALE) {
+      const r = saved.records[FINALE];
+      cards.push(`<section class="map-region finale"><h5>${FINALE_NAME}</h5><p>${r ? 'Путь пройден — ты хранитель' : 'Последняя стоянка путника'}</p>
+        <div class="map-dots"><button type="button" class="map-dot special${r ? ' done' : ''}" data-level="${FINALE}" aria-current="${FINALE === saved.current}" title="Уровень ${FINALE}"><b>${FINALE}</b><i>${r ? `${starHtml(r.star, 'все кристаллы')}${starHtml(r.quest ?? false, 'задание')}` : ''}</i></button></div></section>`);
+    }
     const far: string[] = [];
-    for (let i = CAMPAIGN_LENGTH + 1; i <= saved.unlocked; i++) {
+    for (let i = FINALE + 1; i <= saved.unlocked; i++) {
       const r = saved.records[i];
       const meta = r ? `${starHtml(r.star, 'все кристаллы')}${starHtml(r.quest ?? false, 'задание')} ${r.time !== undefined ? formatTime(r.time) : ''}` : 'не пройден';
       far.push(`<button type="button" data-level="${i}" aria-current="${i === saved.current}"><b>${i}</b>${levelName(i)}<span>${meta}</span></button>`);

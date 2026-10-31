@@ -672,7 +672,12 @@ export class DenScreen {
   private take(item: ItemDef): void {
     const owned = den.owned.includes(item.id);
     if (atlasLocked(item)) {
-      say(`Откроется, когда в атласе тайн будет ${item.atlas} ${plural(item.atlas!, 'запись', 'записи', 'записей')} — сейчас ${atlasCount()}`, 2800);
+      say(
+        item.finale
+          ? 'Этот посох путник оставит тому, кто дойдёт до Старого круга'
+          : `Откроется, когда в атласе тайн будет ${item.atlas} ${plural(item.atlas!, 'запись', 'записи', 'записей')} — сейчас ${atlasCount()}`,
+        2800,
+      );
       return;
     }
     if (!buy(item)) {
@@ -798,7 +803,7 @@ export class DenScreen {
       const here = placed === item.id;
       // Вещь из тайников, пока атлас не набран, показывает, сколько ещё записей нужно
       const locked = !owned && atlasLocked(item);
-      const state = here ? 'стоит' : owned ? 'поставить' : locked ? `атлас ${atlasCount()}/${item.atlas}` : costText(item.cost);
+      const state = here ? 'стоит' : owned ? 'поставить' : locked ? (item.finale ? 'после Старого круга' : `атлас ${atlasCount()}/${item.atlas}`) : item.finale ? 'взять' : costText(item.cost);
       const off = locked || (!owned && !canAfford(item.cost));
       return `<button type="button" class="den-item${here ? ' on' : ''}${off ? ' off' : ''}" data-item="${item.id}" aria-pressed="${here}">
         <span><b>${item.name}</b><small>${item.desc}</small></span><em>${state}</em></button>`;

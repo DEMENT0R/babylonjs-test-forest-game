@@ -551,3 +551,4 @@ button.map-dot:hover,button.map-dot:focus-visible{border-color:var(--accent);out
 .info-body h6{margin:12px 0 4px;font:600 11px var(--f-mono);color:var(--accent);text-transform:uppercase;letter-spacing:.06em}
 .note.camp{border-left:2px solid var(--accent);padding-left:8px}
 .note.off{color:var(--muted)}
+.map-region.finale{--c:var(--accent);border-left-color:var(--accent)}

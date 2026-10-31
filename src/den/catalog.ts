@@ -142,7 +142,7 @@ export const SLOTS: readonly SlotDef[] = [
 export type ItemId =
   | 'mat' | 'lantern' | 'basket' | 'stumpTable' | 'teaTable' | 'mushrooms' | 'pumpkins'
   | 'log' | 'bench' | 'signpost' | 'mailbox' | 'pond' | 'snowman' | 'posts' | 'chimes' | 'campfire' | 'crystalStone'
-  | 'fairyRing' | 'nest' | 'pearl';
+  | 'fairyRing' | 'nest' | 'pearl' | 'staff';
 
 export interface ItemDef {
   id: ItemId;
@@ -152,11 +152,14 @@ export interface ItemDef {
   cost: Cost;
   /** Вещь из тайников: открывается, когда в атласе тайн столько записей. */
   atlas?: number;
+  /** Подарок путника: открывается, когда пройден Старый круг. */
+  finale?: boolean;
 }
 
 export const ITEMS: readonly ItemDef[] = [
   { id: 'mat', slot: 'porch', name: 'Коврик из мха', desc: 'Мягко вытереть лапы', cost: { crystals: 10 } },
   { id: 'lantern', slot: 'porch', name: 'Фонарик', desc: 'Светлячок в банке, светит вечером', cost: { crystals: 20, mats: { cone: 2 } } },
+  { id: 'staff', slot: 'porch', name: 'Посох хранителя', desc: 'Путник оставил его у твоей норы', cost: { crystals: 0 }, finale: true },
   { id: 'basket', slot: 'porch', name: 'Корзинка с ягодами', desc: 'Кто-то собрал и оставил у двери', cost: { crystals: 15, mats: { acorn: 2 } } },
   { id: 'stumpTable', slot: 'table', name: 'Пенёк-стол', desc: 'Старый пень, гладкий сверху', cost: { crystals: 10 } },
   { id: 'teaTable', slot: 'table', name: 'Стол с чайником', desc: 'Чай из шиповника на двоих', cost: { crystals: 25, mats: { pebble: 2 } } },
