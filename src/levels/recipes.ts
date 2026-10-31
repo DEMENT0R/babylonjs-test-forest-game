@@ -5,7 +5,7 @@
 import { Rng } from '../rng';
 import { BIOMES, type BiomeId } from './biomes';
 import type { Quest } from './quests';
-import { CAMPAIGN_LENGTH, regionOf } from './regions';
+import { CAMPAIGN_LENGTH, regionOf, type SpecialKind } from './regions';
 
 export { CAMPAIGN_LENGTH } from './regions';
 
@@ -29,6 +29,8 @@ export interface LevelRecipe {
   relief: number;
   /** Задание на вторую звезду. */
   quest: Quest;
+  /** Особый уровень в конце региона. */
+  special?: SpecialKind;
 }
 
 /** Доля кристаллов, после которой открывается портал. */
@@ -57,7 +59,7 @@ export function recipeFor(index: number): LevelRecipe {
     const lerp = (a: number, b: number) => a + (b - a) * t;
     const stepsMax = Math.round(lerp(FIRST.steps[1], LAST.steps[1]));
     const biome = place.region.biome;
-    return {
+    const recipe: LevelRecipe = {
       index,
       seed,
       biome,
@@ -70,6 +72,12 @@ export function recipeFor(index: number): LevelRecipe {
       relief: +lerp(FIRST.relief, LAST.relief).toFixed(2),
       quest: OPENING_QUESTS[index - 1] ?? campaignQuest(index, biome, seed),
     };
+    if (!place.special) return recipe;
+    const special = place.region.special;
+    // «Собери всё» — на уровне поменьше и почти без спрятанных; подъём — одна высокая цепочка
+    if (special === 'gather') return { ...recipe, special, half: Math.round(recipe.half * 0.75), hidden: recipe.hidden / 3 };
+    if (special === 'ascent') return { ...recipe, special, chains: 1, steps: [9, 11] };
+    return { ...recipe, special };
   }
   // Дальний лес: каждый следующий уровень немного больше, но с потолком
   const extra = index - CAMPAIGN_LENGTH;

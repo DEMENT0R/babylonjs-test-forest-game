@@ -106,3 +106,47 @@ export class TravelerCamp {
     this.tex.dispose();
   }
 }
+
+/** Огоньки тропы к стоянке: низкие столбики с тёплым светлячком наверху, мигают по очереди. */
+export class TrailLanterns {
+  private readonly root: TransformNode;
+  private readonly glow: StandardMaterial;
+  private readonly post: StandardMaterial;
+  private readonly lights: Mesh[] = [];
+  private t = 0;
+
+  constructor(scene: Scene, points: readonly { x: number; z: number; y: number }[]) {
+    this.root = new TransformNode('trail', scene);
+    this.post = new StandardMaterial('trail-post', scene);
+    this.post.diffuseColor = new Color3(0.4, 0.27, 0.16);
+    this.glow = new StandardMaterial('trail-glow', scene);
+    this.glow.diffuseColor = new Color3(1, 0.8, 0.4);
+    this.glow.emissiveColor = new Color3(1, 0.75, 0.35);
+    this.glow.disableLighting = true;
+    for (const p of points) {
+      const post = MeshBuilder.CreateCylinder('trail-post', { diameter: 0.07, height: 0.7, tessellation: 5 }, scene);
+      post.material = this.post;
+      post.position.set(p.x, p.y + 0.35, p.z);
+      post.parent = this.root;
+      post.isPickable = false;
+      const light = MeshBuilder.CreateSphere('trail-light', { diameter: 0.2, segments: 6 }, scene);
+      light.material = this.glow;
+      light.position.set(p.x, p.y + 0.8, p.z);
+      light.parent = this.root;
+      light.isPickable = false;
+      this.lights.push(light);
+    }
+  }
+
+  /** Огоньки пульсируют волной от старта к стоянке — подсказка, куда идти. */
+  update(dt: number): void {
+    this.t += dt;
+    this.lights.forEach((l, i) => l.scaling.setAll(0.8 + 0.4 * Math.max(0, Math.sin(this.t * 3 - i * 0.6))));
+  }
+
+  dispose(): void {
+    this.root.dispose(false, true);
+    this.glow.dispose();
+    this.post.dispose();
+  }
+}

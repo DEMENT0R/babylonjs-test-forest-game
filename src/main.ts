@@ -2,7 +2,7 @@
 // а внутри игры — смена уровней через портал.
 
 import './fonts';
-import { Color3, Matrix, Vector3 } from '@babylonjs/core';
+import { Color3, Matrix, PointLight, Vector3 } from '@babylonjs/core';
 import { Footsteps, GameAudio } from './audio';
 import { Breath } from './breath';
 import { checkAchievements } from './achievements';
@@ -44,8 +44,8 @@ import { LostItemSpot, progressRequests, requestLine, ResidentVisit, type Reques
 import { EVENT_CHANCE, EVENT_INTRO, eventFor, LevelEvent, type EventKind } from './levels/events';
 import type { SecretKind, SecretSpot } from './levels/generator';
 import { BIOMES } from './levels/biomes';
-import { FAR_FOREST, REGION_LEVELS, REGIONS, regionOf } from './levels/regions';
-import { TravelerCamp } from './levels/camp';
+import { FAR_FOREST, REGION_LEVELS, REGIONS, regionOf, SPECIAL_INTRO } from './levels/regions';
+import { TrailLanterns, TravelerCamp } from './levels/camp';
 import { fitQuest, QuestRun } from './levels/quests';
 import { dailyRecipe, recipeFor } from './levels/recipes';
 import { clearInput, keys, Player, setupTouchControls, setWalkLock, walkLocked } from './player';
@@ -165,6 +165,12 @@ let hintSecret = false;
 /** О подсказке зайца ещё не сказали на этом уровне. */
 let hintIntro = false;
 const HINT_TIME = 10;
+/** Огоньки тропы к стоянке на особом уровне «тропа». */
+let trailLights: TrailLanterns | null = null;
+/** Фонарь героя на особом уровне «ночь»: чем больше кристаллов собрано, тем ярче и дальше светит. */
+let heroLamp: PointLight | null = null;
+/** Об особом уровне ещё не сказали. */
+let specialIntro = false;
 /** Какая записка с полян лежит на этом уровне; null — никакой. */
 let levelNote: number | null = null;
 /** Стоянка путника на особом уровне региона и номер этого региона. */
@@ -329,6 +335,17 @@ function beginLevel(index: number, dailyDate: string | null = null, keepBoost = 
   if (spot) world.placeNote(spot.x, spot.z);
   else levelNote = null;
   placeCamp(place?.special && regionIdx !== null ? regionIdx : null);
+  trailLights?.dispose();
+  trailLights = layout.trail.length ? new TrailLanterns(world.scene, layout.trail.map((p) => ({ ...p, y: world.terrainAt(p.x, p.z) }))) : null;
+  const night = recipe.special === 'night';
+  if (night) world.setGloom(1);
+  if (night && !heroLamp) {
+    heroLamp = new PointLight('hero-lamp', Vector3.Zero(), world.scene);
+    heroLamp.diffuse = new Color3(1, 0.8, 0.5);
+    heroLamp.specular = Color3.Black();
+  }
+  heroLamp?.setEnabled(night);
+  specialIntro = !!recipe.special;
   placePickups();
   placeResidents();
   secrets?.dispose();
@@ -1039,6 +1056,18 @@ world.scene.onBeforeRenderObservable.add(() => {
       if (!currentStep(visit!.def)) say(`${visit!.def.icon} ${visit!.def.name} переезжает к твоей норе — загляни к нему туда`, 3500);
     } else if (talk === 'met') {
       audio.chime(false, 1);
+    }
+    if (specialIntro && levelTime > 2 && !eventIntro) {
+      specialIntro = false;
+      say(SPECIAL_INTRO[layout.recipe.special!], 4000);
+    }
+    trailLights?.update(dt);
+    if (heroLamp?.isEnabled()) {
+      // Свет над героем: в начале — маленький круг, к концу уровня — почти как днём на поляне
+      const k = world.collected / Math.max(1, world.crystals.length);
+      heroLamp.position.set(player.pos.x, player.pos.y + 2.2, player.pos.z);
+      heroLamp.intensity = 0.7 + 1.6 * k;
+      heroLamp.range = 6 + 16 * k;
     }
     if (hintIntro && levelTime > 1.5) {
       hintIntro = false;

@@ -85,6 +85,8 @@ export interface LevelLayout {
   platforms: Platform[];
   crystals: CrystalSpot[];
   secrets: SecretSpot[];
+  /** Огоньки тропы к стоянке путника на особом уровне «тропа»; обычно пусто. */
+  trail: { x: number; z: number }[];
   obstacles: Obstacle[];
   required: number;
   /** Сколько попыток понадобилось (для отладки). */
@@ -266,6 +268,11 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
   const terrain = bakeTerrain(raw, flats, half + 60);
   for (const p of platforms) p.y0 = terrain.heightAt(p.x, p.z);
   const tops: CrystalSpot[] = chainTops.map((p) => ({ x: p.x, z: p.z, y: p.y0 + p.h, kind: 'top' }));
+  // Подъём: кристаллы ещё и на каждой второй ступени по пути к вершине
+  const stepCrystals: CrystalSpot[] =
+    recipe.special === 'ascent'
+      ? platforms.slice(platforms.indexOf(chainStarts[0]), platforms.indexOf(chainTops[0])).flatMap((p, i) => (i % 2 ? [{ x: p.x, z: p.z, y: p.y0 + p.h }] : []))
+      : [];
   const at = (x: number, z: number) => terrain.heightAt(x, z);
   /** Глубина воды в точке (0 — суша). */
   const depth = (x: number, z: number) => (waterLevel !== null ? Math.max(0, waterLevel - at(x, z)) : 0);
@@ -333,7 +340,7 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
 
   // Кристаллы
   const rk = Rng.stream(seed, 'crystals');
-  const crystals: CrystalSpot[] = [...tops];
+  const crystals: CrystalSpot[] = [...tops, ...stepCrystals];
   const free = (x: number, z: number) =>
     Math.max(Math.abs(x), Math.abs(z)) < half - 3 &&
     Math.hypot(x, z) > CENTER_R &&
@@ -342,7 +349,7 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
     crystals.every((c) => Math.hypot(c.x - x, c.z - z) > 7) &&
     depth(x, z) === 0 &&
     nav.reachableNear(x, z, 0.8);
-  const ground = recipe.crystals - tops.length;
+  const ground = recipe.crystals - tops.length - stepCrystals.length;
   const hiddenCount = Math.round(ground * recipe.hidden);
   const hideBehind = obstacles.filter((o) => o.r > 0.5 && Math.max(Math.abs(o.x), Math.abs(o.z)) < half - 5 && Math.hypot(o.x, o.z) > CENTER_R + 3);
   for (let i = 0, t = 0; i < hiddenCount && t < 300; t++) {
@@ -353,6 +360,30 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
     if (free(x, z)) {
       crystals.push({ x, z, y: at(x, z), kind: 'hidden' });
       i++;
+    }
+  }
+  // Тропа: от старта к самой дальней поляне — там стоянка путника; огоньки по пути
+  // и больше половины кристаллов вдоль неё
+  const trail: { x: number; z: number }[] = [];
+  const goal = recipe.special === 'trail' ? [...clearings.slice(1)].sort((a, b) => Math.hypot(b.x - spawn.x, b.z - spawn.z) - Math.hypot(a.x - spawn.x, a.z - spawn.z))[0] : undefined;
+  if (goal) {
+    const rt = Rng.stream(seed, 'trail');
+    const len = Math.hypot(goal.x - spawn.x, goal.z - spawn.z);
+    const ux = (goal.x - spawn.x) / len, uz = (goal.z - spawn.z) / len;
+    const along = Math.round(ground * 0.6);
+    for (let k = 1; k <= along; k++) {
+      for (let t = 0; t < 12; t++) {
+        const d = (k / (along + 1)) * len + rt.range(-2, 2), side = rt.range(-2.5, 2.5);
+        const x = spawn.x + ux * d - uz * side, z = spawn.z + uz * d + ux * side;
+        if (free(x, z)) {
+          crystals.push({ x, z, y: at(x, z) });
+          break;
+        }
+      }
+    }
+    for (let d = 6; d < len - 4; d += 6) {
+      const x = spawn.x + ux * d, z = spawn.z + uz * d;
+      if (depth(x, z) === 0 && obstacles.every((o) => Math.hypot(o.x - x, o.z - z) > o.r + 0.6) && !platforms.some((pl) => inRect(x, z, pl, 0.6))) trail.push({ x, z });
     }
   }
   // По кристаллу в боковых полянах — их видно издалека, они ведут игрока по уровню
@@ -451,8 +482,10 @@ function tryGenerate(recipe: LevelRecipe, attempt: number): LevelLayout | null {
     platforms,
     crystals,
     secrets,
+    trail,
     obstacles,
-    required: requiredCrystals(crystals.length),
+    // «Собери всё»: портал — только за все кристаллы
+    required: recipe.special === 'gather' ? crystals.length : requiredCrystals(crystals.length),
     attempts: attempt + 1,
   };
 }

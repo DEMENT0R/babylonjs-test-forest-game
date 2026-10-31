@@ -157,6 +157,13 @@ export class World {
    * Закат по ходу задания на время: k = 0 — свет биома, к 0.6 — золотой час,
    * к 1 — сумерки. Солнце опускается, тени вытягиваются.
    */
+  /** Особая ночь: свет биома приглушён на долю k (0 — как обычно); туман темнеет вместе с ним. */
+  setGloom(k: number): void {
+    this.hemi.intensity = this.base.hemiI * (1 - 0.75 * k);
+    this.sun.intensity = this.base.sunI * (1 - 0.85 * k);
+    this.scene.fogColor.copyFrom(this.base.sky.scale(1 - 0.6 * k));
+  }
+
   setDusk(k: number): void {
     const a = smoothstep(0, 0.65, k);
     const b = smoothstep(0.55, 1, k);
