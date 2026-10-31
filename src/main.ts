@@ -2,7 +2,7 @@
 // а внутри игры — смена уровней через портал.
 
 import './fonts';
-import { Color3, Vector3 } from '@babylonjs/core';
+import { Color3, Matrix, Vector3 } from '@babylonjs/core';
 import { Footsteps, GameAudio } from './audio';
 import { Breath } from './breath';
 import { checkAchievements } from './achievements';
@@ -12,8 +12,11 @@ import { skyFor } from './constellations';
 import { BTN, gamepad } from './gamepad';
 import { applyCoat, coatFor, COATS, HEROES, loadHero, openCoats, type HeroDef } from './heroes';
 import {
+  addAtlas,
   addNote,
   addShade,
+  ATLAS_TOTAL,
+  atlasCount,
   journal,
   NOTE_CHANCE,
   NOTES,
@@ -24,12 +27,21 @@ import {
   welcomeNote,
 } from './journal';
 import type { LevelLayout } from './levels/generator';
-import { amount, boostById, HONEY_WIND, materialOf, type BoostId } from './den/catalog';
+import { amount, boostById, HONEY_WIND, ITEMS, materialOf, type BoostId } from './den/catalog';
 import { DECOR } from './den/decor';
 import { clearUrl, snapshotFromUrl } from './den/snapshot';
 import { addMaterial, staminaWithPowers, takePacked } from './den/state';
 import { completeDaily, completeLevel, dailyBest, daysPlayed, formatTime, markPlayedToday, progress, setCurrentLevel, todayKey, totalStars } from './levels/progress';
 import { QuestMarkers } from './levels/markers';
+import { LevelSecrets, type Opened } from './levels/secrets';
+import { RESIDENTS } from './residents/catalog';
+import { ResidentModel } from './residents/model';
+import { currentStep, isActive, movedIn, stateOf } from './residents/state';
+import { LostItemSpot, progressRequests, requestLine, ResidentVisit, type RequestEvent } from './residents/visit';
+import { EVENT_CHANCE, EVENT_INTRO, eventFor, LevelEvent, type EventKind } from './levels/events';
+import type { SecretKind, SecretSpot } from './levels/generator';
+import { BIOMES } from './levels/biomes';
+import { FAR_FOREST, REGION_LEVELS, regionOf } from './levels/regions';
 import { fitQuest, QuestRun } from './levels/quests';
 import { dailyRecipe, recipeFor } from './levels/recipes';
 import { clearInput, keys, Player, setupTouchControls, setWalkLock, walkLocked } from './player';
@@ -46,6 +58,8 @@ import {
   endCombo,
   say,
   setBoostLine,
+  setBubble,
+  setRequestLine,
   setComboLeft,
   setCrystals,
   setEnergy,
@@ -121,6 +135,36 @@ let markers: QuestMarkers | null = null;
 let activeBoost: BoostId | null = null;
 /** Уровень ещё не начали играть: усилитель возьмётся с первым кадром игры, а не когда уровень построен для фона меню. */
 let boostPending = false;
+/** Тайники уровня. */
+let secrets: LevelSecrets | null = null;
+/** Житель леса на этом уровне и потерянная вещь, которую он просил найти. */
+let visit: ResidentVisit | null = null;
+let lostItem: LostItemSpot | null = null;
+/** Номер уровня для загрузки модели жителя: модель, пришедшая к уже другому уровню, выбрасывается. */
+let visitToken = 0;
+/** Сколько просьб жителей может быть сразу. */
+const MAX_REQUESTS = 2;
+/** О жителе, который ждёт знакомства, ещё не сказали. */
+let visitIntro = false;
+/** Редкое событие уровня: радуга, звездопад или белка с кристаллом. */
+let levelEvent: LevelEvent | null = null;
+/** О событии ещё не сказали — скажут через пару секунд после старта, после названия уровня. */
+let eventIntro = false;
+/** До какого времени уровня дует ветер в спину от радуги, с. */
+let rainbowWind = 0;
+/** Для отладки: какое событие будет на следующем уровне. */
+let forcedEvent: EventKind | null = null;
+/** Ветер в спину от радуги, с. */
+const RAINBOW_WIND = 20;
+/** Заяц у норы подсказывает, где тайник: стрелка светлячка в первые HINT_TIME секунд уровня. */
+let hintSecret = false;
+/** О подсказке зайца ещё не сказали на этом уровне. */
+let hintIntro = false;
+const HINT_TIME = 10;
+/** Записей в атласе тайн на начало уровня — чтобы сказать, какие вещи для норы открылись. */
+let atlasBefore = 0;
+/** О каких тайниках уже подсказали на этом уровне. */
+const secretHints = new Set<SecretKind>();
 /** Материалов для норы подобрано на этом уровне. */
 let gathered = 0;
 /** Сколько материалов разложить на уровне: от и до. */
@@ -196,7 +240,11 @@ setupPwa();
 
 // ---------- Уровни ----------
 
-const levelLabel = (i: number, l: LevelLayout) => `Уровень ${i} · ${l.biome.name}`;
+/** «Уровень 9 · Осенняя роща 3/6»; после кампании — Дальний лес и биом уровня. */
+const levelLabel = (i: number, l: LevelLayout) => {
+  const r = regionOf(i);
+  return `Уровень ${i} · ${r ? `${r.region.name} ${r.n + 1}/${REGION_LEVELS}` : `${FAR_FOREST}, ${l.biome.name.toLowerCase()}`}`;
+};
 const currentLabel = () => (daily ? `Лес дня · ${layout.biome.name}` : levelLabel(level, layout));
 
 function updateCrystalsHud(): void {
@@ -267,6 +315,22 @@ function beginLevel(index: number, dailyDate: string | null = null, keepBoost = 
   const spot = welcomeNote ? welcomeSpot() : journal.notes < NOTES.length && Math.random() < NOTE_CHANCE ? noteSpot() : null;
   if (spot) world.placeNote(spot.x, spot.z);
   placePickups();
+  placeResidents();
+  secrets?.dispose();
+  secrets = new LevelSecrets(world.scene, layout);
+  secretHints.clear();
+  atlasBefore = atlasCount();
+  hintSecret = hintIntro = !daily && secrets.total > 0 && movedIn().some((r) => r.perk.kind === 'hint');
+  // Перезапуск не перебрасывает событие, пока оно не состоялось, — и не даёт получить награду дважды;
+  // в Лесе дня и на первых уровнях событий нет
+  const kept = keepBoost && levelEvent?.active ? levelEvent.kind : null;
+  levelEvent?.dispose();
+  levelEvent = null;
+  const kind = kept ?? forcedEvent ?? (!daily && index >= 3 && Math.random() < EVENT_CHANCE ? eventFor(layout.biome.id, Math.random()) : null);
+  forcedEvent = null;
+  if (kind && !daily) levelEvent = new LevelEvent(world.scene, kind, layout, { heightAt: (x, z) => world.terrainAt(x, z), waterDepth: (x, z) => world.waterDepth(x, z) });
+  eventIntro = levelEvent !== null;
+  rainbowWind = 0;
   placeMarkers();
   starSky.show(!!layout.biome.starSky, totalStars());
   audio.setAmbience(layout.biome.ambience);
@@ -333,6 +397,154 @@ function placePickups(): void {
   }
 }
 
+/** Что сказать, когда тайник раскрыт. */
+const SECRET_FOUND: Record<SecretKind, string> = {
+  tree: 'Из кроны что-то выпало',
+  stone: 'Тайник под камнем',
+  ring: 'Грибной круг раскрылся',
+  ledge: 'Гнездо на уступе',
+  pearl: 'Жемчужина на дне',
+};
+
+/**
+ * Тайник раскрыт: находка — горсть материалов биома. Из кроны она падает, из-под камня
+ * и из грибного круга выскакивает и ждёт, пока её соберут; с уступа и со дна озера
+ * разлетаться ей некуда — она сразу идёт в нору.
+ */
+function openSecret({ spot, at }: Opened): void {
+  journal.stats.secrets++;
+  residentNews({ kind: 'secret', biome: layout.biome.id, secret: spot.kind });
+  const atlas = addAtlas(layout.biome.id, spot.kind) ? ` · ✦ новое в атласе тайн, ${atlasCount()} из ${ATLAS_TOTAL}` : '';
+  const m = materialOf(layout.biome.id);
+  const n = level >= 6 ? 3 : 2;
+  audio.chime(true, 3);
+  if (spot.kind === 'ledge' || spot.kind === 'pearl') {
+    addMaterial(m.id, n);
+    gathered += n;
+    say(`${SECRET_FOUND[spot.kind]}: ${amount(m, n)} — уже в норе${atlas}`, 3200);
+    return;
+  }
+  for (let i = 0; i < n; i++) {
+    const p = dropSpot(at, i / n);
+    world.placePickup(p.x, p.z, m.id, at, spot.kind === 'tree' ? 0 : 1.4);
+  }
+  say(`${SECRET_FOUND[spot.kind]}: ${amount(m, n)} — собери${atlas}`, 3200);
+}
+
+/** Подсказка у тайника — по разу на уровне для каждого вида; про дерево — пока ни одного тайника не найдено. */
+function secretHint(spot: SecretSpot): string | null {
+  switch (spot.kind) {
+    case 'tree':
+      return journal.stats.secrets === 0 ? 'В кроне дерева что-то блестит — толкни его с разбега' : null;
+    case 'ring':
+      return 'Грибной круг — постой в нём немного';
+    case 'ledge':
+      if (spot.needs === 'double' && !player.stamina.double) return 'Высоко! С двойным прыжком из «Силы» в норе сюда можно забраться';
+      return player.special ? 'Высокий уступ — держи прыжок, чтобы прыгнуть выше' : null;
+    default:
+      return null;
+  }
+}
+
+/** Куда упадёт часть находки: вокруг тайника, на свободное место; turn — доля круга, чтобы не кучей. */
+function dropSpot(from: Vector3, turn: number): { x: number; z: number } {
+  for (let t = 0; t < 24; t++) {
+    const a = (turn + t * 0.13) * Math.PI * 2 + Math.random() * 0.5;
+    const r = 1.9 + Math.random() * 1.2 + t * 0.15;
+    const x = from.x + Math.cos(a) * r, z = from.z + Math.sin(a) * r;
+    if (freeSpot(x, z)) return { x, z };
+  }
+  return { x: from.x + 1.5, z: from.z };
+}
+
+/**
+ * Жители — с тех пор как открылась нора, кроме Леса дня. Знакомиться житель приходит
+ * на любой уровень и ждёт у тропинки от старта; потом его встречают на полянах его биома.
+ * Потерянная вещь лежит на вершине цепочки платформ уровня нужного биома.
+ */
+function placeResidents(): void {
+  visit?.dispose();
+  lostItem?.dispose();
+  visit = lostItem = null;
+  visitIntro = false;
+  const token = ++visitToken;
+  if (daily || !isOpen('den')) return;
+  // Сначала — знакомый житель этого леса; если такого нет, новый приходит знакомиться,
+  // но не больше двух просьб сразу, чтобы игра не превращалась в список дел
+  const home = RESIDENTS.find((r) => isActive(r) && r.biome === layout.biome.id);
+  const fresh = RESIDENTS.filter(isActive).length < MAX_REQUESTS ? RESIDENTS.find((r) => !stateOf(r).met) : undefined;
+  const def = home ?? fresh;
+  const spot = def && (home ? clearingSpot() : pathSpot(7.5));
+  if (def && spot) {
+    const v = (visit = new ResidentVisit(def, new Vector3(spot.x, world.terrainAt(spot.x, spot.z), spot.z)));
+    visitIntro = !home;
+    ResidentModel.load(def, world.lighting)
+      .then((m) => (token === visitToken ? v.attach(m) : m.dispose()))
+      .catch((err) => console.error(err));
+  }
+  placeLostItem();
+}
+
+/** Потерянная вещь — на вершине цепочки платформ уровня того биома, где её обронили. */
+function placeLostItem(): void {
+  if (lostItem || daily) return;
+  for (const def of RESIDENTS) {
+    const step = currentStep(def);
+    if (step?.kind !== 'find' || stateOf(def).ready || step.biome !== layout.biome.id) continue;
+    const tops = layout.crystals.filter((c) => c.kind === 'top');
+    const top = tops[Math.floor(Math.random() * tops.length)];
+    // Рядом с кристаллом на вершине, но не в нём
+    if (top) lostItem = new LostItemSpot(world.scene, def, step.item, new Vector3(top.x + 0.6, top.y, top.z + 0.4));
+    return;
+  }
+}
+
+/** Событие уровня выполнило чью-то просьбу — сказать, к кому теперь идти; в Лесе дня просьб нет. */
+function residentNews(ev: RequestEvent): void {
+  if (daily) return;
+  for (const def of progressRequests(ev)) {
+    audio.chime(true, 2);
+    say(`${def.icon} Просьба выполнена — загляни к ${def.dative} · ${BIOMES[def.biome].name}`, 3000);
+  }
+}
+
+/** Место на боковой поляне, свободное от деревьев, воды и кристаллов. */
+function clearingSpot(): { x: number; z: number } | null {
+  const side = layout.clearings.slice(1);
+  for (let t = 0; t < 40 && side.length; t++) {
+    const c = side[Math.floor(Math.random() * side.length)];
+    const a = Math.random() * Math.PI * 2, r = Math.random() * c.r * 0.5;
+    const x = c.x + Math.cos(a) * r, z = c.z + Math.sin(a) * r;
+    if (freeSpot(x, z)) return { x, z };
+  }
+  return null;
+}
+
+/** Место у тропинки впереди от старта, на расстоянии dist, — где житель ждёт знакомства. */
+function pathSpot(dist: number): { x: number; z: number } | null {
+  const { x: sx, z: sz } = layout.spawn;
+  const ahead = Math.atan2(layout.portal.z - sz, layout.portal.x - sx);
+  for (let t = 0; t < 16; t++) {
+    const a = ahead + (t % 2 ? 1 : -1) * (0.5 + Math.floor(t / 2) * 0.2);
+    const x = sx + Math.cos(a) * dist, z = sz + Math.sin(a) * dist;
+    if (freeSpot(x, z)) return { x, z };
+  }
+  return clearingSpot();
+}
+
+/** Облачко или значок «!» над жителем: голова на экране; за кадром и далеко — ничего. */
+function updateBubble(): void {
+  if (!visit) {
+    setBubble(null, false, null, 0);
+    return;
+  }
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  const p = Vector3.Project(visit.head, Matrix.Identity(), world.scene.getTransformMatrix(), world.camera.viewport.toGlobal(w, h));
+  const far = Vector3.Distance(visit.head, player.pos) > 40;
+  const seen = p.z > 0 && p.z < 1 && p.x > -40 && p.x < w + 40 && p.y > -40 && p.y < h + 40 && !far;
+  setBubble(visit.bubble, visit.waiting, seen ? p.x : null, p.y);
+}
+
 /** Место для записки, которая ждала игрока: впереди от старта, по пути к порталу. */
 function welcomeSpot(): { x: number; z: number } | null {
   const { x: sx, z: sz } = layout.spawn;
@@ -386,7 +598,14 @@ function startBoost(): void {
 
 /** Светлячок: направление на ближайший несобранный кристалл относительно камеры. */
 function updateFirefly(): void {
-  if (activeBoost !== 'firefly') return;
+  if (activeBoost !== 'firefly') {
+    // Без светлячка стрелка — подсказка зайца: первые секунды уровня показывает на ближайший тайник
+    if (!hintSecret) return;
+    const spot = levelTime < HINT_TIME ? secrets?.near(player.pos, Infinity) : null;
+    if (!spot) hintSecret = false;
+    setFirefly(spot ? wrapAngle(Math.atan2(spot.x - player.pos.x, spot.z - player.pos.z) - rig.yaw) : null);
+    return;
+  }
   let best: Vector3 | null = null;
   let bestD = Infinity;
   for (const c of world.crystals) {
@@ -468,6 +687,7 @@ function finishLevel(): void {
   } else {
     const star = world.collected === world.crystals.length;
     const questDone = quest.passed();
+    if (questDone) residentNews({ kind: 'quest', biome: layout.biome.id });
     best = progress.records[level]?.time;
     const lockedBefore = HEROES.filter((h) => starsMissing(h) > 0);
     const coatsBefore = openCoats().length;
@@ -488,6 +708,14 @@ function finishLevel(): void {
   const grown = DECOR[daysPlayed() - 1];
   if (streak && grown && isOpen('den')) notes.push(`🌼 У норы появилось новое: ${grown.name}`);
   if (gathered) notes.push(`🧺 Для норы: ${amount(materialOf(layout.biome.id), gathered)}`);
+  if (secrets?.total) notes.push(`✨ Тайников: ${secrets.found} из ${secrets.total}`);
+  for (const item of ITEMS.filter((i) => i.atlas && i.atlas > atlasBefore && i.atlas <= atlasCount())) {
+    notes.push(`🔓 За атлас тайн для норы открыта вещь «${item.name}»`);
+  }
+  // Уступ, на который не хватило прыжка, — повод вернуться
+  if (secrets?.left.some((q) => q.kind === 'ledge' && q.needs === 'double') && !player.stamina.double) {
+    notes.push('⛰ Один тайник — на уступе, куда без двойного прыжка не забраться. Купи его в «Силе» в норе и возвращайся');
+  }
   if (constellation) notes.push(`✦ Новое созвездие на небе: «${constellation}»`);
   if (newCoat) notes.push(`Открыт окрас «${newCoat}» — выбери его на экране героя`);
   notes.push(...almost(time, best, opened));
@@ -752,7 +980,7 @@ world.scene.onBeforeRenderObservable.add(() => {
   const wasAir = !player.onGround, fallSpeed = -player.vel.y;
   // Ветер в спину — от длинной серии или от медовых сот в начале уровня
   const honey = activeBoost === 'honeycomb' && levelTime < HONEY_WIND;
-  player.boost = combo.count >= WIND_FROM || honey ? WIND_BOOST : 1;
+  player.boost = combo.count >= WIND_FROM || honey || levelTime < rainbowWind ? WIND_BOOST : 1;
   player.update(dt, { yaw: rig.yaw, modeId: rig.mode.id }, active);
   if (active) {
     // Врезался в ствол или приземлился рядом — дерево вздрагивает и шелестит
@@ -762,6 +990,49 @@ world.scene.onBeforeRenderObservable.add(() => {
       const dx = h.x - player.pos.x, dz = h.z - player.pos.z;
       const pan = (dx * Math.cos(rig.yaw) - dz * Math.sin(rig.yaw)) / Math.max(Math.hypot(dx, dz), 0.1);
       audio.rustle(h.strength, !!layout.biome.frost, pan);
+      const shaken = secrets?.shake(h.tree);
+      if (shaken) openSecret(shaken);
+    }
+    for (const o of secrets?.update(dt, player.pos) ?? []) openSecret(o);
+    const talk = visit?.update(dt, player.pos);
+    if (talk === 'thanks') {
+      audio.chime(true, 2);
+      // Следующая просьба может звать на этот же уровень
+      placeLostItem();
+      if (!currentStep(visit!.def)) say(`${visit!.def.icon} ${visit!.def.name} переезжает к твоей норе — загляни к нему туда`, 3500);
+    } else if (talk === 'met') {
+      audio.chime(false, 1);
+    }
+    if (hintIntro && levelTime > 1.5) {
+      hintIntro = false;
+      say('🐇 Заяц шепнул, в какой стороне тайник, — смотри на стрелку', 3000);
+    }
+    if (visitIntro && levelTime > 3 && !eventIntro) {
+      visitIntro = false;
+      say('У тропинки кто-то ждёт — подойди познакомиться', 3500);
+    }
+    setRequestLine(daily ? null : RESIDENTS.map(requestLine).filter(Boolean).join('\n') || null);
+    updateBubble();
+    if (eventIntro && levelTime > 2.5) {
+      eventIntro = false;
+      say(EVENT_INTRO[levelEvent!.kind], 3500);
+    }
+    const reward = levelEvent?.update(dt, player.pos);
+    levelEvent?.fade(dt);
+    if (reward === 'wind') {
+      rainbowWind = levelTime + RAINBOW_WIND;
+      wind.gustNow(1.1, 0.5);
+      audio.chime(true, 4);
+      say(`Под радугой — ветер в спину на ${RAINBOW_WIND} секунд`, 3000);
+    } else if (reward === 'rare') {
+      foundRare();
+    }
+    // Подойдя к тайнику, подсказать, что с ним делать; дерево видно издалека — подсказка раньше
+    const close = secrets?.near(player.pos, 14);
+    const hint = close && !secretHints.has(close.kind) && (close.kind === 'tree' || Math.hypot(close.x - player.pos.x, close.z - player.pos.z) < 4) ? secretHint(close) : null;
+    if (close && hint) {
+      secretHints.add(close.kind);
+      say(hint, 3500);
     }
   }
   if (active) {
@@ -798,6 +1069,7 @@ world.scene.onBeforeRenderObservable.add(() => {
     const { count: n, reward } = combo.add(got.length, levelTime, journal.stats.bestCombo);
     journal.stats.bestCombo = Math.max(journal.stats.bestCombo, n);
     quest.onCombo(n);
+    residentNews({ kind: 'combo', n });
     if (reward) {
       const m = materialOf(layout.biome.id);
       gathered += reward;
@@ -832,6 +1104,11 @@ world.scene.onBeforeRenderObservable.add(() => {
     takeWelcome();
     say(`${where}, ${journal.notes + 1} из ${NOTES.length}: «${addNote()}»`, 6000);
   }
+  // Потерянная вещь лежит у кристалла на вершине — весть о ней после надписи о кристалле
+  if (active && lostItem?.update(dt, player.center)) {
+    audio.chime(true, 3);
+    say(`Нашлось: ${lostItem.item.name} — отнеси ${lostItem.def.dative}`, 3200);
+  }
   // После надписи о кристалле — чтобы весть о задании её перекрыла, а не наоборот
   if (active) tickQuest(dt, got);
   if (active && world.inPortal(player.pos)) finishLevel();
@@ -861,15 +1138,15 @@ menu.update(null);
 byId('m-new').focus();
 void select.load();
 // Ссылка «в гости»: сразу в нору друга; из неё — в своё меню
-const visit = snapshotFromUrl();
-if (visit) {
+const denLink = snapshotFromUrl();
+if (denLink) {
   den.setBiome(world.layout.biome);
   setState('den');
-  den.open(visit);
-} else if (visit === null) {
+  den.open(denLink);
+} else if (denLink === null) {
   clearUrl();
   say('Ссылка на нору не открылась — похоже, она обрезана', 3500);
 }
 
 // Для отладки из консоли браузера; в production-сборку не попадает
-if (import.meta.env.DEV) Object.assign(window, { __game: { world, player, rig, select, den, beginLevel, get layout() { return layout; }, get quest() { return quest; } } });
+if (import.meta.env.DEV) Object.assign(window, { __game: { world, player, rig, select, den, beginLevel, get layout() { return layout; }, get quest() { return quest; }, get secrets() { return secrets; }, get visit() { return visit; }, get lostItem() { return lostItem; }, addMaterial, residentNews, get event() { return levelEvent; }, openSecret, forceEvent: (k: EventKind) => (forcedEvent = k) } });

@@ -138,6 +138,7 @@ body[data-pad] #stick,body[data-pad] #stick-zone,body[data-pad] #jump,body[data-
 
 #portal-hint{color:var(--muted)}
 .boost-line{font:600 11px var(--f-mono);color:var(--accent);margin-top:3px}
+.request-line{font:600 11px var(--f-mono);color:var(--ink);margin-top:3px;white-space:pre-line}
 #firefly{position:fixed;left:50%;top:26%;width:28px;height:28px;color:#e8ff9a;filter:drop-shadow(0 0 6px rgba(220,255,120,.9)) drop-shadow(0 1px 3px rgba(0,0,0,.6));pointer-events:none;transform:translateX(-50%)}
 #firefly[hidden]{display:none}
 #portal-hint.open{color:var(--accent)}
@@ -506,3 +507,41 @@ body[data-locked~="levels"][data-locked~="sky"][data-locked~="journal"] .menu-ti
 .note{font:400 11px/1.5 var(--f-mono);color:var(--muted);margin-top:10px}
 @media (max-width:480px){.row{grid-template-columns:1fr}.seg{justify-content:flex-start}.range input{flex:1}}
 @media (prefers-reduced-motion:reduce){.hero,.switch,.switch::after{transition:none}.hero[aria-pressed="true"]{transform:none}}
+
+/* Атлас тайн в «Дневнике» */
+.atlas{width:100%;border-collapse:collapse;font:600 12px var(--f-mono);margin-block:8px}
+.atlas th,.atlas td{padding:5px 4px;text-align:center;border-bottom:1px solid var(--line)}
+.atlas th{font-weight:400;color:var(--muted)}
+.atlas tr th:first-child{text-align:left;color:var(--ink)}
+.atlas td{color:var(--muted)}
+.atlas td.got{color:var(--accent);font-size:14px}
+.atlas td.na{opacity:.35}
+
+/* Житель леса: облачко с репликой и значок «!» над головой */
+#bubble{position:fixed;left:0;top:0;max-width:min(320px,80vw);padding:9px 12px;border-radius:12px;background:var(--sheet);color:var(--ink);
+  border:1px solid var(--line);font:500 12px/1.45 var(--f-mono);box-shadow:0 6px 24px rgba(0,0,0,.3);pointer-events:none;z-index:4}
+#bubble::after{content:"";position:absolute;left:50%;bottom:-7px;width:12px;height:12px;background:inherit;border:inherit;border-top:0;border-left:0;transform:translateX(-50%) rotate(45deg)}
+#resident-mark{position:fixed;left:0;top:0;width:24px;height:24px;border-radius:50%;background:var(--accent);color:var(--accent-ink);
+  font:800 15px/24px var(--f-display);text-align:center;pointer-events:none;box-shadow:0 2px 10px rgba(0,0,0,.35);z-index:4}
+
+/* Карта кампании: регионы вдоль тропы, в каждом — шесть уровней */
+.map{display:flex;flex-direction:column;gap:14px;margin-top:6px}
+.map-region{position:relative;border:1px solid var(--line);border-left:4px solid var(--c);border-radius:10px;padding:10px 12px;
+  background:linear-gradient(90deg,color-mix(in srgb,var(--c) 22%,transparent),transparent 70%)}
+.map-region+.map-region::before{content:"";position:absolute;left:22px;top:-15px;height:14px;border-left:2px dashed var(--line)}
+.map-region h5{margin:0 0 2px}
+.map-region p{margin:0 0 8px;font:400 11px var(--f-mono);color:var(--muted)}
+.map-region.fog{opacity:.55;border-left-color:var(--line);background:none}
+.map-region.fog p{margin:0}
+.map-dots{display:flex;gap:6px;flex-wrap:wrap}
+.map-dot{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-width:40px;height:44px;border-radius:50%;
+  border:1px solid var(--line);background:var(--panel);color:var(--ink);font:400 10px var(--f-mono);cursor:pointer;padding:0}
+.map-dot b{font:700 12px var(--f-display)}
+.map-dot i{font-style:normal;line-height:1}
+.map-dot.done{border-color:color-mix(in srgb,var(--accent) 50%,var(--line))}
+.map-dot.special{min-width:50px;border-radius:12px}
+.map-dot.locked{opacity:.4;cursor:default}
+.map-dot[aria-current="true"]{border-color:var(--accent);box-shadow:0 0 0 2px rgba(255,207,90,.25)}
+button.map-dot:hover,button.map-dot:focus-visible{border-color:var(--accent);outline:none}
+.map-dot .star{color:var(--accent)}
+.map-dot .star.off{color:var(--line)}

@@ -197,7 +197,8 @@ function createFall(scene: Scene, texture: DynamicTexture, kind: Fall, leaves: r
 export type ForestLayout = Pick<LevelLayout, 'trees' | 'biome' | 'terrain'>;
 
 /** Тряхнутое дерево — для звука и прочих откликов. */
-export interface TreeHit { x: number; z: number; strength: number }
+/** Тряхнутое дерево: где оно, насколько сильно и его номер в layout.trees. */
+export interface TreeHit { x: number; z: number; strength: number; tree: number }
 
 export class Forest {
   private readonly meshes: Mesh[] = [];
@@ -380,7 +381,7 @@ export class Forest {
           nz = dz;
         }
       }
-      if (strength > 0 && (nx !== 0 || nz !== 0) && this.shake(i, strength, nx, nz)) hits.push({ x: t.x, z: t.z, strength });
+      if (strength > 0 && (nx !== 0 || nz !== 0) && this.shake(i, strength, nx, nz)) hits.push({ x: t.x, z: t.z, strength, tree: i });
     }
     [this.contact, this.contactNext] = [this.contactNext, this.contact];
     this.contactNext.clear();

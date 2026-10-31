@@ -2,7 +2,8 @@
 // Кристаллы не копятся отдельно: счёт — все собранные за игру минус потраченные на нору,
 // поэтому старым сохранениям не нужен перенос.
 
-import { journal } from '../journal';
+import { atlasCount, journal } from '../journal';
+import { movedIn } from '../residents/state';
 import { BASE_STAMINA, type Stamina } from '../stamina';
 import { clamp } from '../utils';
 import {
@@ -149,6 +150,13 @@ function pay(cost: Cost): boolean {
   return true;
 }
 
+/** Отдать материалы жителю леса; false — не хватило, ничего не отдано. */
+export function give(cost: Cost): boolean {
+  if (!pay(cost)) return false;
+  save();
+  return true;
+}
+
 /** Материал подобран на уровне (n штук); возвращает, сколько его теперь. */
 export function addMaterial(id: MaterialId, n = 1): number {
   den.mats[id] = matCount(id) + n;
@@ -159,8 +167,16 @@ export function addMaterial(id: MaterialId, n = 1): number {
 /** Место открыто на нынешнем уровне норы. */
 export const slotOpen = (slot: SlotId): boolean => (slotById(slot)?.tier ?? Infinity) <= den.tier;
 
-/** Следующий уровень норы; null — нора уже самая большая. */
-export const nextTier = (): (typeof TIERS)[number] | null => TIERS[den.tier + 1] ?? null;
+/** Улучшения норы дешевле в кристаллах, когда рядом живёт барсук. */
+const DISCOUNT = 0.8;
+
+/** Следующий уровень норы с ценой, какая она сейчас; null — нора уже самая большая. */
+export function nextTier(): (typeof TIERS)[number] | null {
+  const t = TIERS[den.tier + 1];
+  if (!t) return null;
+  const off = movedIn().some((r) => r.perk.kind === 'discount');
+  return off ? { ...t, cost: { ...t.cost, crystals: Math.round(t.cost.crystals * DISCOUNT) } } : t;
+}
 
 /** Перейти на следующий уровень норы; false — не хватило или расти некуда. */
 export function upgrade(): boolean {
@@ -172,8 +188,11 @@ export function upgrade(): boolean {
 }
 
 /** Купить вещь и сразу поставить её на место; false — не хватило или место закрыто. */
+/** Вещь из тайников ещё не открыта: в атласе мало записей. */
+export const atlasLocked = (item: ItemDef): boolean => (item.atlas ?? 0) > atlasCount();
+
 export function buy(item: ItemDef): boolean {
-  if (!slotOpen(item.slot)) return false;
+  if (!slotOpen(item.slot) || atlasLocked(item)) return false;
   if (den.owned.includes(item.id)) {
     place(item);
     return true;
@@ -221,8 +240,9 @@ export const stockOf = (id: CropId): number => den.stock[id] ?? 0;
 /** Урожай растёт у нынешней норы. */
 export const cropOpen = (c: CropDef): boolean => c.tier <= den.tier;
 
-/** Сколько урожая помещается на кусте: у большой норы — на один больше. */
-export const cropCap = (): number => CROP_CAP + (den.tier >= 3 ? 1 : 0);
+/** Сколько урожая помещается на кусте: у большой норы — на один больше, и ещё на один, если за кустом смотрит житель. */
+export const cropCap = (id: CropId): number =>
+  CROP_CAP + (den.tier >= 3 ? 1 : 0) + (movedIn().some((r) => r.perk.kind === 'crop' && r.perk.crop === id) ? 1 : 0);
 
 /**
  * Досчитать, что выросло на кустах с прошлого раза, — как сад кристаллов:
@@ -230,9 +250,9 @@ export const cropCap = (): number => CROP_CAP + (den.tier >= 3 ? 1 : 0);
  */
 export function growCrops(): void {
   const now = Date.now();
-  const cap = cropCap();
   for (const c of CROPS) {
     if (!cropOpen(c)) continue;
+    const cap = cropCap(c.id);
     const g = (den.crops[c.id] ??= { ready: 0, since: now });
     if (g.ready >= cap) {
       g.since = now;
@@ -252,11 +272,10 @@ export const cropReady = (id: CropId): number => den.crops[id]?.ready ?? 0;
 /** Собрать весь урожай; возвращает, сколько чего собрано. */
 export function harvestCrops(): Partial<Record<CropId, number>> {
   const got: Partial<Record<CropId, number>> = {};
-  const cap = cropCap();
   for (const c of CROPS) {
     const g = den.crops[c.id];
     if (!g?.ready) continue;
-    if (g.ready >= cap) g.since = Date.now();
+    if (g.ready >= cropCap(c.id)) g.since = Date.now();
     got[c.id] = g.ready;
     den.stock[c.id] = stockOf(c.id) + g.ready;
     g.ready = 0;

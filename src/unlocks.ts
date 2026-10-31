@@ -27,7 +27,7 @@ interface FeatureDef {
 const passed = (n: number) => progress.unlocked > n;
 
 const FEATURES: readonly FeatureDef[] = [
-  { id: 'levels', told: '«Уровни» — пройденные можно переиграть', button: 'm-levels', after: 1, open: () => passed(1) },
+  { id: 'levels', told: '«Карта» — пройденные уровни можно переиграть', button: 'm-levels', after: 1, open: () => passed(1) },
   { id: 'share', told: '«Поделиться» и «Установить» — внизу меню', button: 'm-share', after: 1, open: () => passed(1) },
   // Кнопка «Шагом» на экране; на уровне с заданием «без бега» она есть и раньше
   { id: 'walk', open: () => passed(1) },

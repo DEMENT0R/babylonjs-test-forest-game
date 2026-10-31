@@ -318,15 +318,17 @@ export class World {
     return got;
   }
 
-  placePickup(x: number, z: number, id: MaterialId): void {
-    this.level?.addPickup(x, z, id);
+  /** Положить материал для норы; from — вылетает из тайника и падает на место, arc — подскок, м. */
+  placePickup(x: number, z: number, id: MaterialId, from?: Vector3, arc?: number): void {
+    this.level?.addPickup(x, z, id, from, arc);
   }
 
   /** Подбирает материалы для норы рядом с точкой; возвращает, какие. */
   collectPickups(center: Vector3, radius = 1.3): MaterialId[] {
     const got: MaterialId[] = [];
     for (const p of this.level?.pickups ?? []) {
-      if (p.mesh.isEnabled() && Vector3.Distance(p.mesh.position, center) < radius) {
+      // Находка из тайника ещё летит — подобрать её можно, когда упадёт
+      if (p.mesh.isEnabled() && !p.drop && Vector3.Distance(p.mesh.position, center) < radius) {
         p.mesh.setEnabled(false);
         got.push(p.id);
       }

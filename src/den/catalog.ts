@@ -141,7 +141,8 @@ export const SLOTS: readonly SlotDef[] = [
 
 export type ItemId =
   | 'mat' | 'lantern' | 'basket' | 'stumpTable' | 'teaTable' | 'mushrooms' | 'pumpkins'
-  | 'log' | 'bench' | 'signpost' | 'mailbox' | 'pond' | 'snowman' | 'posts' | 'chimes' | 'campfire' | 'crystalStone';
+  | 'log' | 'bench' | 'signpost' | 'mailbox' | 'pond' | 'snowman' | 'posts' | 'chimes' | 'campfire' | 'crystalStone'
+  | 'fairyRing' | 'nest' | 'pearl';
 
 export interface ItemDef {
   id: ItemId;
@@ -149,6 +150,8 @@ export interface ItemDef {
   name: string;
   desc: string;
   cost: Cost;
+  /** Вещь из тайников: открывается, когда в атласе тайн столько записей. */
+  atlas?: number;
 }
 
 export const ITEMS: readonly ItemDef[] = [
@@ -158,12 +161,15 @@ export const ITEMS: readonly ItemDef[] = [
   { id: 'stumpTable', slot: 'table', name: 'Пенёк-стол', desc: 'Старый пень, гладкий сверху', cost: { crystals: 10 } },
   { id: 'teaTable', slot: 'table', name: 'Стол с чайником', desc: 'Чай из шиповника на двоих', cost: { crystals: 25, mats: { pebble: 2 } } },
   { id: 'mushrooms', slot: 'bed', name: 'Грибная грядка', desc: 'Лисички и опята в ряд', cost: { crystals: 15, mats: { cone: 2 } } },
+  { id: 'fairyRing', slot: 'bed', name: 'Грибной круг', desc: 'Как в лесу, только свой — шляпки светятся', cost: { crystals: 20 }, atlas: 3 },
   { id: 'pumpkins', slot: 'bed', name: 'Тыквы', desc: 'Три рыжих бока на солнце', cost: { crystals: 20, mats: { acorn: 3 } } },
   { id: 'log', slot: 'bench', name: 'Бревно', desc: 'Посидеть и посмотреть на лес', cost: { crystals: 15 } },
   { id: 'bench', slot: 'bench', name: 'Скамейка', desc: 'Со спинкой, из сосновых досок', cost: { crystals: 30, mats: { cone: 3 } } },
   { id: 'signpost', slot: 'sign', name: 'Указатель', desc: '«К норе» и «В лес» — чтобы гости не заблудились', cost: { crystals: 15, mats: { cone: 1 } } },
+  { id: 'nest', slot: 'sign', name: 'Гнездо на шесте', desc: 'Как на высоком уступе — с золотым яйцом', cost: { crystals: 25 }, atlas: 10 },
   { id: 'mailbox', slot: 'sign', name: 'Почтовый ящик', desc: 'Для записок от друзей', cost: { crystals: 30, mats: { pebble: 2 } } },
   { id: 'pond', slot: 'pond', name: 'Пруд с ракушками', desc: 'Маленький, но настоящий', cost: { crystals: 40, mats: { shell: 4 } } },
+  { id: 'pearl', slot: 'pond', name: 'Жемчужина в чаше', desc: 'Со дна озера — светится, как луна в воде', cost: { crystals: 40 }, atlas: 20 },
   { id: 'snowman', slot: 'pond', name: 'Снеговик', desc: 'Не тает — он из сосулек', cost: { crystals: 35, mats: { icicle: 3 } } },
   { id: 'posts', slot: 'light', name: 'Гирлянда', desc: 'Огоньки на верёвке между столбиками', cost: { crystals: 40, mats: { feather: 2, cone: 2 } } },
   { id: 'chimes', slot: 'light', name: 'Музыка ветра', desc: 'Ракушки и перья на ветке', cost: { crystals: 35, mats: { shell: 2, feather: 2 } } },

@@ -485,6 +485,40 @@ export class DenKit {
         };
         break;
       }
+      case 'fairyRing': {
+        // Девять грибов по кругу; шляпки медленно разгораются и гаснут, как в лесу
+        const caps: Mesh[] = [];
+        for (let k = 0; k < 9; k++) {
+          const a = (k / 9) * Math.PI * 2, sz = 0.8 + ((k * 7) % 5) * 0.1;
+          const x = Math.cos(a) * 0.62, z = Math.sin(a) * 0.62;
+          add(MeshBuilder.CreateCylinder('ring-stem', { height: 0.22 * sz, diameter: 0.07 * sz, tessellation: 6 }, s), [0.92, 0.88, 0.78], x, 0.11 * sz, z);
+          caps.push(add(MeshBuilder.CreateSphere('ring-cap', { diameter: 0.26 * sz, segments: 6, slice: 0.5 }, s), [0.85, 0.3, 0.22], x, 0.2 * sz, z, 0.2));
+        }
+        // Материал этого цвета есть только у шляпок — общий на все, его можно разжигать
+        const cm = caps[0].material as StandardMaterial;
+        tick = (t) => {
+          const k = 0.15 + 0.25 * (0.5 + 0.5 * Math.sin(t * 0.9));
+          cm.emissiveColor.set(0.85 * k, 0.45 * k, 0.25 * k);
+        };
+        break;
+      }
+      case 'nest': {
+        add(MeshBuilder.CreateCylinder('nest-post', { diameter: 0.1, height: 1.3, tessellation: 6 }, s), BARK, 0, 0.65, 0);
+        add(MeshBuilder.CreateTorus('nest', { diameter: 0.55, thickness: 0.18, tessellation: 14 }, s), [0.45, 0.32, 0.18], 0, 1.35, 0);
+        add(MeshBuilder.CreateCylinder('nest-bottom', { diameter: 0.45, height: 0.06, tessellation: 12 }, s), [0.4, 0.28, 0.16], 0, 1.29, 0);
+        const egg = add(MeshBuilder.CreateSphere('nest-egg', { diameter: 0.2, segments: 8 }, s), [1, 0.84, 0.42], 0.03, 1.4, 0, 0.5);
+        egg.scaling.y = 1.3;
+        tick = (t) => (egg.rotation.z = Math.sin(t * 0.7) * 0.08);
+        break;
+      }
+      case 'pearl': {
+        add(MeshBuilder.CreateCylinder('bowl', { diameterTop: 0.95, diameterBottom: 0.6, height: 0.32, tessellation: 16 }, s), STONE, 0, 0.16, 0);
+        const water = add(MeshBuilder.CreateDisc('bowl-water', { radius: 0.4, tessellation: 20 }, s), [0.3, 0.55, 0.7], 0, 0.3, 0, 0.15);
+        water.rotation.x = Math.PI / 2;
+        const pearl = add(MeshBuilder.CreateSphere('bowl-pearl', { diameter: 0.22, segments: 10 }, s), [1, 0.97, 0.92], 0, 0.36, 0, 0.6);
+        tick = (t) => (pearl.position.y = 0.36 + Math.sin(t * 1.2) * 0.02);
+        break;
+      }
     }
     return { ...b, tick };
   }

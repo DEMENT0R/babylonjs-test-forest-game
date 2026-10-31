@@ -5,10 +5,12 @@ import { skyFor } from './constellations';
 import { TIERS } from './den/catalog';
 import { den } from './den/state';
 import { HEROES } from './heroes';
-import { journal, NOTES, save, SHADES } from './journal';
+import { ATLAS_TOTAL, atlasCount, journal, NOTES, save, SHADES } from './journal';
 import { DECOR } from './den/decor';
 import { currentStreak, daysPlayed, progress, totalStars } from './levels/progress';
 import { CAMPAIGN_LENGTH } from './levels/recipes';
+import { RESIDENTS } from './residents/catalog';
+import { movedIn } from './residents/state';
 
 export interface Achievement {
   id: string;
@@ -25,7 +27,7 @@ const count = <T>(xs: readonly T[], f: (x: T) => unknown) => xs.filter(f).length
 
 export const ACHIEVEMENTS: readonly Achievement[] = [
   { id: 'first', name: 'Первый портал', desc: 'Пройди уровень', progress: () => [s().levels, 1] },
-  { id: 'campaign', name: 'Сквозь восемь лесов', desc: 'Пройди кампанию', progress: () => [progress.unlocked - 1, CAMPAIGN_LENGTH] },
+  { id: 'campaign', name: 'Сквозь шесть лесов', desc: 'Пройди все шесть регионов', progress: () => [progress.unlocked - 1, CAMPAIGN_LENGTH] },
   { id: 'daily', name: 'Лес дня', desc: 'Пройди Лес дня', progress: () => [progress.daily ? 1 : 0, 1] },
   { id: 'walk1', name: 'Лесная тропа', desc: 'Пройди километр', progress: () => [s().distance / 1000, 1], unit: 'km' },
   { id: 'walk10', name: 'Дальняя дорога', desc: 'Пройди 10 км', progress: () => [s().distance / 1000, 10], unit: 'km' },
@@ -45,8 +47,13 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
     desc: 'Собери все оттенки',
     progress: () => [count(Object.values(journal.shades), Boolean), Object.keys(SHADES).length],
   },
+  { id: 'secret', name: 'Первая тайна', desc: 'Раскрой тайник', progress: () => [s().secrets, 1] },
+  { id: 'atlas', name: 'Полатласа', desc: 'Заполни половину атласа тайн', progress: () => [atlasCount(), Math.ceil(ATLAS_TOTAL / 2)] },
+  { id: 'atlasAll', name: 'Знаток тайн', desc: 'Заполни атлас тайн целиком', progress: () => [atlasCount(), ATLAS_TOTAL] },
   { id: 'notes', name: 'Летописец', desc: 'Прочти все записки путника', progress: () => [journal.notes, NOTES.length] },
   { id: 'week', name: 'Неделя в лесу', desc: 'Проходи уровень 7 дней подряд', progress: () => [currentStreak().days, 7] },
+  { id: 'neighbor', name: 'Добрый сосед', desc: 'Помоги жителю леса переехать к твоей норе', progress: () => [movedIn().length, 1] },
+  { id: 'yard', name: 'Полный двор', desc: 'Пусть у норы поселятся все жители леса', progress: () => [movedIn().length, RESIDENTS.length] },
   { id: 'home', name: 'Новоселье', desc: 'Поставь у норы первую вещь', progress: () => [den.owned.length, 1] },
   { id: 'burrow', name: 'Большая нора', desc: 'Дорасти нору до второй комнаты', progress: () => [den.tier, TIERS.length - 1] },
   { id: 'bloom', name: 'Поляна в цвету', desc: 'Вырасти на поляне у норы всё', progress: () => [daysPlayed(), DECOR.length] },

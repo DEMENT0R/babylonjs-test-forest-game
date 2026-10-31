@@ -6,6 +6,8 @@
 import { itemById, slotById, TIERS, type ItemId, type SlotId } from './catalog';
 import { den } from './state';
 import { DECOR } from './decor';
+import { residentById, type ResidentId } from '../residents/catalog';
+import { movedIn } from '../residents/state';
 
 export interface DenSnapshot {
   v: 1;
@@ -13,11 +15,13 @@ export interface DenSnapshot {
   slots: Partial<Record<SlotId, ItemId>>;
   /** Дней с пройденным уровнем — столько деталей на поляне. */
   days: number;
+  /** Жители, переехавшие к норе; в старых ссылках поля нет. */
+  residents?: ResidentId[];
 }
 
 /** Своя нора сейчас. */
 export function snapshot(days: number): DenSnapshot {
-  return { v: 1, tier: den.tier, slots: { ...den.slots }, days: Math.min(days, DECOR.length) };
+  return { v: 1, tier: den.tier, slots: { ...den.slots }, days: Math.min(days, DECOR.length), residents: movedIn().map((r) => r.id) };
 }
 
 /** Чужая нора из ссылки или с сервера; null — формат не наш или версия новее. */
@@ -37,7 +41,10 @@ export function parseSnapshot(raw: unknown): DenSnapshot | null {
     }
   }
   const days = Math.max(0, Math.min(DECOR.length, Math.floor(Number(r.days) || 0)));
-  return { v: 1, tier, slots, days };
+  const residents = Array.isArray(r.residents)
+    ? [...new Set(r.residents.flatMap((id) => (typeof id === 'string' && residentById(id) ? [residentById(id)!.id] : [])))]
+    : [];
+  return { v: 1, tier, slots, days, residents };
 }
 
 /** Короткий код для ссылки: JSON в base64url. В снимке только латиница и цифры. */

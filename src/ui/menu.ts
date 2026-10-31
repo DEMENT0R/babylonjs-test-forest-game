@@ -8,13 +8,16 @@ import { CHANGELOG, GAME_VERSION, hasUnseenChanges, markChangesSeen, versionOf }
 import { BIOMES } from '../levels/biomes';
 import { currentStreak, dailyBest, formatTime, progress as saved, todayKey, totalStars } from '../levels/progress';
 import { recipeFor } from '../levels/recipes';
+import { CAMPAIGN_LENGTH, FAR_FOREST, REGION_LEVELS, REGIONS, regionOf } from '../levels/regions';
 import { byId, plural } from '../utils';
-import { growGarden, welcomeNote } from '../journal';
+import { ATLAS_KINDS, growGarden, journal, welcomeNote } from '../journal';
 import { crystals } from '../den/state';
 import { copyText, dailyShareText, gameUrl } from '../share';
 import { qrSvg } from '../qr';
 import { isOpen, nextUnlock, seenButton, syncLocks } from '../unlocks';
 import { JOURNAL_TABS } from './journal-panel';
+import { RESIDENTS } from '../residents/catalog';
+import { stateOf } from '../residents/state';
 import { seenStars, skyHtml } from './sky-panel';
 
 const CREDITS = `
@@ -22,31 +25,40 @@ const CREDITS = `
     <p>Движок — Babylon.js ${Engine.Version}.</p>
     <p>Волк и олень — Quaternius, Ultimate Animated Animals (CC0).</p>
     <p>Лиса — PixelMannen (CC0), риг и анимация @tomkranis (CC BY 4.0), из Khronos glTF Sample Assets.</p>
+    <p>Жители леса — Poly by Google и Tipatat Chennavasin (белка), CC BY 3.0, через Poly Pizza.</p>
     <p>Звуки ветра, птиц и шагов синтезируются в браузере (Web Audio API).</p>
     <p>Шрифты — Unbounded и JetBrains Mono.</p>
     <p>QR-код — qrcode-generator, Kazuhiko Arase (MIT).</p>`;
 /** Начинается с описания игры из шапки меню — его там видит только тот, кто ещё не играл. */
 const howtoHtml = (): string => `
     <p>${byId('menu-sub').textContent}</p>
+    <h5>Шесть лесов</h5>
+    <p>Путь лежит через шесть лесов — Опушку, Осеннюю рощу, Зимний перевал, Каменное плато, Ночной лес и Озёрный край, — по шесть уровней в каждом. За ними начинается бесконечный Дальний лес.</p>
     <h5>Звёзды</h5>
     <p>За уровень — две звезды: за все кристаллы и за задание. Звёзды открывают новых героев и окрасы и зажигают созвездия на «Небе».</p>
     <h5>Запал</h5>
     <p>Бегать и прыгать можно сколько угодно. Запал нужен для особых движений: рывка (E, B на геймпаде или кнопка «Рывок») и высокого прыжка — для него прыжок надо держать. Запал восстанавливается сам, а каждый кристалл добавляет ещё. Полоска внизу экрана показывает, сколько его осталось. В норе, в «Силе», запал можно усилить: больше запаса, быстрее восстановление, двойной прыжок и планирование. В Лесу дня у всех одинаковый базовый запал.</p>
     <h5>Урожай и котелок</h5>
     <p>У норы растут шиповник, черника и мёд — сами, пока тебя нет. Из урожая и находок в «Котелке» варятся усилители на один уровень: отвар для запала, медовые соты для ветра в спину, светлячок, который показывает на кристаллы, и совиное перо для планирования. Сваренный усилитель берётся с собой и тратится в начале следующего уровня, кроме Леса дня.</p>
+    <h5>Жители леса</h5>
+    <p>Когда у тебя появится нора, в лесу с тобой захотят познакомиться его жители. Подойди — житель расскажет, о чём просит: принести материалы или урожай, найти потерянную вещь, выполнить задание уровня в его лесу, собрать серию или раскрыть тайник. Когда просьба выполнена, загляни к нему и расскажи. Что нужно сделать, видно под заданием уровня и в «Дневнике», во вкладке «Жители». Сразу просьб бывает не больше двух. Жителя встречают на полянах его леса. Выполнишь все просьбы — житель переедет к твоей норе: он будет помогать по хозяйству, а если кликнуть по нему, скажет что-нибудь новое, каждый день своё. Друзья в гостях тоже его увидят.</p>
+    <h5>Тайники</h5>
+    <p>На уровнях спрятаны тайники с находками для норы. Если в кроне дерева блестят золотые искры, толкни его с разбега или приземлись рядом — находка упадёт. Тайник под камнем видно, только когда подойдёшь близко. В грибном круге надо немного постоять. Гнездо на высоком уступе достаётся высоким прыжком, а на дальних уровнях — только двойным. На озёрах на мелководье поблёскивает жемчужина: зайди за ней в воду. Сколько тайников найдено на уровне, видно на экране итога. Первый тайник каждого вида в каждом лесу записывается в атлас тайн в «Дневнике», а за записи в атласе для норы открываются вещи, которых больше нигде не достать.</p>
+    <h5>Редкие события</h5>
+    <p>Изредка в лесу случается особенное. Если над лесом радуга, найди поляну под ней — подует ветер в спину. Ночью бывает звездопад: встань под ним и получишь редкий кристалл. А если белка утащила кристалл, догони её, рывок в этом поможет.</p>
     <h5>Лес дня</h5>
     <p>Одна раскладка на день, у всех одинаковая. Лучшее время за день видно в меню, результатом можно поделиться.</p>
     <h5>Нора</h5>
     <p>Свой двор под большой сосной. Собранные кристаллы — это и счёт норы: за них во дворе появляются вещи. Нору можно улучшать: у неё появятся дверца, окошко, вторая комната, а во дворе — новые места. Для части вещей и улучшений нужны материалы: на каждом уровне лежат находки его биома — шишки, жёлуди, камни, сосульки, перья, ракушки. Ещё их дают за серию: если брать кристаллы быстро, один за другим, на ×3, ×5 и ×10 прибавятся находки, а с ×5 дует ветер в спину: пока серия не оборвётся, бежишь быстрее и прыгаешь выше. Вещи можно менять и убирать — купленное не пропадает. Кнопка «Позвать в гости» копирует ссылку, по которой друг увидит твою нору. Пока тебя нет, в саду у норы растут редкие кристаллы, а за каждый день с пройденным уровнем поляна вокруг обрастает цветами и грибами.</p>
     <h5>Дневник</h5>
-    <p>Достижения, редкие кристаллы, записки путника и поляна у норы, которая растёт день за днём.</p>
+    <p>Достижения, редкие кристаллы, записки путника, атлас тайн и поляна у норы, которая растёт день за днём.</p>
     <p>Клавиши и геймпад — в настройках, во вкладке «Управление».</p>`;
 /** Вкладка панели: разметка строится заново при каждом показе. */
 export interface InfoTab { id: string; name: string; html: () => string }
 
 type InfoKey = 'levels' | 'sky' | 'journal' | 'about' | 'share';
 
-const TITLES: Record<InfoKey, string> = { levels: 'Уровни', sky: 'Звёздное небо', journal: 'Дневник', about: 'Об игре', share: 'Поделиться игрой' };
+const TITLES: Record<InfoKey, string> = { levels: 'Карта', sky: 'Звёздное небо', journal: 'Дневник', about: 'Об игре', share: 'Поделиться игрой' };
 /** Пункт меню, который открывает панель, — на него возвращается фокус при закрытии. */
 const OPENERS: Record<InfoKey, string> = { levels: 'm-levels', sky: 'm-sky', journal: 'm-journal', about: 'm-about', share: 'm-share' };
 
@@ -93,7 +105,8 @@ export interface MenuActions {
 /** Прогресс текущей игры; null — игра ещё не начата. */
 export interface MenuProgress { heroName: string; place: string; got: number; total: number }
 
-const levelName = (i: number) => BIOMES[recipeFor(i).biome].name;
+/** Регион уровня, а после кампании — Дальний лес и его биом. */
+const levelName = (i: number) => regionOf(i)?.region.name ?? `${FAR_FOREST} · ${BIOMES[recipeFor(i).biome].name.toLowerCase()}`;
 const starHtml = (got: boolean, what: string) =>
   `<span class="star${got ? '' : ' off'}" title="${what}${got ? '' : ' — нет'}">★</span>`;
 
@@ -301,7 +314,9 @@ export class MainMenu {
     switch (key) {
       case 'levels': return this.levelsHtml();
       case 'sky': return skyHtml(totalStars());
-      case 'journal': return JOURNAL_TABS;
+      // «Тайны» — с первого раскрытого тайника, «Жители» — с первого знакомства
+      case 'journal':
+        return JOURNAL_TABS.filter((t) => (t.id !== 'secrets' || journal.stats.secrets > 0) && (t.id !== 'residents' || RESIDENTS.some((r) => stateOf(r).met)));
       case 'share': return shareHtml();
       case 'about':
         return [
@@ -364,18 +379,50 @@ export class MainMenu {
     return getComputedStyle(this.root.querySelector('.menu-col')!).display === 'none';
   }
 
-  /** Открытые уровни: биом, звёзды за кристаллы и задание, лучшее время. */
+  /**
+   * Карта: регионы по порядку вдоль тропы, в каждом — шесть уровней (последний особый),
+   * звёзды, тайники атласа и житель этого леса. Ещё не открытые регионы — в тумане.
+   * После кампании — список уровней Дальнего леса.
+   */
   private levelsHtml(): string {
-    const rows: string[] = [];
-    for (let i = 1; i <= saved.unlocked; i++) {
+    const cards = REGIONS.map((region, k) => {
+      const first = k * REGION_LEVELS + 1;
+      const color = BIOMES[region.biome].ground;
+      const style = `--c:rgb(${color.r * 255} ${color.g * 255} ${color.b * 255})`;
+      if (first > saved.unlocked) {
+        return `<section class="map-region fog" style="${style}"><h5>${region.name}</h5><p>В тумане — откроется после ${first - 1}-го уровня</p></section>`;
+      }
+      let stars = 0;
+      const dots: string[] = [];
+      for (let n = 0; n < REGION_LEVELS; n++) {
+        const i = first + n;
+        const r = saved.records[i];
+        stars += (r?.star ? 1 : 0) + (r?.quest ? 1 : 0);
+        const special = n === REGION_LEVELS - 1;
+        const label = `Уровень ${i}${special ? ', особый' : ''}${r ? `: ${r.star ? '★' : '☆'}${r.quest ? '★' : '☆'}${r.time !== undefined ? ` · ${formatTime(r.time)}` : ''}` : i <= saved.unlocked ? ': не пройден' : ': ещё закрыт'}`;
+        dots.push(
+          i <= saved.unlocked
+            ? `<button type="button" class="map-dot${special ? ' special' : ''}${r ? ' done' : ''}" data-level="${i}" aria-current="${i === saved.current}" title="${label}" aria-label="${label}"><b>${i}</b><i>${r ? `${starHtml(r.star, 'все кристаллы')}${starHtml(r.quest ?? false, 'задание')}` : ''}</i></button>`
+            : `<span class="map-dot locked${special ? ' special' : ''}" title="${label}"><b>${i}</b></span>`,
+        );
+      }
+      const atlas = journal.atlas[region.biome]?.length ?? 0;
+      const who = RESIDENTS.find((r) => r.biome === region.biome);
+      const st = who && stateOf(who);
+      const resident = !who || !st?.met ? '' : ` · ${who.icon} ${st.step >= who.steps.length ? 'у норы' : `просьб ${st.step}/${who.steps.length}`}`;
+      return `<section class="map-region" style="${style}"><h5>${region.name}</h5>
+        <p>★ ${stars}/${REGION_LEVELS * 2} · тайны ${atlas}/${ATLAS_KINDS[region.biome].length}${resident}</p>
+        <div class="map-dots">${dots.join('')}</div></section>`;
+    });
+    const far: string[] = [];
+    for (let i = CAMPAIGN_LENGTH + 1; i <= saved.unlocked; i++) {
       const r = saved.records[i];
-      const stars = r ? `${starHtml(r.star, 'все кристаллы')}${starHtml(r.quest ?? false, 'задание')} ` : '';
-      const meta = r ? `${stars}${formatTime(r.time)}` : 'не пройден';
-      rows.push(
-        `<button type="button" data-level="${i}" aria-current="${i === saved.current}"><b>${i}</b>${levelName(i)}<span>${meta}</span></button>`,
-      );
+      const meta = r ? `${starHtml(r.star, 'все кристаллы')}${starHtml(r.quest ?? false, 'задание')} ${r.time !== undefined ? formatTime(r.time) : ''}` : 'не пройден';
+      far.push(`<button type="button" data-level="${i}" aria-current="${i === saved.current}"><b>${i}</b>${levelName(i)}<span>${meta}</span></button>`);
     }
-    return `<p>Две звезды за уровень: за все кристаллы и за задание.</p><div class="level-list">${rows.join('')}</div>`;
+    return `<p>Две звезды за уровень: за все кристаллы и за задание. Шестой уровень каждого леса — особый.</p>
+      <div class="map">${cards.join('')}</div>
+      ${far.length ? `<h5>${FAR_FOREST}</h5><div class="level-list">${far.join('')}</div>` : ''}`;
   }
 
   /**
@@ -394,9 +441,9 @@ export class MainMenu {
       this.switchTab(e.code === 'KeyQ' || e.code === 'ArrowLeft' ? -1 : 1);
       return true;
     }
-    // Влево-вправо — только по соседним плиткам или ссылкам в одном ряду
+    // Влево-вправо — по соседним плиткам или ссылкам в одном ряду и по уровням на карте
     if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
-      const row = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>('.menu-tiles, .menu-foot');
+      const row = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>('.menu-tiles, .menu-foot, .map');
       if (!row) return false;
       e.preventDefault();
       const items = [...row.querySelectorAll<HTMLElement>('button')].filter((b) => b.getClientRects().length > 0);

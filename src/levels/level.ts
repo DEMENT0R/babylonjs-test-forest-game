@@ -26,7 +26,11 @@ import { BORDER, PATH_R, type LevelLayout } from './generator';
 
 export interface Crystal { mesh: Mesh; baseY: number; phase: number }
 /** Материал для норы на уровне. */
-export interface Pickup extends Crystal { id: MaterialId }
+/** Материал для норы; drop — ещё летит из тайника на место x, z (t — доля пути, arc — высота подскока). */
+export interface Pickup extends Crystal { id: MaterialId; drop?: { t: number; from: Vector3; x: number; z: number; arc: number } }
+
+/** Сколько летит находка из тайника, с. */
+const DROP_TIME = 0.75;
 
 const PORTAL_Y = 1.6;
 
@@ -200,8 +204,11 @@ export class Level {
     (this.note.material as StandardMaterial).emissiveColor.set(0.15 * k, 0.35 * k, 0.6 * k);
   }
 
-  /** Положить материал для норы: висит над землёй, как кристалл, только ниже. */
-  addPickup(x: number, z: number, id: MaterialId): void {
+  /**
+   * Положить материал для норы: висит над землёй, как кристалл, только ниже.
+   * from — вылетает из тайника и падает на место; arc — подскок над прямой, м (0 — просто падает).
+   */
+  addPickup(x: number, z: number, id: MaterialId, from?: Vector3, arc = 0): void {
     const mats: StandardMaterial[] = [];
     const m = this.track(materialMesh(this.scene, id, mats));
     this.materials.push(...mats);
@@ -210,7 +217,8 @@ export class Level {
     const y = this.layout.terrain.heightAt(x, z) + 0.9;
     m.position.set(x, y, z);
     addShadowCaster(this.lighting, m);
-    this.pickups.push({ mesh: m, baseY: y, phase: this.pickups.length * 1.7, id });
+    this.pickups.push({ mesh: m, baseY: y, phase: this.pickups.length * 1.7, id, drop: from && { t: 0, from: from.clone(), x, z, arc } });
+    if (from) m.position.copyFrom(from);
   }
 
   /** Сделать кристалл редким: свой цвет и чуть крупнее. */
@@ -332,6 +340,17 @@ export class Level {
     }
     for (const p of this.pickups) {
       if (!p.mesh.isEnabled()) continue;
+      if (p.drop) {
+        const d = p.drop;
+        d.t = Math.min(1, d.t + dt / DROP_TIME);
+        const k = d.t, pos = p.mesh.position;
+        pos.x = d.from.x + (d.x - d.from.x) * k;
+        pos.z = d.from.z + (d.z - d.from.z) * k;
+        pos.y = d.from.y + (p.baseY - d.from.y) * k * k + d.arc * 4 * k * (1 - k);
+        p.mesh.rotation.y += dt * 6;
+        if (k >= 1) p.drop = undefined;
+        continue;
+      }
       p.phase += dt;
       p.mesh.rotation.y += dt * 0.9;
       p.mesh.position.y = p.baseY + Math.sin(p.phase * 1.6) * 0.1;
