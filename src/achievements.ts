@@ -5,7 +5,7 @@ import { skyFor } from './constellations';
 import { TIERS } from './den/catalog';
 import { den } from './den/state';
 import { HEROES } from './heroes';
-import { ATLAS_TOTAL, atlasCount, journal, NOTES, save, SHADES } from './journal';
+import { ATLAS_TOTAL, atlasCount, journal, NOTE_TOTAL, save, SHADES } from './journal';
 import { DECOR } from './den/decor';
 import { currentStreak, daysPlayed, progress, totalStars } from './levels/progress';
 import { CAMPAIGN_LENGTH } from './levels/recipes';
@@ -50,7 +50,7 @@ export const ACHIEVEMENTS: readonly Achievement[] = [
   { id: 'secret', name: 'Первая тайна', desc: 'Раскрой тайник', progress: () => [s().secrets, 1] },
   { id: 'atlas', name: 'Полатласа', desc: 'Заполни половину атласа тайн', progress: () => [atlasCount(), Math.ceil(ATLAS_TOTAL / 2)] },
   { id: 'atlasAll', name: 'Знаток тайн', desc: 'Заполни атлас тайн целиком', progress: () => [atlasCount(), ATLAS_TOTAL] },
-  { id: 'notes', name: 'Летописец', desc: 'Прочти все записки путника', progress: () => [journal.notes, NOTES.length] },
+  { id: 'notes', name: 'Летописец', desc: 'Прочти все записки путника', progress: () => [journal.notesRead.length, NOTE_TOTAL] },
   { id: 'week', name: 'Неделя в лесу', desc: 'Проходи уровень 7 дней подряд', progress: () => [currentStreak().days, 7] },
   { id: 'neighbor', name: 'Добрый сосед', desc: 'Помоги жителю леса переехать к твоей норе', progress: () => [movedIn().length, 1] },
   { id: 'yard', name: 'Полный двор', desc: 'Пусть у норы поселятся все жители леса', progress: () => [movedIn().length, RESIDENTS.length] },

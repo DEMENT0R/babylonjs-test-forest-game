@@ -13,14 +13,17 @@ import { BTN, gamepad } from './gamepad';
 import { applyCoat, coatFor, COATS, HEROES, loadHero, openCoats, type HeroDef } from './heroes';
 import {
   addAtlas,
-  addNote,
   addShade,
   ATLAS_TOTAL,
   atlasCount,
+  campNote,
+  isNoteRead,
   journal,
+  nextNote,
   NOTE_CHANCE,
-  NOTES,
+  NOTE_TOTAL,
   RARE_CHANCE,
+  readNote,
   save as saveJournal,
   SHADES,
   takeWelcome,
@@ -41,7 +44,8 @@ import { LostItemSpot, progressRequests, requestLine, ResidentVisit, type Reques
 import { EVENT_CHANCE, EVENT_INTRO, eventFor, LevelEvent, type EventKind } from './levels/events';
 import type { SecretKind, SecretSpot } from './levels/generator';
 import { BIOMES } from './levels/biomes';
-import { FAR_FOREST, REGION_LEVELS, regionOf } from './levels/regions';
+import { FAR_FOREST, REGION_LEVELS, REGIONS, regionOf } from './levels/regions';
+import { TravelerCamp } from './levels/camp';
 import { fitQuest, QuestRun } from './levels/quests';
 import { dailyRecipe, recipeFor } from './levels/recipes';
 import { clearInput, keys, Player, setupTouchControls, setWalkLock, walkLocked } from './player';
@@ -161,6 +165,11 @@ let hintSecret = false;
 /** О подсказке зайца ещё не сказали на этом уровне. */
 let hintIntro = false;
 const HINT_TIME = 10;
+/** Какая записка с полян лежит на этом уровне; null — никакой. */
+let levelNote: number | null = null;
+/** Стоянка путника на особом уровне региона и номер этого региона. */
+let camp: TravelerCamp | null = null;
+let campRegion = 0;
 /** Записей в атласе тайн на начало уровня — чтобы сказать, какие вещи для норы открылись. */
 let atlasBefore = 0;
 /** О каких тайниках уже подсказали на этом уровне. */
@@ -311,9 +320,15 @@ function beginLevel(index: number, dailyDate: string | null = null, keepBoost = 
   quest = new QuestRun(fitQuest(recipe.quest, layout), layout);
   rare = Math.random() < RARE_CHANCE ? Math.floor(Math.random() * world.crystals.length) : -1;
   if (rare >= 0) world.markRare(rare, new Color3(...SHADES[layout.biome.id].color));
-  // После долгого перерыва записка ждёт у старта; иначе изредка лежит на боковой поляне
-  const spot = welcomeNote ? welcomeSpot() : journal.notes < NOTES.length && Math.random() < NOTE_CHANCE ? noteSpot() : null;
+  // Записка из этого леса (в Дальнем лесу и Лесе дня — любая непрочитанная): после долгого
+  // перерыва она ждёт у старта, иначе изредка лежит на боковой поляне
+  const place = daily ? null : regionOf(index);
+  const regionIdx = place ? REGIONS.indexOf(place.region) : null;
+  levelNote = nextNote(regionIdx);
+  const spot = levelNote === null ? null : welcomeNote ? welcomeSpot() : Math.random() < NOTE_CHANCE ? noteSpot() : null;
   if (spot) world.placeNote(spot.x, spot.z);
+  else levelNote = null;
+  placeCamp(place?.special && regionIdx !== null ? regionIdx : null);
   placePickups();
   placeResidents();
   secrets?.dispose();
@@ -505,6 +520,25 @@ function residentNews(ev: RequestEvent): void {
   for (const def of progressRequests(ev)) {
     audio.chime(true, 2);
     say(`${def.icon} Просьба выполнена — загляни к ${def.dative} · ${BIOMES[def.biome].name}`, 3000);
+  }
+}
+
+/** Стоянка путника — на особом уровне региона k, на самой дальней от старта боковой поляне. */
+function placeCamp(k: number | null): void {
+  camp?.dispose();
+  camp = null;
+  if (k === null) return;
+  const far = layout.clearings.slice(1).sort((a, b) => Math.hypot(b.x - layout.spawn.x, b.z - layout.spawn.z) - Math.hypot(a.x - layout.spawn.x, a.z - layout.spawn.z));
+  for (const c of far) {
+    for (let t = 0; t < 20; t++) {
+      const a = Math.random() * Math.PI * 2, r = Math.random() * c.r * 0.4;
+      const x = c.x + Math.cos(a) * r, z = c.z + Math.sin(a) * r;
+      // Стоянке нужно место побольше: камни, подстилка и котомка вокруг кострища
+      if (![[0, 0], [1.6, 0], [-1.6, 0], [0, 1.6], [0, -1.6]].every(([dx, dz]) => freeSpot(x + dx, z + dz))) continue;
+      campRegion = k;
+      camp = new TravelerCamp(world.scene, world.lighting, new Vector3(x, world.terrainAt(x, z), z), !isNoteRead(campNote(k)));
+      return;
+    }
   }
 }
 
@@ -733,9 +767,12 @@ function finishLevel(): void {
     { eyebrow, title: `Уровень ${next}`, sub: '', note: notes.join('\n') },
     () => {
       beginLevel(next);
+      // Первый уровень нового леса — заставка с его именем и словами путника
+      const entered = !daily && regionOf(next)?.n === 0 ? regionOf(next)!.region : null;
+      const info = `Кристаллов: ${layout.crystals.length}, портал откроется после ${layout.required}. ${quest.quest.intro}: ${quest.goal.toLowerCase()}`;
       setTransitionText({
-        title: levelLabel(next, layout),
-        sub: `Кристаллов: ${layout.crystals.length}, портал откроется после ${layout.required}. ${quest.quest.intro}: ${quest.goal.toLowerCase()}`,
+        title: entered ? entered.name : levelLabel(next, layout),
+        sub: entered ? `«${entered.intro}» — путник\n${levelLabel(next, layout)}. ${info}` : info,
       });
     },
   ).then(() => {
@@ -1102,7 +1139,12 @@ world.scene.onBeforeRenderObservable.add(() => {
     audio.chime(false);
     const where = welcomeNote ? 'Записка ждала тебя у круга' : 'Записка путника';
     takeWelcome();
-    say(`${where}, ${journal.notes + 1} из ${NOTES.length}: «${addNote()}»`, 6000);
+    if (levelNote !== null) say(`${where}, ${journal.notesRead.length + 1} из ${NOTE_TOTAL}: «${readNote(levelNote)}»`, 6000);
+  }
+  if (active && camp?.update(dt, player.pos)) {
+    audio.chime(true, 1);
+    const id = campNote(campRegion);
+    say(isNoteRead(id) ? 'Стоянка путника — угли ещё тёплые' : `Стоянка путника. ${journal.notesRead.length + 1} из ${NOTE_TOTAL}: «${readNote(id)}»`, isNoteRead(id) ? 2500 : 11000);
   }
   // Потерянная вещь лежит у кристалла на вершине — весть о ней после надписи о кристалле
   if (active && lostItem?.update(dt, player.center)) {
@@ -1149,4 +1191,4 @@ if (denLink) {
 }
 
 // Для отладки из консоли браузера; в production-сборку не попадает
-if (import.meta.env.DEV) Object.assign(window, { __game: { world, player, rig, select, den, beginLevel, get layout() { return layout; }, get quest() { return quest; }, get secrets() { return secrets; }, get visit() { return visit; }, get lostItem() { return lostItem; }, addMaterial, residentNews, get event() { return levelEvent; }, openSecret, forceEvent: (k: EventKind) => (forcedEvent = k) } });
+if (import.meta.env.DEV) Object.assign(window, { __game: { world, player, rig, select, den, beginLevel, get layout() { return layout; }, get quest() { return quest; }, get secrets() { return secrets; }, get visit() { return visit; }, get lostItem() { return lostItem; }, get camp() { return camp; }, addMaterial, residentNews, get event() { return levelEvent; }, openSecret, forceEvent: (k: EventKind) => (forcedEvent = k) } });

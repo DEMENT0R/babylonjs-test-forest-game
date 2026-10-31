@@ -36,7 +36,7 @@ const FEATURES: readonly FeatureDef[] = [
     id: 'journal',
     told: '«Дневник» — достижения и находки',
     button: 'm-journal',
-    open: () => journal.notes > 0 || journal.badges.length > 0 || Object.values(journal.shades).some(Boolean),
+    open: () => journal.notesRead.length > 0 || journal.badges.length > 0 || Object.values(journal.shades).some(Boolean),
   },
   // Кто уже обживал нору или играл в Лес дня, тот их не теряет
   {

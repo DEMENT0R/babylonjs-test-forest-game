@@ -1,7 +1,8 @@
 // Панель «Дневник» в главном меню: что игрок нашёл в лесу, по вкладкам.
 
 import { ACHIEVEMENTS, isDone, progressText } from '../achievements';
-import { ATLAS_KINDS, ATLAS_TOTAL, atlasCount, journal, NOTES, SHADES } from '../journal';
+import { ATLAS_KINDS, ATLAS_TOTAL, atlasCount, campNote, isNoteRead, journal, NOTE_TOTAL, noteText, REGION_NOTES, SHADES } from '../journal';
+import { REGIONS } from '../levels/regions';
 import { BIOMES, type BiomeId } from '../levels/biomes';
 import { ITEMS } from '../den/catalog';
 import { RESIDENTS } from '../residents/catalog';
@@ -31,10 +32,17 @@ function shadesHtml(): string {
 }
 
 function notesHtml(): string {
-  const found = NOTES.slice(0, journal.notes).map((t, i) => `<li class="note"><b>${i + 1}.</b> ${t}</li>`);
-  const hint = journal.notes < NOTES.length ? `<p>Ещё ${NOTES.length - journal.notes} — ищи светящиеся камни на полянах.</p>` : '';
-  return `<h5>Записки путника · ${journal.notes} из ${NOTES.length}</h5>
-    ${found.length ? `<ul>${found.join('')}</ul>` : '<p>Кто-то прошёл этот лес раньше и оставил на полянах камни с записками.</p>'}${hint}`;
+  const read = journal.notesRead.length;
+  // По лесам: две записки с полян и та, что у стоянки в конце; непрочитанные — многоточием
+  const groups = REGIONS.map((r, k) => {
+    const ids = [...REGION_NOTES[k], campNote(k)];
+    if (!ids.some(isNoteRead)) return '';
+    const items = ids.map((id) => (isNoteRead(id) ? `<li class="note${id === campNote(k) ? ' camp' : ''}">${noteText(id)}</li>` : '<li class="note off">…</li>'));
+    return `<h6>${r.name}</h6><ul>${items.join('')}</ul>`;
+  });
+  const hint = read < NOTE_TOTAL ? '<p>Записки лежат на светящихся камнях на полянах, а в конце каждого леса — у стоянки путника.</p>' : '';
+  return `<h5>Записки путника · ${read} из ${NOTE_TOTAL}</h5>
+    ${read ? groups.join('') : '<p>Кто-то прошёл этот лес раньше и оставил на полянах камни с записками.</p>'}${hint}`;
 }
 
 function statsHtml(): string {

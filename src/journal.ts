@@ -34,6 +34,31 @@ export const NOTES: readonly string[] = [
   'Я оставляю эти камни тем, кто придёт после. Лес большой, но в нём никогда не бываешь один.',
 ];
 
+/**
+ * Записки у стоянок путника — по одной в конце каждого региона, на его особом уровне.
+ * Длинные: это сюжет. В общем счёте записок идут после NOTES.
+ */
+export const CAMP_NOTES: readonly string[] = [
+  'Здесь я ночевал впервые за много лет. Порталы гаснут — один за другим, как свечи на ветру. Я хранитель каменного круга, вернее, был им. Если круги погаснут совсем, лес распадётся на отдельные поляны, и между ними не останется дорог. Я иду их зажечь.',
+  'В роще я понял, что кто-то идёт за мной. Порталы, которые я зажигаю, кто-то проходит следом — и они горят ярче. Спасибо тебе, кто бы ты ни был.',
+  'Холодно. Пальцы не слушаются, поэтому коротко. Каждый кристалл — капля света, которую лес отдаёт сам. Мы не забираем его. Мы просто несём свет от поляны к поляне.',
+  'Камни на плато поют старую песню. В ней говорится, что хранитель не выбирает себя сам. Его выбирает лес — того, кто пройдёт весь путь до Старого круга.',
+  'Ночью я видел, как звёзды над лесом складываются в фигуры. Это не звёзды. Это все, кто шёл этой дорогой до нас. Однажды и мы станем такими звёздами.',
+  'Старый круг за озёрами. Чувствую, что дальше не пойду: ноги уже не те. Но ты дойдёшь. Последнюю записку я оставлю у круга. Не торопись — портал не любит спешки, но и не ждёт вечно.',
+];
+
+/** Все записки: сначала с полян (NOTES), потом у стоянок (CAMP_NOTES) — номер в этом общем списке. */
+export const NOTE_TOTAL = NOTES.length + CAMP_NOTES.length;
+export const noteText = (id: number): string => (id < NOTES.length ? NOTES[id] : CAMP_NOTES[id - NOTES.length]);
+/** Записка у стоянки региона k. */
+export const campNote = (k: number): number => NOTES.length + k;
+
+/**
+ * Записки с полян по регионам: по две на каждый лес, номера в NOTES.
+ * Порядок внутри NOTES прежний — по нему переводятся старые сохранения.
+ */
+export const REGION_NOTES: readonly (readonly number[])[] = [[0, 1], [4, 3], [10, 6], [8, 9], [5, 2], [7, 11]];
+
 /** Вероятность, что на уровне лежит камень с запиской (пока не все найдены). */
 export const NOTE_CHANCE = 0.35;
 
@@ -60,8 +85,8 @@ export const GARDEN_GROW_MS = 3 * 3600_000;
 interface Journal {
   /** Сколько редких кристаллов найдено в каждом биоме. */
   shades: Partial<Record<BiomeId, number>>;
-  /** Сколько записок найдено — они идут по порядку. */
-  notes: number;
+  /** Прочитанные записки — номера в общем списке (noteText). */
+  notesRead: number[];
   stats: Stats;
   /** Сад: с какого момента растёт следующий кристалл (мс) и сколько уже выросло. */
   garden: { since: number; ready: number };
@@ -83,7 +108,10 @@ function load(): Journal {
     if (j && typeof j === 'object') {
       return {
         shades: j.shades ?? {},
-        notes: Math.min(NOTES.length, j.notes ?? 0),
+        // Раньше записки шли по порядку и хранился только их счёт
+        notesRead: Array.isArray(j.notesRead)
+          ? j.notesRead.filter((n) => Number.isInteger(n) && n >= 0 && n < NOTE_TOTAL)
+          : Array.from({ length: Math.min(NOTES.length, (j as { notes?: number }).notes ?? 0) }, (_, i) => i),
         stats: { ...emptyStats(), ...j.stats },
         garden: j.garden ?? { since: Date.now(), ready: 0 },
         seen: j.seen,
@@ -94,7 +122,7 @@ function load(): Journal {
   } catch {
     // Повреждённые данные — дневник начинается заново
   }
-  return { shades: {}, notes: 0, stats: emptyStats(), garden: { since: Date.now(), ready: 0 }, badges: [], atlas: {} };
+  return { shades: {}, notesRead: [], stats: emptyStats(), garden: { since: Date.now(), ready: 0 }, badges: [], atlas: {} };
 }
 
 export const journal: Journal = load();
@@ -106,7 +134,7 @@ export const WELCOME_AFTER_MS = 24 * 3600_000;
  * Игрока не было дольше суток, и записки ещё остались: следующая лежит у каменного
  * круга, пока её не прочтут. Считается один раз при загрузке, до первого сохранения.
  */
-export let welcomeNote = journal.seen !== undefined && Date.now() - journal.seen >= WELCOME_AFTER_MS && journal.notes < NOTES.length;
+export let welcomeNote = journal.seen !== undefined && Date.now() - journal.seen >= WELCOME_AFTER_MS && journal.notesRead.filter((n) => n < NOTES.length).length < NOTES.length;
 
 /** Записка у круга прочитана. */
 export function takeWelcome(): void {
@@ -159,12 +187,22 @@ export function gardenShade(): BiomeId {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-/** Записка найдена; возвращает её текст. */
-export function addNote(): string {
-  const text = NOTES[journal.notes];
-  journal.notes = Math.min(NOTES.length, journal.notes + 1);
+export const isNoteRead = (id: number): boolean => journal.notesRead.includes(id);
+
+/**
+ * Какую записку положить на поляну уровня: непрочитанную из двух записок этого региона;
+ * region null — Дальний лес или Лес дня — любую непрочитанную с полян. null — читать нечего.
+ */
+export function nextNote(region: number | null): number | null {
+  const pool = region === null ? NOTES.map((_, i) => i) : REGION_NOTES[region];
+  return pool.find((id) => !isNoteRead(id)) ?? null;
+}
+
+/** Записка прочитана; возвращает её текст. */
+export function readNote(id: number): string {
+  if (!isNoteRead(id)) journal.notesRead.push(id);
   save();
-  return text;
+  return noteText(id);
 }
 
 /** Клетки атласа тайн: какие тайники бывают в каждом биоме — жемчужина только там, где озёра. */

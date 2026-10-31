@@ -8,15 +8,17 @@ export interface Region {
   id: string;
   name: string;
   biome: BiomeId;
+  /** Слова путника на заставке, когда начинается этот лес. */
+  intro: string;
 }
 
 export const REGIONS: readonly Region[] = [
-  { id: 'edge', name: 'Опушка', biome: 'meadow' },
-  { id: 'grove', name: 'Осенняя роща', biome: 'autumn' },
-  { id: 'pass', name: 'Зимний перевал', biome: 'winter' },
-  { id: 'plateau', name: 'Каменное плато', biome: 'rocky' },
-  { id: 'nightwood', name: 'Ночной лес', biome: 'night' },
-  { id: 'lakeland', name: 'Озёрный край', biome: 'lakes' },
+  { id: 'edge', name: 'Опушка', biome: 'meadow', intro: 'Здесь начинается лес. Иди на звон — кристаллы покажут дорогу.' },
+  { id: 'grove', name: 'Осенняя роща', biome: 'autumn', intro: 'Листья в роще шуршат, как страницы. Я прочёл бы их все, если бы умел.' },
+  { id: 'pass', name: 'Зимний перевал', biome: 'winter', intro: 'На перевале холодно, но порталы горят ярче. Не стой на месте.' },
+  { id: 'plateau', name: 'Каменное плато', biome: 'rocky', intro: 'Камни на плато помнят всех, кто шёл раньше. Прислушайся.' },
+  { id: 'nightwood', name: 'Ночной лес', biome: 'night', intro: 'Ночью лес честнее: видно только то, что светится само.' },
+  { id: 'lakeland', name: 'Озёрный край', biome: 'lakes', intro: 'За озёрами — Старый круг. Я почти дошёл. Догоняй.' },
 ];
 
 /** Уровней в регионе: пять обычных и последний — особый. */
